@@ -1,0 +1,14 @@
+{
+  "name": "Forms Fitness Academia Aquática",
+  "short_name": "Forms Fitness",
+  "description": "Academia aquática em Caruaru-PE: natação infantil e adulta, hidroginástica e preparação TAF. 33 anos formando nadadores.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4fafe",
+  "theme_color": "#0B4EA2",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "assets/img/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
