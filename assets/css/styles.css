@@ -85,14 +85,19 @@ p { margin: 0 0 1rem; }
 }
 .header__inner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 82px; }
 .brand { display: inline-flex; align-items: center; gap: .6rem; text-decoration: none; }
-.brand__mark { width: 46px; height: 46px; }
-.brand__text { display: flex; flex-direction: column; line-height: 1.05; }
-.brand__name {
-  font-family: var(--font-display); font-weight: 900; font-style: italic;
-  font-size: 1.18rem; letter-spacing: .01em; color: var(--blue);
-}
-.brand__name span { color: var(--cyan); }
-.brand__sub { font-family: var(--font-script); font-size: 1.02rem; color: var(--lime-d); letter-spacing: .02em; }
+
+/* LOGOTIPO OFICIAL — o arquivo do cliente, inteiro e sem reconstrução.
+
+   Antes a marca era montada em duas partes: um desenho do nadador que eu havia
+   recriado + o nome escrito em HTML com duas fontes. A posição do texto, o peso
+   da letra e o espaçamento eram aproximações minhas. O arquivo original traz o
+   conjunto completo num só desenho — nadador, "FORMS FITNESS" e "Academia
+   Aquática" — e é ele que entra aqui.
+
+   Altura fixa e largura em `auto`: o desenho tem proporção 891×458 e é ela que
+   manda. Travar a largura o achataria. */
+.brand__logo { height: 66px; width: auto; display: block; }
+@media (max-width: 640px) { .brand__logo { height: 48px; } }
 .nav { display: flex; align-items: center; gap: clamp(.8rem, 1.8vw, 1.4rem); }
 .nav a:not(.btn) {
   text-decoration: none; font-size: .93rem; font-weight: 700; color: var(--ink-soft);
@@ -372,7 +377,29 @@ p { margin: 0 0 1rem; }
 .post__title { font-family: var(--font-display); font-weight: 900; font-size: clamp(1.9rem, 4.2vw, 2.8rem); letter-spacing: -.01em; color: var(--blue-ink); margin-bottom: .8rem; }
 .post__excerpt { font-size: 1.08rem; color: var(--ink-soft); margin: 0 0 1.4rem; }
 .post__cover { margin: 0 0 1.8rem; }
-.post__cover img { width: 100%; aspect-ratio: 16 / 8.5; object-fit: cover; border-radius: var(--radius); box-shadow: var(--shadow-soft); }
+/* A capa aparece NA PROPORÇÃO em que a foto foi feita.
+
+   Antes havia `aspect-ratio: 16/8.5` com `object-fit: cover`: toda capa era
+   forçada a um retângulo deitado e o resto era CORTADO. Foto em pé — que é o
+   que sai de um celular — perdia o topo e a base.
+
+   `width`/`height` em `auto` com os dois limites preserva a proporção: a
+   imagem entra no tamanho natural e só encolhe se passar da largura da coluna
+   OU da altura máxima; nenhum dos dois deforma. Sem o teto de altura, uma foto
+   3:4 empurraria o texto para fora da tela.
+
+   `margin-inline: auto` e não `text-align: center`: a regra global põe
+   `display: block` em toda imagem, e bloco não obedece a alinhamento de texto.
+
+   No card da lista o corte CONTINUA — ali as capas precisam do mesmo tamanho
+   para a grade não ficar irregular. */
+.post__cover img {
+  width: auto; height: auto;
+  max-width: 100%; max-height: 70vh;
+  margin-inline: auto; display: block;
+  border-radius: var(--radius); box-shadow: var(--shadow-soft);
+}
+@media (max-width: 640px) { .post__cover img { max-height: 60vh; } }
 .post__content { font-size: 1.04rem; color: var(--ink); }
 .post__content p { margin-bottom: 1.15rem; }
 .post__cta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin: 2rem 0 1.4rem; padding: 1.4rem 1.6rem; }
@@ -430,9 +457,11 @@ p { margin: 0 0 1rem; }
 .footer__wave { position: absolute; left: 0; right: 0; top: -1px; width: 100%; height: clamp(28px, 5vw, 70px); color: var(--bg); transform: rotate(180deg); display: block; }
 .section--soft + .footer .footer__wave, #contato + .footer .footer__wave { color: var(--bg); }
 .footer__grid { display: grid; grid-template-columns: 1.3fr .8fr .9fr; gap: clamp(1.8rem, 5vw, 3.5rem); padding: clamp(3.4rem, 8vh, 4.6rem) 0 2rem; }
-.brand--footer .brand__name { color: #fff; }
-.brand--footer .brand__name span { color: var(--cyan); }
-.brand--footer .brand__sub { color: var(--lime); }
+/* O rodapé tem fundo escuro e o logotipo foi desenhado para fundo claro.
+   Como o arquivo não pode ser alterado, quem se adapta é o fundo: uma pastilha
+   clara atrás dele. Pintar o desenho por cima (filtro, inversão) mudaria as
+   cores da marca, que é justamente o que não se faz com logotipo. */
+.brand--footer { background: #fff; padding: .55rem .8rem; border-radius: 14px; }
 .footer__tagline { margin: 1rem 0 0; font-size: .93rem; max-width: 30rem; color: rgba(255, 255, 255, .65); }
 .footer__heading {
   font-family: var(--font-display); font-size: .76rem; font-weight: 800; letter-spacing: .2em; text-transform: uppercase;

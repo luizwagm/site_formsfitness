@@ -1,6 +1,6 @@
 /* ==========================================================================
    server.js — Gerenciador do site Forms Fitness Academia Aquática
-   Node puro + SQLite nativo (node:sqlite) — zero dependências.
+   Node puro + SQLite pelo db.js (better-sqlite3, com node:sqlite de reserva).
    · Site:   http://localhost:5186/
    · Painel: http://localhost:5186/admin/   (senha inicial: forms-admin)
    "Publicar" regenera index.html (marcadores <!--#KEY-->), o blog
@@ -10,9 +10,13 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { DatabaseSync } = require("node:sqlite");
+const { abrirBanco, DRIVER_NOME, DRIVER_AVISO } = require("./db");
 
 const ROOT = __dirname;
+/* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
+   primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
+   sempre o que está REALMENTE rodando no servidor. */
+const APP_VERSION = "1.4.0";
 const PORT = 5186;
 const SITE = "https://formsfitness.com.br";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -20,7 +24,7 @@ fs.mkdirSync(path.join(ROOT, "data"), { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(path.join(ROOT, "blog"), { recursive: true });
 
-const db = new DatabaseSync(path.join(ROOT, "data", "site.db"));
+const db = abrirBanco(path.join(ROOT, "data", "site.db"));
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, text TEXT, sort INTEGER DEFAULT 0);
@@ -32,6 +36,90 @@ db.exec(`
 `);
 
 const sha = (s) => crypto.createHash("sha256").update(String(s)).digest("hex");
+
+/* ==========================================================================
+   SENHA DO PAINEL
+
+   Era SHA-256 puro. O problema não é o algoritmo ser fraco em si — é ser
+   RÁPIDO e SEM SAL: uma placa de vídeo testa bilhões por segundo, e como não
+   há sal, o hash de uma senha comum já está em tabela pronta na internet. Quem
+   pusesse a mão no data/site.db teria a senha em minutos.
+
+   O scrypt é deliberadamente lento e usa MEMÓRIA, o que anula o ganho da placa
+   de vídeo, e cada senha tem o seu sal — dois cadastros com a mesma senha
+   geram hashes diferentes.
+
+   MIGRAÇÃO SEM PEDIR NADA A NINGUÉM: o hash antigo continua sendo aceito UMA
+   vez; ao acertar a senha, ela é regravada em scrypt. Ninguém precisa
+   redefinir nada e o formato velho some no primeiro acesso.
+   ========================================================================== */
+const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
+function hashSenha(senha) {
+  const salt = crypto.randomBytes(16);
+  const dk = crypto.scryptSync(String(senha), salt, SCRYPT.keylen, SCRYPT);
+  /* O "$" separa os campos — é ele que permite reler os parâmetros na hora de
+     conferir, e é por "scrypt$" que se reconhece o formato novo. */
+  return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${salt.toString("hex")}$${dk.toString("hex")}`;
+}
+const iguais = (a, b) => a.length === b.length && crypto.timingSafeEqual(a, b);
+function confereSenha(senha, guardado) {
+  if (!guardado) return false;
+  if (!guardado.startsWith("scrypt$")) return sha(senha) === guardado;   // formato antigo
+  const [, N, r, p, saltHex, dkHex] = guardado.split("$");
+  const dk = crypto.scryptSync(String(senha), Buffer.from(saltHex, "hex"), dkHex.length / 2, { N: +N, r: +r, p: +p });
+  return iguais(Buffer.from(dkHex, "hex"), dk);
+}
+/* Hash descartável para gastar o MESMO tempo quando a senha está errada.
+   Sem isto, "senha errada" responde em 1ms e "senha certa" em ~200ms — e essa
+   diferença, medida no relógio, entrega quando alguém acertou. */
+const HASH_ISCA = hashSenha(crypto.randomBytes(16).toString("hex"));
+
+/* ==========================================================================
+   TRAVA DE FORÇA BRUTA
+
+   Sem ela, o painel aceita quantas tentativas o atacante quiser: 100 mil por
+   minuto quebram qualquer senha curta. Cinco erros fecham o IP por 15 minutos,
+   e o bloqueio some sozinho — não precisa de ninguém para destravar.
+   ========================================================================== */
+const TENT_MAX = 5, BLOQ_MIN = 15;
+const tentativas = new Map();
+/* O IP REAL de quem está pedindo.
+
+   Atrás do nginx o socket é sempre 127.0.0.1, então o IP verdadeiro precisa
+   chegar por cabeçalho. Só que cabeçalho é texto que o CLIENTE também
+   escreve. O nginx monta `X-Forwarded-For: <o que o cliente mandou>, <IP
+   real>` — ele ACRESCENTA no fim, não substitui. Ler o PRIMEIRO item da lista,
+   como estava aqui, é ler exatamente o que o visitante digitou.
+
+   Na prática isso anulava a trava de força bruta: bastava mandar um
+   X-Forwarded-For diferente a cada tentativa para nenhuma "contar" duas vezes
+   no mesmo IP, e a senha podia ser tentada infinitas vezes.
+
+   Duas correções: o cabeçalho só é aceito quando a conexão de fato veio do
+   nginx local, e usamos o X-Real-IP — que o nginx SOBRESCREVE — ou, na falta
+   dele, o ÚLTIMO item da lista, o único que o nginx escreveu. */
+const DO_PROXY = /^(?:::1|127\.0\.0\.1|::ffff:127\.0\.0\.1)$/;
+function ipDoCliente(req) {
+  const direto = String(req.socket.remoteAddress || "");
+  if (!DO_PROXY.test(direto)) return direto;                      // conexão direta: só o socket vale
+  const real = String(req.headers["x-real-ip"] || "").trim();
+  if (real) return real;
+  const lista = String(req.headers["x-forwarded-for"] || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return lista.length ? lista[lista.length - 1] : direto;
+}
+function bloqueado(ip) {
+  const t = tentativas.get(ip);
+  if (!t) return false;
+  if (Date.now() > t.ate) { tentativas.delete(ip); return false; }
+  return t.n >= TENT_MAX;
+}
+function erroDeLogin(ip) {
+  const t = tentativas.get(ip) || { n: 0, ate: 0 };
+  t.n++; t.ate = Date.now() + BLOQ_MIN * 60_000;
+  tentativas.set(ip, t);
+}
+setInterval(() => { const agora = Date.now(); for (const [k, v] of tentativas) if (agora > v.ate) tentativas.delete(k); },
+  10 * 60_000).unref();
 const getS = (k) => db.prepare("SELECT value FROM settings WHERE key=?").get(k)?.value;
 const setS = (k, v) => db.prepare("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(k, String(v));
 const slug = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -40,7 +128,7 @@ const slug = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
 function seed() {
   if (getS("hero_title")) return;
   const S = {
-    admin_password_hash: sha("forms-admin"),
+    admin_password_hash: hashSenha("forms-admin"),
     hero_badge: "🏊 33 anos formando nadadores em Caruaru-PE",
     hero_title: "Mergulhe na academia aquática que é <em>referência</em> há 33 anos.",
     hero_lead: "Natação para todas as idades, hidroginástica e a preparação TAF que mais aprova na região. Estrutura completa, professores experientes e água na temperatura certa para você evoluir.",
@@ -112,11 +200,201 @@ seed();
 if (!getS("cnpj")) setS("cnpj", "00.000.000/0001-00");
 
 /* ------------------------------ Sessões ---------------------------------- */
+/* A sessão guarda o INSTANTE do último uso, não só a existência do cookie.
+   Sem prazo, um cookie copiado de um computador emprestado abriria o painel
+   meses depois. Doze horas cobrem um dia de trabalho e o relógio reinicia a
+   cada acesso — quem está usando não é interrompido. */
+const SESSAO_HORAS = 12;
 const sessions = new Map();
-const authed = (req) => { const m = /(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie || ""); return m && sessions.has(m[1]); };
+const authed = (req) => {
+  const m = /(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie || "");
+  if (!m) return false;
+  const visto = sessions.get(m[1]);
+  if (!visto) return false;
+  if (Date.now() - visto > SESSAO_HORAS * 3600_000) { sessions.delete(m[1]); return false; }
+  sessions.set(m[1], Date.now());
+  return true;
+};
+setInterval(() => {
+  const limite = Date.now() - SESSAO_HORAS * 3600_000;
+  for (const [k, v] of sessions) if (v < limite) sessions.delete(k);
+}, 30 * 60_000).unref();
+
+/* ==========================================================================
+   CSP DO PAINEL
+
+   Segunda linha de defesa: mesmo que um texto vindo do banco escape do escape
+   do HTML, o navegador recusa script de outra origem, <object>/<embed> e a
+   página dentro de um iframe alheio. `unsafe-inline` é necessário porque o
+   painel usa <script> e style inline; `connect-src 'self'` impede que qualquer
+   coisa injetada mande dados para fora.
+
+   O SITE PÚBLICO segue sem CSP de propósito: ele usa estilo inline, imagens do
+   Unsplash e fontes do Google, e uma política mal calibrada quebraria a página.
+   Lá não há sessão nem dado sensível.
+   ========================================================================== */
+const CSP_PAINEL = "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; " +
+  "form-action 'self'; img-src 'self' data: https:; " +
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+  "font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'";
 
 /* ------------------------------ Publicar --------------------------------- */
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+
+/* ==========================================================================
+   TEXTO FORMATADO DO PAINEL
+
+   O painel ganhou um editor com negrito, listas e links, e o que ele grava é
+   HTML. Isso significa que o site passa a IMPRIMIR marcação vinda do banco —
+   e é aí que mora o risco: um texto colado de fora traria script, iframe e
+   estilo junto, e o site é público.
+
+   A regra é LISTA DE PERMITIDOS. Só o que está aqui passa; o resto vira texto.
+   Lista de proibidos sempre esquece alguma coisa, e a que esquecer é a que vai
+   ser usada.
+
+   `href` é o único atributo aceito, e só em <a>, com o esquema conferido:
+   `javascript:` num link é execução de código com a cara de um link comum.
+   ========================================================================== */
+/* Com o botão "</>" dá para escrever marcação à mão, e uma tag que não estivesse
+   nesta lista sumiria calada — a pessoa salvaria a tabela e ela simplesmente não
+   apareceria no site. Por isso a lista cobre também o que se escreve à mão.
+   Todas as adições são INERTES: não executam nada e ficam sem atributo nenhum,
+   porque htmlLimpo só preserva o href do <a>. Continuam de fora img (sem src
+   sobra uma tag vazia — foto é pelo campo de imagem) e tudo que roda código. */
+const TAGS_SITE = new Set(["p", "br", "b", "strong", "i", "em", "u", "s", "ul", "ol", "li",
+  "h2", "h3", "h4", "blockquote", "a", "span", "div", "hr", "sub", "sup", "code", "pre",
+  "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption"]);
+const LINK_SEGURO = /^(https?:\/\/|mailto:|tel:|\/|#)/i;
+
+function htmlLimpo(valor) {
+  if (valor === null || valor === undefined) return valor;
+  let s = String(valor);
+  if (!s.includes("<")) return s;                     // texto puro: nada a fazer
+
+  /* Fora antes de tudo: o conteúdo destas some junto com a tag. Remover só a
+     tag deixaria o código do script solto como texto visível na página. */
+  s = s.replace(/<(script|style|iframe|object|embed|form|link|meta|base|svg|math)\b[\s\S]*?<\/\1\s*>/gi, "");
+  s = s.replace(/<(script|style|iframe|object|embed|form|link|meta|base|svg|math)\b[^>]*\/?>/gi, "");
+  s = s.replace(/<!--[\s\S]*?-->/g, "");
+
+  return s.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g, (tag, nome, attrs) => {
+    const n = nome.toLowerCase();
+    if (!TAGS_SITE.has(n)) return "";                 // descarta a tag, mantém o texto
+    if (tag.startsWith("</")) return `</${n}>`;
+    if (n === "br") return "<br>";
+    if (n === "a") {
+      const m = /\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(attrs || "");
+      const href = m ? (m[2] ?? m[3] ?? m[4] ?? "").trim() : "";
+      if (!href || !LINK_SEGURO.test(href)) return "<a>";
+      const externo = /^https?:\/\//i.test(href);
+      return `<a href="${esc(href)}"${externo ? ' target="_blank" rel="noopener"' : ""}>`;
+    }
+    return `<${n}>`;                                   // todo o resto sem atributo
+  });
+}
+
+/* Quais campos aceitam formatação. Fora daqui, o texto é gravado como veio.
+
+   Os RESUMOS (`posts.excerpt`, `services.text`) ficam de propósito de fora:
+   eles viram a descrição do Google e o JSON-LD, onde uma tag aparece crua no
+   resultado de busca. O endereço também — entra no JSON-LD da clínica. */
+const CAMPOS_RICOS = {
+  posts: ["content"],
+  services: ["text"],
+  testimonials: ["text"],
+  team: ["bio"],
+};
+function limparRicos(tabela, obj) {
+  for (const c of CAMPOS_RICOS[tabela] || []) if (c in obj) obj[c] = htmlLimpo(obj[c]);
+  return obj;
+}
+
+/* Um bloco de texto do painel, pronto para entrar na página.
+
+   Convive com os dois formatos porque o conteúdo antigo é TEXTO PURO com
+   parágrafos separados por linha em branco — e continua sendo, até alguém
+   reabrir aquele texto no editor. Sem esta ponte, todo o conteúdo já
+   publicado viraria um parágrafo só na primeira publicação depois desta
+   versão. */
+function blocoTexto(valor) {
+  const s = String(valor || "").trim();
+  if (!s) return "";
+  if (/<(p|br|ul|ol|li|h2|h3|h4|blockquote|div|strong|b|em|i|a)\b/i.test(s)) return htmlLimpo(s);
+  return s.split(/\n{2,}/).map((par) => `<p>${esc(par.trim()).replace(/\n/g, "<br>")}</p>`).join("\n        ");
+}
+
+/* ==========================================================================
+   TAMANHO REAL DA IMAGEM
+
+   O `width`/`height` do <img> não muda o tamanho na tela (quem manda é o CSS):
+   ele diz ao navegador a PROPORÇÃO, para reservar o espaço certo antes de a
+   imagem carregar. Sem isso a página dá um pulo quando ela chega — e o número
+   errado é pior que nenhum, porque reserva um retângulo deitado para uma foto
+   em pé.
+
+   A capa da matéria vinha com `width="900" height="500"` fixos no template. A
+   clínica sobe foto de WhatsApp, que quase sempre está EM PÉ: o navegador
+   reservava paisagem e o CSS recortava o resto.
+
+   Lê direto do cabeçalho do arquivo, sem biblioteca: são os primeiros bytes de
+   cada formato. Só vale para os nossos uploads — imagem de fora (Unsplash) é
+   uma URL, e buscá-la aqui deixaria a publicação dependendo da internet. Nesse
+   caso não declaramos nada, e o CSS acerta a proporção quando a imagem chega.
+   ========================================================================== */
+function medirImagem(url) {
+  const m = /^\/assets\/img\/uploads\/([A-Za-z0-9._-]+)$/.exec(String(url || ""));
+  if (!m) return null;
+  const arq = path.join(UPLOAD_DIR, m[1]);
+  let b;
+  try { b = fs.readFileSync(arq); } catch { return null; }
+
+  // PNG: largura e altura em big-endian logo depois do IHDR
+  if (b.length > 24 && b.toString("hex", 0, 8) === "89504e470d0a1a0a")
+    return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
+
+  // GIF: little-endian, no cabeçalho
+  if (b.length > 10 && (b.toString("ascii", 0, 6) === "GIF87a" || b.toString("ascii", 0, 6) === "GIF89a"))
+    return { w: b.readUInt16LE(6), h: b.readUInt16LE(8) };
+
+  // WEBP (VP8 simples, VP8L sem perdas e VP8X estendido guardam em lugares diferentes)
+  if (b.length > 30 && b.toString("ascii", 0, 4) === "RIFF" && b.toString("ascii", 8, 12) === "WEBP") {
+    const tipo = b.toString("ascii", 12, 16);
+    if (tipo === "VP8 ") return { w: b.readUInt16LE(26) & 0x3fff, h: b.readUInt16LE(28) & 0x3fff };
+    if (tipo === "VP8L") {
+      const n = b.readUInt32LE(21);
+      return { w: (n & 0x3fff) + 1, h: ((n >> 14) & 0x3fff) + 1 };
+    }
+    if (tipo === "VP8X") return { w: (b.readUIntLE(24, 3) & 0xffffff) + 1, h: (b.readUIntLE(27, 3) & 0xffffff) + 1 };
+  }
+
+  // JPEG: percorre os segmentos até achar o "start of frame", que carrega o tamanho
+  if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < b.length) {
+      if (b[i] !== 0xff) { i++; continue; }                 // ressincroniza em byte de preenchimento
+      const marca = b[i + 1];
+      if (marca === 0xd8 || marca === 0x01 || (marca >= 0xd0 && marca <= 0xd7)) { i += 2; continue; }
+      const tam = b.readUInt16BE(i + 2);
+      /* SOF0..SOF15, menos DHT (c4), JPG (c8) e DAC (cc), que não são frames.
+         É onde moram altura e largura — nesta ordem. */
+      if (marca >= 0xc0 && marca <= 0xcf && marca !== 0xc4 && marca !== 0xc8 && marca !== 0xcc)
+        return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) };
+      if (tam < 2) break;                                    // tamanho inválido: para em vez de girar
+      i += 2 + tam;
+    }
+  }
+  return null;
+}
+
+/* Os atributos prontos para entrar no <img>, ou vazio se não dá para saber. */
+function medidasDoImg(url) {
+  const d = medirImagem(url);
+  return d && d.w && d.h ? ` width="${d.w}" height="${d.h}"` : "";
+}
+
+
 const dateBR = (iso) => { const [y, m, d] = String(iso || "").split("-"); return d ? `${d}/${m}/${y}` : iso || ""; };
 const ICONS = [
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="16.5" cy="6.5" r="2.2"/><path d="m4 13 4.5-3.5L14 12l4-2.5"/><path d="M2 18c1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0"/></svg>',
@@ -170,7 +448,7 @@ function publish() {
             <figure class="pro__photo"><img src="${esc(m.photo)}" alt="${esc(m.name)} — ${esc(m.role)}" loading="lazy" width="300" height="340"></figure>
             <h3 class="pro__name">${esc(m.name)}</h3>
             <p class="pro__role">${esc(m.role)}</p>
-            <p class="pro__bio">${esc(m.bio)}</p>
+            <div class="pro__bio">${blocoTexto(m.bio)}</div>
           </article>`).join("\n          ");
 
   const depsHtml = deps.map((t, i) => `<figure class="card quote" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}>
@@ -248,7 +526,7 @@ function publish() {
       fs.rmSync(path.join(ROOT, "blog", dir.name), { recursive: true, force: true });
 
   for (const p of posts) {
-    const paragraphs = String(p.content || "").split(/\n{2,}/).map((par) => `<p>${esc(par.trim()).replace(/\n/g, "<br>")}</p>`).join("\n        ");
+    const paragraphs = blocoTexto(p.content);
     const pj = { "@context": "https://schema.org", "@type": "Article",
       headline: p.title, description: p.excerpt, image: p.image,
       datePublished: p.date, inLanguage: "pt-BR",
@@ -259,7 +537,8 @@ function publish() {
     fs.mkdirSync(dirP, { recursive: true });
     fs.writeFileSync(path.join(dirP, "index.html"), fill(postTpl, {
       TITLE: esc(p.title), EXCERPT: esc(p.excerpt), SLUG: esc(p.slug),
-      IMAGE: esc(p.image), DATE_ISO: esc(p.date), DATE_BR: dateBR(p.date),
+      IMAGE: esc(p.image), IMAGE_DIMS: medidasDoImg(p.image),
+      DATE_ISO: esc(p.date), DATE_BR: dateBR(p.date),
       CONTENT_HTML: paragraphs,
       JSONLD: `<script type="application/ld+json">\n  ${JSON.stringify(pj, null, 2).replace(/\n/g, "\n  ")}\n  </script>`,
     }));
@@ -303,14 +582,44 @@ const KEYS = ["hero_badge", "hero_title", "hero_lead", "stats", "about_title", "
 /* ------------------------------ Servidor ---------------------------------- */
 http.createServer(async (req, res) => {
   const p = new URL(req.url, `http://localhost:${PORT}`).pathname;
+
+  /* ==========================================================================
+     CABEÇALHOS DE PROTEÇÃO — em TODA resposta, antes de qualquer rota
+
+     · nosniff       — impede o navegador de "adivinhar" que um .txt é script
+     · frame-options — impede o site dentro de um iframe alheio (clickjacking)
+     · referrer      — o endereço da nossa página não vaza para terceiros
+     · permissions   — nega câmera, microfone e localização a qualquer script
+     · HSTS          — só sob HTTPS: manda o navegador nunca mais tentar http,
+                       o que fecha a janela do ataque de downgrade. Emitido pelo
+                       app e não pelo nginx para valer em todas as áreas.
+     ========================================================================== */
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
+  if (req.headers["x-forwarded-proto"] === "https")
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+
   try {
     if (p.startsWith("/api/")) {
       if (p === "/api/login" && req.method === "POST") {
+        const ip = ipDoCliente(req);
+        if (bloqueado(ip)) return json(res, 429, { error: "Muitas tentativas. Aguarde 15 minutos." });
         const { password } = await readBody(req);
-        if (sha(password) !== getS("admin_password_hash")) return json(res, 401, { error: "Senha incorreta" });
+        const guardado = getS("admin_password_hash");
+        const certa = guardado ? confereSenha(password, guardado) : (confereSenha(password, HASH_ISCA), false);
+        if (!certa) { erroDeLogin(ip); return json(res, 401, { error: "Senha incorreta" }); }
+        tentativas.delete(ip);
+        // acertou com o formato antigo: regrava em scrypt e o velho some
+        if (!guardado.startsWith("scrypt$")) setS("admin_password_hash", hashSenha(password));
         const t = crypto.randomBytes(24).toString("hex");
         sessions.set(t, Date.now());
-        res.setHeader("Set-Cookie", `sid=${t}; HttpOnly; Path=/; SameSite=Lax`);
+        const https = req.headers["x-forwarded-proto"] === "https";
+        /* Max-Age: sessão sem prazo é sessão eterna — um cookie roubado valeria
+           para sempre. Secure sob HTTPS impede que ele trafegue em claro. */
+        res.setHeader("Set-Cookie",
+          `sid=${t}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSAO_HORAS * 3600}${https ? "; Secure" : ""}`);
         return json(res, 200, { ok: true });
       }
       if (!authed(req)) return json(res, 401, { error: "Não autenticado" });
@@ -321,9 +630,14 @@ http.createServer(async (req, res) => {
       }
       if (p === "/api/password" && req.method === "POST") {
         const { current, next } = await readBody(req);
-        if (sha(current) !== getS("admin_password_hash")) return json(res, 400, { error: "Senha atual incorreta" });
-        if (!next || String(next).length < 6) return json(res, 400, { error: "Nova senha deve ter 6+ caracteres" });
-        setS("admin_password_hash", sha(next));
+        if (!confereSenha(current, getS("admin_password_hash"))) return json(res, 400, { error: "Senha atual incorreta" });
+        if (!next || String(next).length < 8) return json(res, 400, { error: "A nova senha precisa de ao menos 8 caracteres." });
+        if (confereSenha(next, getS("admin_password_hash"))) return json(res, 400, { error: "A nova senha é igual à atual." });
+        setS("admin_password_hash", hashSenha(next));
+        /* Trocar a senha derruba as OUTRAS sessões: se alguém tinha um cookie
+           roubado, é agora que ele para de valer. */
+        const meu = (/sid=([a-f0-9]+)/.exec(req.headers.cookie || "") || [])[1];
+        for (const k of [...sessions.keys()]) if (k !== meu) sessions.delete(k);
         return json(res, 200, { ok: true });
       }
       if (p === "/api/content") {
@@ -354,11 +668,13 @@ http.createServer(async (req, res) => {
           }
         }
         if (req.method === "POST" && !id) {
+          limparRicos(table, b);
           const use = cols.filter((c) => c in b);
           db.prepare(`INSERT INTO ${table}(${use.join(",")}) VALUES(${use.map(() => "?").join(",")})`).run(...use.map((c) => b[c]));
           return json(res, 200, { ok: true });
         }
         if (req.method === "PUT" && id) {
+          limparRicos(table, b);
           const use = cols.filter((c) => c in b);
           if (use.length) db.prepare(`UPDATE ${table} SET ${use.map((c) => c + "=?").join(",")} WHERE id=?`).run(...use.map((c) => b[c]), id);
           return json(res, 200, { ok: true });
@@ -370,10 +686,15 @@ http.createServer(async (req, res) => {
       }
       if (p === "/api/upload" && req.method === "POST") {
         const { name, dataUrl } = await readBody(req);
-        const m = /^data:(image\/(?:png|jpe?g|webp|svg\+xml|gif));base64,(.+)$/.exec(dataUrl || "");
-        if (!m) return json(res, 400, { error: "Envie uma imagem (png, jpg, webp, svg ou gif)" });
+        /* SVG fica DE FORA de propósito: é XML e pode carregar <script> dentro.
+           Servido como image/svg+xml a partir do nosso domínio, ele executaria
+           na origem do site — XSS armazenado por upload. Foi uma das falhas
+           reais encontradas na auditoria do BemEstar. As fotos do painel são
+           todas raster; os SVGs do layout são arquivos do projeto. */
+        const m = /^data:(image\/(?:png|jpe?g|webp|gif));base64,(.+)$/.exec(dataUrl || "");
+        if (!m) return json(res, 400, { error: "Envie uma imagem PNG, JPG, WEBP ou GIF." });
         const safe = slug(path.parse(name || "foto").name).slice(0, 40) || "foto";
-        const ext = m[1] === "image/svg+xml" ? ".svg" : "." + m[1].split("/")[1].replace("jpeg", "jpg");
+        const ext = "." + m[1].split("/")[1].replace("jpeg", "jpg");
         const file = `${Date.now().toString(36)}-${safe}${ext}`;
         fs.writeFileSync(path.join(UPLOAD_DIR, file), Buffer.from(m[2], "base64"));
         return json(res, 200, { ok: true, path: `/assets/img/uploads/${file}` });
@@ -383,10 +704,29 @@ http.createServer(async (req, res) => {
     }
 
     if (p === "/admin" || p === "/admin/") {
-      res.writeHead(200, { "Content-Type": MIME[".html"] });
+      res.writeHead(200, { "Content-Type": MIME[".html"], "Cache-Control": "no-store",
+        "X-Robots-Tag": "noindex, nofollow", "Content-Security-Policy": CSP_PAINEL });
       return res.end(fs.readFileSync(path.join(ROOT, "admin", "index.html")));
     }
-    if (/^\/(data|src|server\.js)(\/|$)/.test(p)) { res.writeHead(404); return res.end("404"); }
+    /* ======================================================================
+       O QUE NUNCA É SERVIDO
+
+       A lista antiga cobria só /data, /src e o server.js. Ficavam acessíveis
+       pela web coisas que não são página: dotfiles (o /.git inteiro, com todo
+       o histórico), scripts de operação e arquivos de banco.
+
+       Na auditoria do BemEstar, um `deploy.sh` servido em HTTP 200 entregava o
+       nome do serviço, o usuário do systemd e o caminho da aplicação — mapa
+       pronto para quem estivesse sondando. Por isso o bloqueio é por PASTA e
+       por EXTENSÃO, e não por uma lista de nomes.
+       ====================================================================== */
+    const dirProibido = /^\/(data|src|backups|node_modules|\.[^/]+)(\/|$)/i;
+    const extProibida = /\.(sh|bash|service|env|conf|ini|sql|db|db-wal|db-shm|pem|key|crt|backup|old|orig|swp|tmp|log|md)$/i;
+    if (dirProibido.test(p) || extProibida.test(p) || /(^|\/)(server|db)\.js$/i.test(p) ||
+        /(^|\/)\.[^/]+$/.test(p) || /(^|\/)package(-lock)?\.json$/i.test(p)) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      return res.end("404");
+    }
 
     let file = path.normalize(path.join(ROOT, decodeURIComponent(p)));
     if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end("403"); }
@@ -396,8 +736,28 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
     res.end(fs.readFileSync(file));
   } catch (e) { json(res, 500, { error: e.message }); }
-}).listen(PORT, () => {
-  console.log(`\n  Forms Fitness — site + gerenciador`);
+/* Escuta só no localhost: quem fala com o mundo é o nginx. Sem isto, o painel
+   ficaria acessível por http://IP:5186/admin/ — sem HTTPS, com o cookie de
+   sessão trafegando em claro e sem nenhum dos cabeçalhos que o proxy aplica.
+   Para expor direto (ambiente sem proxy), rode com HOST=0.0.0.0 */
+}).listen(PORT, process.env.HOST || "127.0.0.1", () => {
+  console.log(`\n  Forms Fitness — site + gerenciador v${APP_VERSION}`);
   console.log(`  · Site:   http://localhost:${PORT}/`);
-  console.log(`  · Painel: http://localhost:${PORT}/admin/  (senha inicial: forms-admin)\n`);
+  console.log(`  · Painel: http://localhost:${PORT}/admin/`);
+  console.log(`  · Banco:  ${DRIVER_NOME}${DRIVER_AVISO ? "  ⚠ " + DRIVER_AVISO : ""}`);
+  /* Testa a escrita no boot. Sem isto, um banco somente-leitura só aparece
+     quando o cliente tenta salvar algo e nada acontece — e o log fica mudo. */
+  try {
+    setS("_teste_escrita", String(Date.now()));
+    db.prepare("DELETE FROM settings WHERE key='_teste_escrita'").run();
+  } catch (e) {
+    const usuario = (() => { try { return require("node:os").userInfo().username; } catch { return "root"; } })();
+    console.error(`  ✖ BANCO SEM PERMISSÃO DE ESCRITA: ${e.message}`);
+    console.error(`    O painel não vai conseguir salvar nada. O processo roda como: ${usuario}`);
+    console.error(`    Corrija com: sudo chown -R ${usuario}: "${ROOT}/data" "${ROOT}/assets/img/uploads"`);
+  }
+  // avisa sem imprimir a senha: em produção este log vai parar no journalctl
+  if (confereSenha("forms-admin", getS("admin_password_hash")))
+    console.log(`  ⚠ A senha do painel ainda é a padrão. Troque em Senha antes de publicar.`);
+  console.log("");
 });

@@ -29,12 +29,35 @@
     .btn-danger{background:#fdeef2;color:var(--red);border-color:#f6c6d4}
     .btn-sm{padding:.35rem .75rem;font-size:.8rem}
     .app{display:grid;grid-template-columns:230px 1fr;min-height:100vh}
-    aside{background:var(--blue);color:#bfe0f7;padding:1.2rem;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+    aside{background:var(--blue);color:#bfe0f7;padding:1.2rem;position:sticky;top:0;height:100vh;
+      display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain}
     aside .logo{display:flex;align-items:center;gap:.6rem;margin-bottom:1.4rem;color:#fff;font-weight:800}
     aside .logo img{height:40px}
     .navbtn{display:block;width:100%;text-align:left;padding:.6rem .8rem;border-radius:9px;border:0;background:none;color:#bfe0f7;font-weight:700;margin-bottom:.15rem}
     .navbtn:hover{background:rgba(255,255,255,.1);color:#fff}
     .navbtn.on{background:var(--lime);color:#0e2a4a}
+
+    /* ---- Grupos do menu ----
+       O cabeçalho do grupo é botão de verdade (não um <div> com onclick): já
+       vem com teclado e leitor de tela funcionando, e o aria-expanded conta em
+       que estado está. A seta é ::after, para não existir no texto copiado. */
+    .navtopo{display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+      width:100%;text-align:left;padding:.6rem .8rem;border-radius:9px;border:0;background:none;
+      color:#8fc4e6;font-weight:700;font-size:.82rem;letter-spacing:.03em;text-transform:uppercase;
+      margin-bottom:.15rem;cursor:pointer}
+    .navtopo:hover{background:rgba(255,255,255,.08);color:#fff}
+    .navtopo::after{content:"▾";font-size:.7rem;opacity:.75;transition:transform .2s ease}
+    .navtopo[aria-expanded="true"]{color:#fff}
+    .navtopo[aria-expanded="true"]::after{transform:rotate(180deg)}
+    /* O grupo fechado some do fluxo: `display:none` e não `height:0`, senão a
+       margem dos botões continuaria ocupando altura e a lista não encolheria. */
+    .navsub{display:none;margin:0 0 .35rem .5rem;padding-left:.55rem;border-left:2px solid rgba(255,255,255,.16)}
+    .navtopo[aria-expanded="true"]+.navsub{display:block}
+    .navsub .navbtn{font-weight:600;font-size:.9rem;padding:.48rem .7rem}
+    /* Grupo fechado com a tela ativa dentro: uma marca discreta para não se
+       perder de vista onde se está. */
+    .navgrupo:has(.navbtn.on) .navtopo{color:#fff}
+    .navgrupo:has(.navbtn.on) .navtopo[aria-expanded="false"]{background:rgba(255,255,255,.1)}
     main{padding:2rem 2.4rem;max-width:1000px}
     .panel{display:none}.panel.on{display:block}
     .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:1.2rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(11,78,162,.06)}
@@ -50,7 +73,52 @@
     #login{position:fixed;inset:0;background:var(--blue);display:grid;place-items:center;z-index:50}
     #login .card{width:min(360px,90vw);text-align:center;padding:2rem}
     .imgrow{display:flex;gap:.6rem;align-items:center}
-    @media(max-width:820px){.app{grid-template-columns:1fr}aside{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:.3rem}main{padding:1.2rem}}
+    @media(max-width:820px){
+      .app{grid-template-columns:1fr}
+      /* No celular a barra deixa de ser coluna fixa e vira faixa no topo, que
+         cresce conforme o conteúdo. Os botões soltos se espalham em linha; cada
+         GRUPO ocupa a largura toda, senão o submenu abriria dentro de uma
+         coluna de dois dedos. */
+      aside{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:.3rem;overflow:visible}
+      aside>.navbtn{width:auto}
+      .navgrupo{flex:1 0 100%}
+      /* Sem `display` aqui: quem esconde o grupo fechado é a regra geral
+         (`.navsub{display:none}`), e repetir `display:flex` neste ponto a
+         anularia — todos os grupos apareceriam abertos ao mesmo tempo. */
+      .navsub{flex-wrap:wrap;gap:.3rem;margin-left:.4rem}
+      .navtopo[aria-expanded="true"]+.navsub{display:flex}
+      .navsub .navbtn{width:auto}
+      main{padding:1.2rem}
+    }
+    /* ---------------------- Editor de texto formatado ------------------- */
+    .ed-caixa{border:1.5px solid var(--line2);border-radius:9px;overflow:hidden;background:#fff}
+    .ed-caixa:focus-within{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(31,168,220,.15)}
+    .ed-barra{display:flex;flex-wrap:wrap;gap:.15rem;padding:.35rem;background:#f2fbff;border-bottom:1px solid var(--line2)}
+    .ed-bt{min-width:30px;height:28px;border:1px solid transparent;border-radius:6px;background:none;
+      cursor:pointer;font:inherit;font-size:.85rem;color:var(--muted);line-height:1}
+    .ed-bt:hover{background:#fff;border-color:var(--line2);color:var(--blue)}
+    .ed-sep{width:1px;background:var(--line2);margin:.2rem .25rem}
+    .ed-area{min-height:120px;max-height:60vh;overflow:auto;padding:.7rem .8rem;line-height:1.65;
+      font-size:.95rem;color:var(--text);outline:none}
+    .ed-area.alto{min-height:260px}
+    /* A caixa do HTML ocupa exatamente o lugar da área formatada — trocar de
+       modo não pode fazer a página pular. Fonte monoespaçada porque aqui o
+       alinhamento das tags é o que se lê. */
+    .ed-fonte{display:none;width:100%;border:0;outline:0;resize:vertical;padding:.7rem .8rem;
+      font:12.5px/1.6 ui-monospace,"Cascadia Mono",Consolas,monospace;color:#334;background:#fbfdff;
+      min-height:120px;max-height:60vh}
+    .ed-fonte.alto{min-height:260px}
+    .ed-bt.ativo{background:var(--blue);border-color:var(--blue);color:#fff}
+    .ed-area:empty::before{content:"Escreva aqui…";color:var(--muted);opacity:.7}
+    /* Como o texto formatado aparece DENTRO do editor. Sem isto o <ul> herdaria
+       o reset `*{margin:0}` lá de cima e a lista sairia colada na margem. */
+    .ed-area p{margin:0 0 .6rem}
+    .ed-area p:last-child{margin-bottom:0}
+    .ed-area ul,.ed-area ol{margin:.4rem 0 .7rem;padding-left:1.5rem}
+    .ed-area li{margin:.15rem 0}
+    .ed-area h2,.ed-area h3{margin:.8rem 0 .4rem;color:var(--blue);font-size:1.05rem}
+    .ed-area blockquote{margin:.6rem 0;padding-left:.8rem;border-left:3px solid var(--line2);color:var(--muted)}
+    .ed-area a{color:var(--blue2)}
   </style>
 </head>
 <body>
@@ -70,15 +138,33 @@
   <aside>
     <span class="logo"><img src="/assets/img/favicon.svg" alt="" style="border-radius:10px"> forms</span>
     <button class="navbtn on" data-p="dash">▲ Publicar</button>
-    <button class="navbtn" data-p="services">Modalidades</button>
-    <button class="navbtn" data-p="team">Equipe</button>
-    <button class="navbtn" data-p="portfolio">Estrutura (fotos)</button>
-    <button class="navbtn" data-p="posts">Blog</button>
-    <button class="navbtn" data-p="texts">Textos do site</button>
-    <button class="navbtn" data-p="testimonials">Depoimentos</button>
-    <button class="navbtn" data-p="contact">Contato</button>
-    <button class="navbtn" data-p="password">Senha</button>
+
+    <div class="navgrupo">
+      <button class="navtopo" type="button" aria-expanded="false">🏊 A academia</button>
+      <div class="navsub">
+        <button class="navbtn" data-p="services">Modalidades</button>
+        <button class="navbtn" data-p="team">Equipe</button>
+        <button class="navbtn" data-p="portfolio">Estrutura (fotos)</button>
+      </div>
+    </div>
+
+    <div class="navgrupo">
+      <button class="navtopo" type="button" aria-expanded="false">📰 Conteúdo</button>
+      <div class="navsub">
+        <button class="navbtn" data-p="posts">Blog</button>
+        <button class="navbtn" data-p="testimonials">Depoimentos</button>
+      </div>
+    </div>
+
+    <div class="navgrupo">
+      <button class="navtopo" type="button" aria-expanded="false">✏️ Textos e contato</button>
+      <div class="navsub">
+        <button class="navbtn" data-p="texts">Textos do site</button>
+        <button class="navbtn" data-p="contact">Contato</button>
+      </div>
+    </div>
     <div style="margin-top:auto">
+      <button class="navbtn" data-p="password">Senha</button>
       <a class="navbtn" href="/" target="_blank" style="text-decoration:none;display:block">↗ Ver o site</a>
       <button class="navbtn" onclick="logout()">Sair</button>
     </div>
@@ -184,6 +270,261 @@ function toast(msg, err = false) {
 }
 const escA = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
+/* ==========================================================================
+   EDITOR DE TEXTO FORMATADO
+
+   Os textos do site não são texto corrido: têm subtítulo, item em negrito,
+   lista e link. Antes, para pôr qualquer uma dessas coisas era preciso
+   escrever a marcação à mão dentro de um textarea.
+
+   POR QUE contenteditable + execCommand, e não uma biblioteca: o painel é uma
+   página só, sem framework e sem dependência de front, e a CSP daqui é
+   `script-src 'self'` — não carrega editor de terceiro. O execCommand é antigo
+   e marcado como obsoleto, mas funciona em todos os navegadores atuais e cobre
+   o que a clínica precisa.
+
+   O QUE ELE NÃO FAZ: colar formatação de fora. Texto colado do Word entra como
+   TEXTO PURO. Colar HTML de fora traria estilos inline, fontes e, no pior caso,
+   conteúdo perigoso — e o servidor descartaria quase tudo na higienização,
+   deixando quem colou sem entender por que o que ele colou "sumiu".
+
+   O valor continua saindo por `.value` de um <input type=hidden> que carrega os
+   mesmos data-* do textarea antigo — por isso o saveTexts e o saveRow não
+   precisaram mudar uma linha.
+   ========================================================================== */
+const ED_BOTOES = [
+  ["bold", "N", "Negrito (Ctrl+B)", "font-weight:800"],
+  ["italic", "I", "Itálico (Ctrl+I)", "font-style:italic"],
+  ["underline", "S", "Sublinhado (Ctrl+U)", "text-decoration:underline"],
+  ["|", "", "", ""],
+  ["formatBlock:h2", "T¹", "Subtítulo grande", "font-weight:700"],
+  ["formatBlock:h3", "T²", "Subtítulo menor", "font-weight:600;font-size:.8rem"],
+  ["formatBlock:p", "¶", "Parágrafo normal", ""],
+  ["|", "", "", ""],
+  ["insertUnorderedList", "•—", "Lista com marcadores", ""],
+  ["insertOrderedList", "1—", "Lista numerada", ""],
+  ["formatBlock:blockquote", "❝", "Citação", ""],
+  ["|", "", "", ""],
+  ["link", "🔗", "Inserir link", ""],
+  ["unlink", "⛓", "Tirar o link", ""],
+  ["|", "", "", ""],
+  ["removeFormat", "T̶", "Limpar formatação", ""],
+  ["|", "", "", ""],
+  ["html", "&lt;/&gt;", "Ver e escrever o HTML", "font-size:.72rem;font-weight:700"],
+  ["|", "", "", ""],
+  ["undo", "↶", "Desfazer (Ctrl+Z)", ""],
+  ["redo", "↷", "Refazer (Ctrl+Y)", ""],
+];
+
+let edSeq = 0;
+/* `attrs` são os data-* que identificam o campo (data-k ou data-t/data-id/data-f).
+   Vão para o input oculto, que é quem o salvar lê. */
+function editorRico(attrs, valor, alto) {
+  const id = "ed" + (++edSeq);
+  const barra = ED_BOTOES.map(([cmd, rot, titulo, estilo]) =>
+    cmd === "|" ? '<span class="ed-sep"></span>'
+      : `<button type="button" class="ed-bt" id="${id}-bt${cmd}" title="${escA(titulo)}" aria-label="${escA(titulo)}"
+           onmousedown="event.preventDefault()" onclick="edCmd('${id}','${cmd}')" style="${estilo}">${rot}</button>`).join("");
+  return `<div class="ed-caixa">
+    <div class="ed-barra" role="toolbar" aria-label="Formatação">${barra}</div>
+    <div class="ed-area${alto ? " alto" : ""}" id="${id}-ed" contenteditable="true" role="textbox" aria-multiline="true"
+         oninput="edSync('${id}')" onblur="edSync('${id}')" onpaste="edColar(event)">${paraHTML(valor)}</div>
+    <textarea class="ed-fonte${alto ? " alto" : ""}" id="${id}-html" spellcheck="false"
+              oninput="edSync('${id}')" onblur="edSync('${id}')"></textarea>
+    <input type="hidden" id="${id}" ${attrs} value="${escA(valor || "")}">
+  </div>`;
+}
+
+/* O conteúdo antigo é texto puro com parágrafos separados por linha em branco.
+   Jogá-lo cru no contenteditable transformaria tudo num parágrafo só — a
+   quebra de linha não é marcação. Converte na ABERTURA; ao salvar já sai HTML. */
+function paraHTML(v) {
+  const s = String(v || "").trim();
+  if (!s) return "";
+  if (/<(p|br|ul|ol|li|h2|h3|h4|blockquote|div|strong|b|em|i|a)\b/i.test(s)) return s;
+  return s.split(/\n{2,}/).map((par) => `<p>${escA(par.trim()).replace(/\n/g, "<br>")}</p>`).join("");
+}
+
+function edCmd(id, cmd) {
+  const area = document.getElementById(id + "-ed");
+  if (cmd === "html") return edHtml(id);
+  /* Com o HTML à mostra, os botões de formatar não têm onde agir: a área
+     formatada está escondida e aplicar negrito ali mexeria no que não se vê. */
+  if (document.getElementById(id + "-html").style.display === "block") return;
+  area.focus();
+  if (cmd === "link") {
+    const url = prompt("Endereço do link (https://… , /pagina/ ou mailto:…):", "https://");
+    if (url) document.execCommand("createLink", false, url);
+  } else if (cmd.startsWith("formatBlock:")) {
+    document.execCommand("formatBlock", false, cmd.split(":")[1]);
+  } else {
+    document.execCommand(cmd, false, null);
+  }
+  edSync(id);
+}
+
+/* ==========================================================================
+   VER E ESCREVER O HTML
+
+   Troca a área formatada por uma caixa com a marcação crua e volta. É por aqui
+   que entra o que a barra não faz — uma tabela, um vídeo embutido, uma classe
+   do layout.
+
+   ISSO NÃO ABRE UM BURACO: o que sai daqui passa pelo MESMO filtro do servidor
+   na hora de salvar. Escrever <script> à mão continua não publicando script
+   nenhum — a tag é descartada e o texto de dentro fica. O filtro é do lado do
+   servidor justamente porque qualquer trava só no navegador seria contornada
+   mandando o dado direto para a API.
+   ========================================================================== */
+function edHtml(id) {
+  const area = document.getElementById(id + "-ed");
+  const fonte = document.getElementById(id + "-html");
+  const bt = document.getElementById(id + "-bthtml");
+  if (fonte.style.display === "block") {                 // voltando ao texto formatado
+    area.innerHTML = fonte.value;
+    fonte.style.display = ""; area.style.display = "";
+    bt.classList.remove("ativo"); bt.setAttribute("aria-pressed", "false");
+  } else {                                               // indo para o HTML
+    /* Uma tag por linha: o editor devolve tudo grudado, e ninguém lê "</p><p>"
+       no meio de um parágrafo de 400 caracteres. */
+    fonte.value = area.innerHTML.trim().replace(/></g, ">\n<");
+    fonte.style.height = Math.max(area.offsetHeight, 120) + "px";
+    area.style.display = "none"; fonte.style.display = "block";
+    bt.classList.add("ativo"); bt.setAttribute("aria-pressed", "true");
+    fonte.focus();
+  }
+  edSync(id);
+}
+
+/* Espelha o que está na tela no campo oculto — é ele que o salvar lê. */
+function edSync(id) {
+  const area = document.getElementById(id + "-ed"), campo = document.getElementById(id);
+  if (!area || !campo) return;
+  /* Com o HTML aberto, quem vale é a caixa de HTML: é nela que se está
+     escrevendo. Salvar a área escondida jogaria fora o que acabou de ser
+     digitado. */
+  const fonte = document.getElementById(id + "-html");
+  if (fonte && fonte.style.display === "block") {
+    campo.value = fonte.value.trim();
+    campo.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+  /* Apagar tudo raramente deixa a caixa realmente vazia: o navegador guarda um
+     "<br>" solto e, se o texto estava numa lista, guarda a lista inteira. A
+     regra é o que se ENXERGA: sem texto visível, o campo está vazio. */
+  campo.value = area.textContent.trim() === "" ? "" : area.innerHTML.trim();
+  campo.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+/* Colar sempre como texto puro (ver o comentário do bloco). */
+function edColar(ev) {
+  ev.preventDefault();
+  const texto = (ev.clipboardData || window.clipboardData).getData("text/plain");
+  document.execCommand("insertText", false, texto);
+}
+
+/* O texto sem marcação nenhuma — para gerar o resumo e medir se está vazio. */
+function semHTML(html) {
+  const d = document.createElement("div");
+  d.innerHTML = String(html || "");
+  return (d.textContent || "").replace(/\s+/g, " ").trim();
+}
+
+/* ==========================================================================
+   URL AMIGÁVEL A PARTIR DO TÍTULO
+
+   Mesmo algoritmo do `slug()` do servidor: sem acento, minúsculo, separado por
+   hífen. O servidor já gerava a URL quando o campo chegava vazio — o que
+   faltava era ela APARECER, para quem escreve poder conferir antes de salvar.
+
+   Só preenche o que está VAZIO. Reescrever a URL de uma página publicada porque
+   alguém ajustou uma palavra do título quebraria o link que já circula e o que
+   o Google indexou — e o site não guarda redirecionamento do endereço antigo.
+   ========================================================================== */
+const paraSlug = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "")
+  .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+/* O item nasce com um título de rascunho ("Nova matéria"), e o servidor já
+   emite a URL a partir dele — então a URL nunca chegaria vazia aqui. Estas
+   contam como vazias: são o rascunho, não uma escolha de ninguém.
+
+   Quando dois itens nascem juntos o servidor acrescenta um sufixo à URL
+   ("nova-materia-m9x2k1"), então o rascunho é reconhecido pelo COMEÇO. */
+const SLUG_RASCUNHO = /^(nova-materia|posts)(-[a-z0-9]+)?$/;
+
+function gerarSlug(inputTitulo) {
+  const { t, id } = inputTitulo.dataset;
+  const campo = document.querySelector(`[data-t="${t}"][data-id="${id}"][data-f="slug"]`);
+  if (!campo || campo.dataset.tocado === "1") return;   // digitou a URL à mão
+  const atual = campo.value.trim();
+  // URL de página já publicada não se mexe (ver o comentário do bloco)
+  if (atual && !SLUG_RASCUNHO.test(atual)) return;
+  const novo = paraSlug(inputTitulo.value);
+  if (!novo) return;
+  campo.value = novo;
+  campo.style.transition = "background .6s"; campo.style.background = "#eef6ee";
+  setTimeout(() => { campo.style.background = ""; }, 900);
+}
+
+/* ==========================================================================
+   RESUMO GERADO A PARTIR DO CONTEÚDO
+
+   Sai do próprio texto: as primeiras FRASES INTEIRAS até caber na descrição
+   que o Google mostra (~160 caracteres). Cortar no meio da palavra ou da frase
+   deixaria reticências no resultado de busca.
+
+   Quando sobrescreve: enquanto o resumo estiver vazio, ou enquanto for o que
+   nós mesmos geramos — aí ele acompanha as edições do texto. No instante em
+   que alguém escreve o próprio resumo, paramos de mexer: um resumo escrito à
+   mão é melhor que o automático, e apagá-lo a cada clique fora seria perder
+   trabalho de quem escreveu.
+   ========================================================================== */
+const LIMITE_RESUMO = 160;
+const resumoGerado = new Map();                       // id da matéria -> último que geramos
+
+function resumirTexto(html) {
+  const txt = semHTML(html);
+  if (!txt) return "";
+  if (txt.length <= LIMITE_RESUMO) return txt;
+  /* Quebra em frases e vai somando enquanto couber — assim o resumo termina
+     num ponto final, e não numa palavra pela metade. */
+  const frases = txt.match(/[^.!?]+[.!?]+(\s|$)/g) || [];
+  let out = "";
+  for (const fr of frases) {
+    if ((out + fr).trim().length > LIMITE_RESUMO) break;
+    out += fr;
+  }
+  out = out.trim();
+  if (out) return out;
+  // frase única e longa: corta na última palavra inteira que couber
+  const corte = txt.slice(0, LIMITE_RESUMO);
+  return corte.slice(0, corte.lastIndexOf(" ")).trim() + "…";
+}
+
+function gerarResumo(campoConteudo) {
+  const { t, id } = campoConteudo.dataset;
+  if (t !== "posts") return;
+  const alvo = document.querySelector(`[data-t="posts"][data-id="${id}"][data-f="excerpt"]`);
+  if (!alvo) return;
+  const atual = alvo.value.trim();
+  if (atual && atual !== resumoGerado.get(id)) return;   // resumo escrito à mão: intocado
+  const novo = resumirTexto(campoConteudo.value);
+  if (!novo || novo === atual) return;
+  alvo.value = novo;
+  resumoGerado.set(id, novo);
+  alvo.style.transition = "background .6s"; alvo.style.background = "#eef6ee";
+  setTimeout(() => { alvo.style.background = ""; }, 900);
+  toast("Resumo gerado a partir do conteúdo — ajuste se quiser.");
+}
+
+/* O editor avisa por `change` no campo oculto quando o usuário sai dele. */
+document.addEventListener("change", (e) => {
+  const el = e.target;
+  if (el.dataset && el.dataset.f === "content" && el.dataset.t === "posts") gerarResumo(el);
+});
+
+
+
 async function boot() { try { await api("/api/me"); showApp(); } catch { $("#login").hidden = false; } }
 async function login() {
   try { await api("/api/login", "POST", { password: $("#pw").value }); $("#login").hidden = true; showApp(); }
@@ -193,12 +534,30 @@ async function logout() { await api("/api/logout", "POST"); location.reload(); }
 $("#pw")?.addEventListener("keydown", (e) => e.key === "Enter" && login());
 async function showApp() { $("#app").hidden = false; await loadAll(); }
 
+/* ---------------------------- Menu em grupos ---------------------------- */
+/* Abrir um grupo fecha os outros. Não é manha de estilo: é o que mantém a
+   barra curta — com vários abertos, a lista volta a passar da altura da tela. */
+function abrirGrupo(topo, aberto) {
+  document.querySelectorAll(".navtopo").forEach((t) =>
+    t.setAttribute("aria-expanded", String(t === topo && aberto)));
+}
+document.querySelectorAll(".navtopo").forEach((topo) =>
+  topo.addEventListener("click", () =>
+    abrirGrupo(topo, topo.getAttribute("aria-expanded") !== "true")));
+
+/* A tela ativa nunca fica escondida dentro de um grupo fechado. */
+function revelarGrupoAtivo() {
+  const ativo = document.querySelector(".navsub .navbtn.on");
+  if (ativo) abrirGrupo(ativo.closest(".navgrupo").querySelector(".navtopo"), true);
+}
+
 document.querySelectorAll(".navbtn[data-p]").forEach((b) =>
   b.addEventListener("click", () => {
     document.querySelectorAll(".navbtn[data-p]").forEach((x) => x.classList.remove("on"));
     document.querySelectorAll(".panel").forEach((x) => x.classList.remove("on"));
     b.classList.add("on");
     $("#p-" + b.dataset.p).classList.add("on");
+    revelarGrupoAtivo();
   })
 );
 
@@ -237,14 +596,25 @@ const TDEFS = {
   services: [["title","Título","input"],["text","Descrição","textarea"]],
   testimonials: [["text","Depoimento","textarea"],["name","Nome","input"],["role","Modalidade / cidade","input"],["initials","Iniciais","input"]],
   team: [["name","Nome","input"],["role","Função / modalidade","input"],["bio","Mini-bio","textarea"],["photo","Foto (URL)","image"]],
-  posts: [["title","Título da matéria","input"],["slug","URL amigável (deixe em branco = automática)","input"],["date","Data (AAAA-MM-DD)","input"],["excerpt","Resumo (aparece nos cards e no Google)","textarea"],["image","Imagem de capa (URL)","image"],["content","Conteúdo (parágrafos separados por linha em branco)","bigtext"]],
+  posts: [["title","Título da matéria","titulo"],["slug","URL amigável","slug"],["date","Data (AAAA-MM-DD)","input"],["excerpt","Resumo (card e Google)","resumo"],["image","Imagem de capa (URL)","image"],["content","Conteúdo","bigtext"]],
 };
 function renderTable(t) {
   $("#" + t + "-list").innerHTML = DATA[t].map((r) => `
     <div class="card">
       ${TDEFS[t].map(([f, lab, kind]) => {
-        if (kind === "textarea") return `<label>${lab}</label><textarea data-t="${t}" data-id="${r.id}" data-f="${f}">${escA(r[f])}</textarea>`;
-        if (kind === "bigtext") return `<label>${lab}</label><textarea class="big" data-t="${t}" data-id="${r.id}" data-f="${f}">${escA(r[f])}</textarea>`;
+        const dados = `data-t="${t}" data-id="${r.id}" data-f="${f}"`;
+        if (kind === "bigtext") return `<label>${lab}</label>${editorRico(dados, r[f], true)}`;
+        /* O RESUMO fica em texto simples de propósito: ele vira a descrição do
+           Google e o JSON-LD, onde uma tag apareceria crua no resultado de
+           busca. É também o que o sistema preenche sozinho. */
+        if (kind === "resumo") return `<label>${lab}</label><textarea ${dados}>${escA(r[f])}</textarea>
+          <p class="hint">Sai no card e no Google. Texto simples, sem formatação${f === "excerpt" ? " — preenchido sozinho quando você termina o conteúdo" : ""}.</p>`;
+        /* Título e URL andam juntos: sair do título preenche a URL vazia. */
+        if (kind === "titulo") return `<label>${lab}</label><input ${dados} value="${escA(r[f])}" onblur="gerarSlug(this)">`;
+        if (kind === "slug") return `<label>${lab}</label>
+          <input ${dados} value="${escA(r[f])}" oninput="this.dataset.tocado='1'">
+          <p class="hint">Vem sozinha do título, tudo minúsculo e separado por hífen. Só é preenchida quando está vazia — trocar a URL de uma matéria já publicada quebraria o link e o que o Google indexou.</p>`;
+        if (kind === "textarea") return `<label>${lab}</label>${editorRico(dados, r[f])}`;
         if (kind === "image") return `<label>${lab}</label>
           <div class="imgrow">
             <input data-t="${t}" data-id="${r.id}" data-f="${f}" value="${escA(r[f])}" style="flex:1">
