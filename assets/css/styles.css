@@ -847,3 +847,73 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
   .mosaico { grid-template-columns: 1fr; grid-auto-rows: 210px; }
   .foto, .foto--grande { grid-column: span 1; grid-row: span 1; }
 }
+
+/* ==========================================================================
+   AJUSTES DE LEITURA E ALINHAMENTO
+   ========================================================================== */
+
+/* --- 1. MENU SOBRE O HERO AZUL ---------------------------------------
+   O cabeçalho é transparente até a página rolar. Com o hero antigo (fundo
+   claro) os links em cinza-escuro liam bem; sobre o hero novo, que é azul
+   profundo, eles praticamente sumiram.
+
+   A regra vale só ENQUANTO NÃO rolou: assim que o cabeçalho ganha o fundo
+   claro (`.is-scrolled`), os links voltam ao tom escuro — que é o que lê
+   bem ali. Uma cor fixa não serviria para os dois estados. */
+.site-header:not(.is-scrolled) .nav a:not(.btn) { color: rgba(255, 255, 255, .88); }
+.site-header:not(.is-scrolled) .nav a:not(.btn):hover,
+.site-header:not(.is-scrolled) .nav a:not(.btn)[aria-current="page"] { color: #fff; }
+/* O traço de sublinhado também precisa aparecer sobre o azul. */
+.site-header:not(.is-scrolled) .nav a:not(.btn)::after {
+  background: linear-gradient(90deg, var(--lime), #fff);
+}
+/* A lupa e as barras do menu do celular seguem o mesmo raciocínio. */
+.site-header:not(.is-scrolled) .search-toggle {
+  background: rgba(255, 255, 255, .14); color: #fff; border-color: rgba(255, 255, 255, .3);
+}
+.site-header:not(.is-scrolled) .search-toggle:hover { background: rgba(255, 255, 255, .26); }
+.site-header:not(.is-scrolled) .nav-toggle span { background: #fff; }
+
+/* No celular o menu abre como painel BRANCO por cima da página. Os links
+   dentro dele voltam ao escuro, senão ficariam brancos sobre branco. */
+@media (max-width: 980px) {
+  .site-header:not(.is-scrolled) .nav a:not(.btn) { color: var(--ink-soft); }
+  .site-header:not(.is-scrolled) .nav a:not(.btn):hover,
+  .site-header:not(.is-scrolled) .nav a:not(.btn)[aria-current="page"] { color: var(--blue); }
+  .site-header:not(.is-scrolled) .nav a:not(.btn)::after { background: linear-gradient(90deg, var(--cyan), var(--lime)); }
+}
+
+/* --- 2. CONTATO: CARDS EM COLUNA -------------------------------------
+   O formulário e os cards ficavam lado a lado, e os cards se espalhavam. Em
+   coluna única eles se alinham pela esquerda e o olho desce numa linha só —
+   telefone, e-mail, Instagram, endereço, na ordem. */
+.contact { grid-template-columns: 1.15fr .85fr; align-items: stretch; }
+.contact__aside { display: flex; flex-direction: column; gap: .8rem; }
+.contact__tiles { display: flex; flex-direction: column; gap: .8rem; }
+/* `align-items: center` no lugar do padrão: com o texto em duas linhas, o
+   ícone ficava colado no topo e o cartão parecia torto. */
+.contact-tile { align-items: center; }
+/* Todos com a mesma altura mínima: sem isso, o cartão de e-mail (uma linha)
+   fica visivelmente menor que o de endereço (duas), e a coluna vira escada. */
+.contact-tile, .mapa-card { min-height: 84px; }
+.mapa-card { margin-top: auto; }
+
+@media (max-width: 900px) {
+  .contact { grid-template-columns: 1fr; }
+}
+
+/* --- 3. BOTÃO DO WHATSAPP: SÓ O ÍCONE --------------------------------
+   O rótulo ocupava um terço da largura da tela no celular e cobria o
+   conteúdo. O ícone do WhatsApp já é reconhecido sozinho — o texto virou
+   `aria-label`, que continua sendo lido por quem usa leitor de tela. */
+.wa-fab { width: 58px; height: 58px; padding: 0; justify-content: center; border-radius: 50%; }
+.wa-fab__label { display: none; }
+.wa-fab__icon { width: 30px; height: 30px; }
+
+/* --- 4. BLOG: ALTURA FIXA NA LISTA -----------------------------------
+   500px, como pedido. `object-fit: cover` recorta o excedente e mantém a
+   fileira alinhada — sem isso, uma foto em pé esticaria o cartão dela e a
+   grade viraria um serrote. No celular cai para 300px: 500px numa tela de
+   375px de largura seria uma parede antes do título. */
+.post-card__media img { height: 500px; aspect-ratio: auto; }
+@media (max-width: 640px) { .post-card__media img { height: 300px; } }
