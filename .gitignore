@@ -1,0 +1,17 @@
+# Dados de execução — nunca vão para o repositório.
+#
+# data/ guarda o banco do site (com o HASH DA SENHA do painel dentro) e o
+# arquivo de limites do login, que registra ENDEREÇOS IP de quem tentou
+# entrar. Nenhum dos dois é código: são dados do cliente, mudam a cada
+# acesso e não têm por que existir no histórico de commits.
+data/
+backups/
+
+# As fotos que o cliente envia pelo painel. São conteúdo, não código, e
+# engordariam o repositório sem necessidade.
+assets/img/uploads/
+
+node_modules/
+*.log
+*.tmp
+.DS_Store

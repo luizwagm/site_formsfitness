@@ -1,6 +1,6 @@
 {
   "name": "forms-fitness",
-  "version": "1.4.0",
+  "version": "1.6.1",
   "private": true,
   "description": "Site e gerenciador da Forms Fitness Academia Aquática (Caruaru-PE)",
   "main": "server.js",

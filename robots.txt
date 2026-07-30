@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 
-Sitemap: https://formsfitness.com.br/sitemap.xml
+Sitemap: https://formsfitness.com/sitemap.xml

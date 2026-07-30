@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>ZZ teste de manutenção — Forms Fitness</title>
+  <style>
+    /* CSS embutido de propósito: se o app estiver fora do ar, o styles.css
+       também não é servido — esta página tem de se sustentar sozinha. As
+       fontes são as do sistema pelo mesmo motivo. */
+    *{box-sizing:border-box;margin:0}
+    body{min-height:100vh;display:grid;place-items:center;padding:2rem;
+      background:radial-gradient(700px 420px at 80% 0%,rgba(31,168,220,.16),transparent 60%),
+                 radial-gradient(560px 380px at 0% 100%,rgba(126,211,33,.12),transparent 60%),#F4FAFE;
+      font-family:"Nunito Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0E2A4A;line-height:1.65}
+    .caixa{max-width:34rem;text-align:center;background:#fff;border-radius:20px;padding:3rem 2.4rem;
+      box-shadow:0 18px 46px -16px rgba(8,59,126,.28)}
+    h1{font-family:Archivo,system-ui,sans-serif;font-weight:900;font-size:clamp(1.5rem,4vw,2.1rem);
+      line-height:1.15;margin-bottom:.8rem;color:#0B4EA2}
+    p{color:#48617E}
+    .onda{margin:0 auto 1.6rem;display:block}
+    .zap{display:inline-flex;align-items:center;gap:.5rem;margin-top:1.6rem;padding:.85rem 1.7rem;
+      border-radius:999px;background:linear-gradient(120deg,#8FE334,#7ED321);color:#072B5C;
+      text-decoration:none;font-weight:800;font-family:Archivo,system-ui,sans-serif}
+    .marca{margin-top:2rem;padding-top:1.4rem;border-top:1px solid rgba(11,78,162,.14);
+      font-family:Archivo,system-ui,sans-serif;letter-spacing:.06em;color:#0B4EA2;font-weight:800;font-size:.9rem}
+    .pulso{animation:pulso 2.6s ease-in-out infinite}
+    @keyframes pulso{0%,100%{opacity:1;transform:translateY(0)}50%{opacity:.7;transform:translateY(-6px)}}
+    @media(prefers-reduced-motion:reduce){.pulso{animation:none}}
+  </style>
+</head>
+<body>
+  <main class="caixa">
+    <svg class="onda pulso" width="96" height="96" viewBox="0 0 24 24" fill="none"
+         stroke="#1FA8DC" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+         role="img" aria-label="Forms Fitness">
+      <circle cx="16.5" cy="6.5" r="2.2" fill="#7ED321" stroke="none"/>
+      <path d="m4 13 4.5-3.5L14 12l4-2.5" stroke="#0B4EA2"/>
+      <path d="M2 18c1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0"/>
+      <path d="M2 21.5c1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0" opacity=".45"/>
+    </svg>
+    <h1>ZZ teste de manutenção</h1>
+    <p>Voltamos já.</p>
+    <a class="zap" href="https://wa.me/5500000000000" target="_blank" rel="noopener">Falar no WhatsApp</a>
+    <p class="marca">FORMS FITNESS · ACADEMIA AQUÁTICA</p>
+  </main>
+</body>
+</html>

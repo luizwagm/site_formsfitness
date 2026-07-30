@@ -1,0 +1,46 @@
+# ==========================================================================
+#  /etc/systemd/system/forms.service
+#
+#  Instalar:
+#    sudo cp nginx/forms.service /etc/systemd/system/forms.service
+#    sudo systemctl daemon-reload
+#    sudo systemctl enable --now forms
+#    sudo systemctl status forms
+#
+#  Conferir o log:   journalctl -u forms -f
+# ==========================================================================
+[Unit]
+Description=Forms Fitness — site e gerenciador
+# Só a rede: o site não depende de banco externo (o SQLite é um arquivo local).
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/projetos/Forms-Fitness
+ExecStart=/usr/bin/node server.js
+
+# O usuário PRECISA bater com o dono de data/ e assets/img/uploads. Com o dono
+# errado o SQLite responde "attempt to write a readonly database" e o painel
+# não salva nada — sem erro visível na tela. O deploy.sh lê este campo com
+# `systemctl show -p User` justamente para acertar o chown sozinho.
+User=root
+Group=root
+
+# Escuta só no localhost: quem fala com a internet é o nginx, que termina o
+# HTTPS e acrescenta o X-Real-IP. Sem HOST, o server.js já usa 127.0.0.1.
+Environment=NODE_ENV=production
+
+# Cai? Sobe de novo. RestartSec evita laço apertado quando o erro é imediato
+# (porta ocupada, banco sem permissão) — sem ele o systemd tentaria sem parar.
+Restart=always
+RestartSec=3
+
+# O journal é onde o log aparece. StandardOutput=journal é o padrão em versões
+# recentes, mas deixar explícito evita surpresa em servidor antigo.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=forms
+
+[Install]
+WantedBy=multi-user.target

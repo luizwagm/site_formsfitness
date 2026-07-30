@@ -2,7 +2,7 @@
    main.js — Forms Fitness Academia Aquática · interações leves
    Header no scroll · menu mobile · reveal · form → WhatsApp · FAB WhatsApp
    ========================================================================== */
-import { WHATSAPP_NUMBER } from "./config.js";
+import { WHATSAPP_NUMBER, GA4_ID, GTM_ID, META_PIXEL_ID, CLARITY_ID, HOTJAR_ID } from "./config.js";
 
 const $ = (s, c = document) => c.querySelector(s);
 const $$ = (s, c = document) => [...c.querySelectorAll(s)];
@@ -70,8 +70,260 @@ function initFab() {
   document.body.appendChild(a);
 }
 
+/* ==========================================================================
+   CONSENTIMENTO DE COOKIES (LGPD)
+
+   Hoje o site não grava cookie nenhum por conta própria. O banner existe para
+   controlar os scripts de MEDIÇÃO (GA4/GTM/Pixel/Clarity/Hotjar): eles só são
+   carregados depois do "Aceitar cookies".
+
+   Isso é o ponto todo. Um aviso que apenas informa — e carrega o rastreamento
+   de qualquer jeito — não cumpre a LGPD, que exige consentimento PRÉVIO. Aqui,
+   sem escolha explícita, nada de terceiros roda.
+
+   Os IDs de medição estão vazios em config.js à espera do cliente. No dia em
+   que forem preenchidos, o site já sabe respeitar a escolha do visitante — o
+   contrário (preencher primeiro e lembrar do banner depois) é o caminho comum
+   para tomar multa.
+   ========================================================================== */
+const CONSENT_COOKIE = "ff_consent";
+const CONSENT_DIAS = 180;
+
+const lerConsent = () =>
+  (new RegExp(`(?:^|;\\s*)${CONSENT_COOKIE}=(aceito|essenciais)`).exec(document.cookie) || [])[1] || null;
+
+function gravarConsent(valor) {
+  const seguro = location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${CONSENT_COOKIE}=${valor}; Max-Age=${CONSENT_DIAS * 86400}; Path=/; SameSite=Lax${seguro}`;
+}
+
+/* Injeta os scripts de medição — só é chamado com consentimento explícito. */
+let medicaoCarregada = false;
+function carregarMedicao() {
+  if (medicaoCarregada) return;
+  medicaoCarregada = true;
+  const script = (src) => {
+    const s = document.createElement("script");
+    s.async = true; s.src = src;
+    document.head.appendChild(s);
+  };
+  const inline = (code) => {
+    const s = document.createElement("script");
+    s.textContent = code;
+    document.head.appendChild(s);
+  };
+
+  if (GA4_ID) {
+    script(`https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`);
+    inline(`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}
+      gtag('js',new Date());gtag('config','${GA4_ID}',{anonymize_ip:true});`);
+  }
+  if (GTM_ID) {
+    inline(`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});
+      var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';
+      j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+      })(window,document,'script','dataLayer','${GTM_ID}');`);
+  }
+  if (META_PIXEL_ID) {
+    inline(`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+      n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');fbq('init','${META_PIXEL_ID}');fbq('track','PageView');`);
+  }
+  if (CLARITY_ID) {
+    inline(`(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","${CLARITY_ID}");`);
+  }
+  if (HOTJAR_ID) {
+    inline(`(function(h,o,t,j,a,r){h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
+      h._hjSettings={hjid:${HOTJAR_ID},hjsv:6};a=o.getElementsByTagName('head')[0];
+      r=o.createElement('script');r.async=1;r.src=t+h._hjSettings.hjid+j;a.appendChild(r);
+      })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');`);
+  }
+}
+
+function montarBanner() {
+  if ($(".cookie-bar")) return;
+  const bar = document.createElement("div");
+  bar.className = "cookie-bar";
+  bar.setAttribute("role", "dialog");
+  bar.setAttribute("aria-live", "polite");
+  bar.setAttribute("aria-label", "Aviso sobre cookies");
+  bar.innerHTML = `
+    <div class="cookie-bar__text">
+      <b>A gente usa cookies. 🍪</b>
+      <p>Alguns são necessários para o site funcionar. Com a sua autorização, usamos também cookies de medição — só para entender como as pessoas chegam até a academia e melhorar o site. <a href="/privacidade/">Ler a Política de Privacidade</a>.</p>
+    </div>
+    <div class="cookie-bar__acoes">
+      <button type="button" class="btn btn--ghost btn--sm" data-consent="essenciais">Só os essenciais</button>
+      <button type="button" class="btn btn--lime btn--sm" data-consent="aceito">Aceitar cookies</button>
+    </div>`;
+  document.body.appendChild(bar);
+
+  /* O botão do WhatsApp é criado ANTES do banner, então seletor de irmão não
+     alcança: marcamos o body e publicamos a ALTURA REAL do aviso para o CSS
+     subir o botão exatamente o quanto precisa — o texto quebra em mais linhas
+     no celular, e um valor fixo deixaria um deles por cima do outro. */
+  const marcarAltura = () => {
+    document.body.classList.add("has-cookie-bar");
+    document.body.style.setProperty("--cookie-bar-h", `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+  };
+  marcarAltura();
+  window.addEventListener("resize", marcarAltura);
+  requestAnimationFrame(() => bar.classList.add("is-open"));
+
+  bar.addEventListener("click", (e) => {
+    const escolha = e.target.closest("[data-consent]")?.dataset.consent;
+    if (!escolha) return;
+    gravarConsent(escolha);
+    if (escolha === "aceito") carregarMedicao();
+    bar.classList.remove("is-open");
+    document.body.classList.remove("has-cookie-bar");
+    window.removeEventListener("resize", marcarAltura);
+    setTimeout(() => bar.remove(), 350);
+    toast(escolha === "aceito" ? "Preferência salva. Obrigado! 🏊" : "Certo — só os cookies essenciais.");
+  });
+}
+
+/* Links legais no rodapé de TODAS as páginas, injetados aqui para não precisar
+   editar cada template. A LGPD exige que REVER a escolha seja tão fácil quanto
+   fazê-la — por isso o "Preferências de cookies" fica sempre à mão. */
+function linksRodape() {
+  const alvo = $(".footer__bottom p") || $(".footer__bottom");
+  if (!alvo || $(".cookie-prefs")) return;
+
+  if (!alvo.querySelector('a[href="/privacidade/"]') && location.pathname !== "/privacidade/") {
+    const p = document.createElement("a");
+    p.href = "/privacidade/";
+    p.textContent = "Privacidade";
+    alvo.append(" · ", p);
+  }
+
+  const a = document.createElement("button");
+  a.type = "button";
+  a.className = "cookie-prefs";
+  a.textContent = "Preferências de cookies";
+  a.addEventListener("click", () => {
+    document.cookie = `${CONSENT_COOKIE}=; Max-Age=0; Path=/`;
+    montarBanner();
+  });
+  alvo.append(" · ", a);
+}
+
+/* Lupa no topo → abre o campo → leva para /busca/?q= */
+function initHeaderSearch() {
+  const inner = $(".site-header .header__inner");
+  if (!inner || $(".search-toggle")) return;
+
+  const btn = document.createElement("button");
+  btn.className = "search-toggle";
+  btn.type = "button";
+  btn.setAttribute("aria-label", "Pesquisar no site");
+  btn.setAttribute("aria-expanded", "false");
+  btn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>`;
+
+  const bar = document.createElement("div");
+  bar.className = "site-search";
+  bar.innerHTML = `
+    <form class="site-search__form" role="search" action="/busca/" method="get">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" name="q" class="site-search__input" placeholder="Busque modalidades, matérias, professores…" autocomplete="off" aria-label="Buscar no site">
+      <button type="submit" class="site-search__go">Buscar</button>
+      <button type="button" class="site-search__close" aria-label="Fechar busca">✕</button>
+    </form>`;
+
+  const navToggle = $(".nav-toggle", inner);
+  inner.insertBefore(btn, navToggle || null);
+  $(".site-header").appendChild(bar);
+
+  const input = $(".site-search__input", bar);
+  const abrir = () => { bar.classList.add("is-open"); btn.setAttribute("aria-expanded", "true"); setTimeout(() => input.focus(), 60); };
+  const fechar = () => { bar.classList.remove("is-open"); btn.setAttribute("aria-expanded", "false"); };
+  btn.addEventListener("click", () => bar.classList.contains("is-open") ? fechar() : abrir());
+  $(".site-search__close", bar).addEventListener("click", fechar);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") fechar(); });
+  /* Busca vazia recarregaria a página de resultados sem termo nenhum — melhor
+     não sair do lugar e devolver o foco ao campo. */
+  $(".site-search__form", bar).addEventListener("submit", (e) => {
+    if (!input.value.trim()) { e.preventDefault(); input.focus(); }
+  });
+}
+
+/* ==========================================================================
+   Página /busca/: lê o ?q=, filtra o índice e desenha os resultados.
+
+   A busca é feita NO NAVEGADOR, sobre um índice pequeno gerado na publicação
+   (assets/data/search-index.json). Não há endpoint de busca no servidor: o
+   site tem algumas dezenas de páginas, o índice cabe em poucos KB, e assim a
+   busca não vira uma porta a mais para sondar nem custa banco a cada tecla.
+   ========================================================================== */
+async function initSearchResults() {
+  const results = $("#busca-results");
+  if (!results) return;
+  const status = $("#busca-status");
+  const form = $("#busca-form"), input = $("#busca-input");
+  const norm = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+  const q = new URLSearchParams(location.search).get("q") || "";
+  input.value = q;
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const nq = input.value.trim();
+    location.href = "/busca/" + (nq ? "?q=" + encodeURIComponent(nq) : "");
+  });
+
+  if (!q.trim()) { status.textContent = "Digite um termo para buscar."; return; }
+  document.title = `Busca: ${q} — Forms Fitness`;
+
+  let data = [];
+  try { data = await (await fetch("/assets/data/search-index.json")).json(); }
+  catch { status.textContent = "Não foi possível carregar a busca agora."; return; }
+
+  /* Acerto no TÍTULO vale mais que no texto: quem procura "TAF" quer a página
+     do TAF, não toda matéria que cita a sigla de passagem. */
+  const terms = norm(q).split(/\s+/).filter(Boolean);
+  const scored = data.map((it) => {
+    const hayT = norm(it.t), hayD = norm(it.d);
+    let score = 0;
+    for (const term of terms) {
+      if (hayT.includes(term)) score += 10;
+      if (hayD.includes(term)) score += 3;
+    }
+    return { it, score };
+  }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
+
+  status.textContent = scored.length
+    ? `${scored.length} resultado${scored.length > 1 ? "s" : ""} para “${q}”.`
+    : `Nenhum resultado para “${q}”. Tente outro termo — ou fale com a gente no WhatsApp.`;
+
+  const escapar = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const destacar = (texto) => {
+    let t = escapar(texto.slice(0, 180));
+    /* Escapa o termo antes de virar regex: quem buscar "c++" ou "(taf)" faria
+       a expressão explodir, e a página ficaria em branco sem explicação. */
+    terms.forEach((term) => { t = t.replace(new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\function initConsent() {")})`, "gi"), "<mark>$1</mark>"); });
+    return t;
+  };
+
+  results.innerHTML = scored.map(({ it }) => `
+    <a class="busca-item" href="${escapar(it.u)}">
+      <span class="busca-item__tag">${escapar(it.tipo)}</span>
+      <h3 class="busca-item__title">${escapar(it.t)}</h3>
+      <p class="busca-item__desc">${destacar(it.d)}…</p>
+    </a>`).join("");
+}
+
+function initConsent() {
+  linksRodape();
+  const escolha = lerConsent();
+  if (!escolha) montarBanner();
+  else if (escolha === "aceito") carregarMedicao();
+}
+
 function initYear() { const y = $("#year"); if (y) y.textContent = new Date().getFullYear(); }
 
-function boot() { initHeader(); initMobileNav(); initReveal(); initForm(); initFab(); initYear(); }
+function boot() { initHeader(); initMobileNav(); initHeaderSearch(); initReveal(); initForm(); initFab(); initYear(); initSearchResults(); initConsent(); }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
 else boot();

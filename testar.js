@@ -180,6 +180,47 @@ function pngEmPe() {
       (await pedir("POST", "/api/login", { corpo: { password: SENHA } })).status === 200);
     certo("a sessão já aberta continua valendo",
       (await pedir("GET", "/api/content", { cookie: COOKIE })).status === 200);
+
+    /* ------------------------------------------------------------------
+       ATAQUE DISTRIBUÍDO — a brecha que a trava por IP não via.
+
+       A conta é uma só; os IPs, não. Com uma lista de proxies o atacante
+       ganhava um orçamento novo de 5 tentativas por endereço, e a trava
+       nunca disparava. O balde POR CONTA soma os erros de todo mundo e é o
+       que interrompe.
+
+       Roda por último de propósito: ele deixa a conta bloqueada por 30 min.
+       O IP desta máquina já acertou a senha acima, então continua entrando
+       (é justamente a proteção contra o ataque virar tranca no dono) — e é
+       isso que permite a suíte rodar de novo em seguida. */
+    let gastas = 0, barrouCom = null;
+    for (let i = 0; i < 40; i++) {
+      const r = await pedir("POST", "/api/login",
+        { corpo: { password: "zz-distrib-" + i }, headers: { "x-real-ip": `203.0.113.${100 + i}` } });
+      if (r.status === 401) { gastas++; continue; }
+      if (r.status === 429) { barrouCom = r.json?.error || ""; break; }
+    }
+    certo("o ataque distribuído é interrompido", barrouCom !== null && gastas <= 12, `passaram ${gastas}`);
+    certo("a mensagem explica que foi a conta", /conta/i.test(barrouCom || ""), barrouCom);
+
+    /* Com a conta bloqueada, nem a senha certa entra de um endereço novo —
+       senão o bloqueio não bloquearia nada. */
+    eq("senha certa de IP desconhecido é barrada enquanto a conta está travada",
+      (await pedir("POST", "/api/login", { corpo: { password: SENHA }, headers: { "x-real-ip": "198.51.100.200" } })).status, 429);
+
+    /* E o dono, do endereço de sempre, não fica trancado do lado de fora. */
+    certo("o dono, do IP que já usou antes, continua entrando",
+      (await pedir("POST", "/api/login", { corpo: { password: SENHA } })).status === 200);
+
+    /* A contagem tem de sobreviver ao reinício: o servidor reinicia sozinho
+       de madrugada, e uma trava só na memória devolveria o orçamento
+       inteiro ao atacante todo dia. */
+    const limites = path.join(__dirname, "data", "limites.json");
+    certo("a contagem é gravada em disco (sobrevive ao reinício)", fs.existsSync(limites));
+    if (fs.existsSync(limites)) {
+      const d = JSON.parse(fs.readFileSync(limites, "utf8"));
+      certo("o arquivo guarda os baldes por conta", Object.keys(d.falhas || {}).some((k) => k.includes("|conta|")));
+    }
   }
 
   /* ====================================================================
@@ -266,6 +307,130 @@ function pngEmPe() {
   }
 
   /* ====================================================================
+     BACKUP — a única falta cuja consequência é irreversível
+     ==================================================================== */
+  console.log("\n-- Backup --");
+  {
+    const { rodarBackup, statusBackup } = require("./backup");
+    const cfg = { destino: path.join(__dirname, "backups"),
+      bancos: [path.join(__dirname, "data", "site.db")], manter: 30, intervaloHoras: 24 };
+    const feitos = rodarBackup(cfg, "do teste");
+    certo("a cópia é gerada", feitos.length === 1 && fs.existsSync(feitos[0].arquivo));
+
+    /* Backup que ninguém abre não é backup. Aqui a cópia é ABERTA e comparada
+       com o original — é o que separa "o arquivo existe" de "dá para voltar". */
+    const { abrirBanco } = require("./db");
+    const orig = abrirBanco(path.join(__dirname, "data", "site.db"));
+    const copia = abrirBanco(feitos[0].arquivo);
+    const conta = (d, t) => d.prepare(`SELECT COUNT(*) c FROM ${t}`).get().c;
+    const iguais = ["settings", "services", "team", "posts"].every((t) => conta(orig, t) === conta(copia, t));
+    certo("a cópia tem o mesmo conteúdo do original", iguais);
+    eq("a cópia passa no integrity_check", copia.prepare("PRAGMA integrity_check").get().integrity_check, "ok");
+    orig.close(); copia.close();
+
+    const st = statusBackup(cfg);
+    certo("o status sabe dizer quando foi a última cópia", st.bancos[0].ultimo !== null);
+    certo("as cópias ficam FORA de data/", !st.destino.includes(path.join("data")));
+    try { fs.unlinkSync(feitos[0].arquivo); } catch {}
+  }
+
+  /* ====================================================================
+     MODO MANUTENÇÃO
+     ==================================================================== */
+  console.log("\n-- Modo manutenção --");
+  {
+    const NAV = { "user-agent": "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120 Safari/537.36" };
+    await pedir("POST", "/api/manutencao", { cookie: COOKIE,
+      corpo: { ligar: true, titulo: "ZZ teste de manutenção", texto: "Voltamos já." } });
+    const visitante = await pedir("GET", "/", { headers: NAV });
+    /* 503 e não 200: com 200 o Google indexaria a página de aviso no lugar do
+       site; com 404 concluiria que as páginas sumiram. */
+    eq("o visitante recebe 503 (temporário), não 200 nem 404", visitante.status, 503);
+    eq("acompanha Retry-After", visitante.headers["retry-after"], "3600");
+    certo("mostra o texto configurado", /ZZ teste de manuten/.test(visitante.corpo));
+    certo("quem está logado continua vendo o site",
+      (await pedir("GET", "/", { cookie: COOKIE, headers: NAV })).status === 200);
+    certo("os assets continuam servidos (a página de aviso depende deles)",
+      (await pedir("GET", "/assets/css/styles.css")).status === 200);
+
+    const arq = path.join(__dirname, "manutencao.html");
+    certo("a página é gravada em disco (o nginx a usa quando o app cai)", fs.existsSync(arq));
+    const html = fs.readFileSync(arq, "utf8");
+    /* Se o app está fora do ar, nada em /assets é servido: a página tem de se
+       sustentar sozinha, com CSS e desenho embutidos. */
+    certo("a página não depende de nenhum arquivo do site", !/(?:href|src)="\//.test(html));
+
+    await pedir("POST", "/api/manutencao", { cookie: COOKIE, corpo: { ligar: false } });
+    eq("desligando, o site volta", (await pedir("GET", "/", { headers: NAV })).status, 200);
+  }
+
+  /* ====================================================================
+     CONTADOR DE ACESSOS
+     ==================================================================== */
+  console.log("\n-- Acessos --");
+  {
+    const NAV = { "user-agent": "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120 Safari/537.36" };
+    const antes = (await pedir("GET", "/api/stats", { cookie: COOKIE })).json;
+    const ip = "203.0.113." + (150 + (process.pid % 50));
+    await pedir("GET", "/", { headers: { ...NAV, "x-real-ip": ip } });
+    await pedir("GET", "/", { headers: { ...NAV, "x-real-ip": ip } });          // mesma visita
+    await pedir("GET", "/", { headers: { "user-agent": "Googlebot/2.1" } });     // robô
+    await pedir("GET", "/assets/css/styles.css", { headers: { ...NAV, "x-real-ip": "203.0.113.240" } });
+    const dep = (await pedir("GET", "/api/stats", { cookie: COOKIE })).json;
+
+    eq("um visitante novo conta uma vez", dep.total - antes.total, 1);
+    certo("o mesmo IP na mesma janela não conta de novo", dep.total - antes.total === 1);
+    certo("robô não é visita", dep.total - antes.total === 1);
+    certo("CSS e imagem não contam como acesso", dep.total - antes.total === 1);
+    eq("sem sessão, os números não saem", (await pedir("GET", "/api/stats")).status, 401);
+
+    /* LGPD: o endereço nunca fica legível. Guardar o IP em claro tornaria a
+       tabela um cadastro de pessoas identificáveis. */
+    const { abrirBanco } = require("./db");
+    const d = abrirBanco(path.join(__dirname, "data", "site.db"));
+    const amostra = d.prepare("SELECT ip_hash FROM visits LIMIT 20").all();
+    certo("nenhum IP é gravado em claro", !amostra.some((x) => /^\d+\.\d+\.\d+\.\d+$/.test(x.ip_hash)));
+    certo("o hash tem sal (não é o sha do IP puro)",
+      amostra.every((x) => /^[a-f0-9]{64}$/.test(x.ip_hash)));
+    d.close();
+  }
+
+  /* ====================================================================
+     COOKIES (LGPD), PRIVACIDADE E BUSCA
+     ==================================================================== */
+  console.log("\n-- LGPD, privacidade e busca --");
+  {
+    const js = fs.readFileSync(path.join(__dirname, "assets", "js", "main.js"), "utf8");
+    /* O ponto todo do banner: nada de terceiros pode carregar ANTES do aceite.
+       Um aviso que só informa, e rastreia de qualquer jeito, não cumpre a lei. */
+    certo("os scripts de medição só carregam depois do aceite",
+      /if \(escolha === "aceito"\) carregarMedicao\(\)/.test(js));
+    certo("no primeiro acesso o banner aparece", /if \(!escolha\) montarBanner\(\)/.test(js));
+    certo("dá para REVER a escolha depois", /cookie-prefs/.test(js));
+    certo("recusar é tão fácil quanto aceitar (mesmo peso de botão)",
+      /data-consent="essenciais"/.test(js) && /data-consent="aceito"/.test(js));
+
+    const priv = await pedir("GET", "/privacidade/");
+    eq("a política de privacidade abre", priv.status, 200);
+    certo("ela diz o que o site faz de verdade — o formulário não guarda nada aqui",
+      /não envia nada para um servidor nosso/i.test(priv.corpo));
+    certo("fala de crianças (a academia tem natação infantil)", /Crianças e adolescentes/.test(priv.corpo));
+
+    const busca = await pedir("GET", "/busca/?q=taf");
+    eq("a página de busca abre", busca.status, 200);
+    certo("a busca não é indexada (o conteúdo muda a cada termo)", /noindex/.test(busca.corpo));
+    const idx = await pedir("GET", "/assets/data/search-index.json");
+    eq("o índice de busca é publicado", idx.status, 200);
+    certo("o índice tem conteúdo", Array.isArray(idx.json) && idx.json.length > 5, String(idx.json?.length));
+    certo("o índice cobre blog, modalidades e equipe",
+      ["Blog", "Modalidade", "Equipe"].every((t) => idx.json.some((x) => x.tipo === t)));
+
+    const sm = await pedir("GET", "/sitemap.xml");
+    certo("a privacidade entra no sitemap", /\/privacidade\//.test(sm.corpo));
+    certo("a busca fica fora do sitemap", !/\/busca\//.test(sm.corpo));
+  }
+
+  /* ====================================================================
      8. PAINEL: editor, URL automática e resumo
      ==================================================================== */
   console.log("\n-- Painel --");
@@ -292,7 +457,12 @@ function pngEmPe() {
   }
   {
     const home = await pedir("GET", "/");
-    certo("a home usa o logotipo original do cliente", /logo-original\.svg/.test(home.corpo));
+    certo("a home usa o logotipo original do cliente", /logo-original\.png/.test(home.corpo));
+    /* O SVG antigo tinha 3,65 MB (um PNG de 3905×2048 embutido, exibido a
+       ~130px) e carregava em toda página. O arquivo novo do cliente tem 295 KB
+       com o mesmo desenho — se alguém reapontar para o SVG, isto avisa. */
+    certo("o logotipo não é mais o SVG de 3,6 MB", !/logo-original\.svg/.test(home.corpo));
+    certo("o favicon é o PNG do cliente", /favicon\.png/.test(home.corpo) && !/favicon\.svg/.test(home.corpo));
   }
 
   /* --------------------------------------------------------------------- */

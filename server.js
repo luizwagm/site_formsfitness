@@ -11,18 +11,27 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { abrirBanco, DRIVER_NOME, DRIVER_AVISO } = require("./db");
+const { criarLimitador } = require("./limitador");
+const { agendarBackups } = require("./backup");
 
 const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.6.1";
 const PORT = 5186;
-const SITE = "https://formsfitness.com.br";
+const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
 fs.mkdirSync(path.join(ROOT, "data"), { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(path.join(ROOT, "blog"), { recursive: true });
+
+/* Freio contra adivinhação de senha. Vive em arquivo para sobreviver ao
+   reinício — o servidor reinicia sozinho de madrugada, e uma contagem só na
+   memória devolveria o orçamento inteiro ao atacante todo dia. */
+const limite = criarLimitador({ arquivo: path.join(ROOT, "data", "limites.json") });
+limite.carregar();
+process.on("exit", () => limite.gravar());
 
 const db = abrirBanco(path.join(ROOT, "data", "site.db"));
 db.exec(`
@@ -33,6 +42,14 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS team (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, role TEXT, bio TEXT, photo TEXT, sort INTEGER DEFAULT 0);
   CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
     excerpt TEXT, content TEXT, image TEXT, date TEXT, sort INTEGER DEFAULT 0);
+
+  -- Contador de acessos do site público. O IP NUNCA é gravado em claro:
+  -- guardamos só o hash (LGPD — dado pseudonimizado, não reversível na prática).
+  CREATE TABLE IF NOT EXISTS visits (id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_hash TEXT NOT NULL, path TEXT, referrer TEXT, ua TEXT, day TEXT NOT NULL, ts INTEGER NOT NULL);
+  CREATE INDEX IF NOT EXISTS idx_visits_ip_ts ON visits(ip_hash, ts);
+  CREATE INDEX IF NOT EXISTS idx_visits_day ON visits(day);
+  CREATE INDEX IF NOT EXISTS idx_visits_ts ON visits(ts);
 `);
 
 const sha = (s) => crypto.createHash("sha256").update(String(s)).digest("hex");
@@ -74,16 +91,12 @@ function confereSenha(senha, guardado) {
    diferença, medida no relógio, entrega quando alguém acertou. */
 const HASH_ISCA = hashSenha(crypto.randomBytes(16).toString("hex"));
 
-/* ==========================================================================
-   TRAVA DE FORÇA BRUTA
+/* A TRAVA DE FORÇA BRUTA mudou de casa: está em `limitador.js`, que além do
+   balde por IP tem o balde por CONTA (o que barra o ataque distribuído),
+   espera crescente entre erros e contagem que sobrevive ao reinício. O que
+   ficou aqui é só a leitura do IP, que o limitador recebe pronta.
 
-   Sem ela, o painel aceita quantas tentativas o atacante quiser: 100 mil por
-   minuto quebram qualquer senha curta. Cinco erros fecham o IP por 15 minutos,
-   e o bloqueio some sozinho — não precisa de ninguém para destravar.
-   ========================================================================== */
-const TENT_MAX = 5, BLOQ_MIN = 15;
-const tentativas = new Map();
-/* O IP REAL de quem está pedindo.
+   O IP REAL de quem está pedindo.
 
    Atrás do nginx o socket é sempre 127.0.0.1, então o IP verdadeiro precisa
    chegar por cabeçalho. Só que cabeçalho é texto que o CLIENTE também
@@ -107,25 +120,78 @@ function ipDoCliente(req) {
   const lista = String(req.headers["x-forwarded-for"] || "").split(",").map((s) => s.trim()).filter(Boolean);
   return lista.length ? lista[lista.length - 1] : direto;
 }
-function bloqueado(ip) {
-  const t = tentativas.get(ip);
-  if (!t) return false;
-  if (Date.now() > t.ate) { tentativas.delete(ip); return false; }
-  return t.n >= TENT_MAX;
-}
-function erroDeLogin(ip) {
-  const t = tentativas.get(ip) || { n: 0, ate: 0 };
-  t.n++; t.ate = Date.now() + BLOQ_MIN * 60_000;
-  tentativas.set(ip, t);
-}
-setInterval(() => { const agora = Date.now(); for (const [k, v] of tentativas) if (agora > v.ate) tentativas.delete(k); },
-  10 * 60_000).unref();
 const getS = (k) => db.prepare("SELECT value FROM settings WHERE key=?").get(k)?.value;
 const setS = (k, v) => db.prepare("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(k, String(v));
-const slug = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const slug = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+/* ==========================================================================
+   CONTADOR DE ACESSOS — só visitas humanas ao site público.
+
+   Um mesmo IP conta 1 vez por janela de VISIT_WINDOW_MIN minutos; passada a
+   janela volta a contar, porque aí é uma VISITA nova, não um clique a mais.
+   IPs diferentes contam sempre. Nada disso aparece no site — só na tela
+   Acessos do painel, que exige sessão.
+   ========================================================================== */
+const VISIT_WINDOW_MIN = 30;
+/* Sal guardado no banco: sem ele, o hash de um IPv4 seria quebrável por
+   força bruta em minutos (só existem 4 bilhões de endereços, e testar todos
+   é trivial). Com um sal aleatório POR INSTALAÇÃO, deixa de ser — e é o que
+   torna o dado pseudonimizado de verdade, e não só de fachada. */
+if (!getS("visit_salt")) setS("visit_salt", crypto.randomBytes(24).toString("hex"));
+const VISIT_SALT = getS("visit_salt");
+
+/* Robô não é visita. Sem esta lista, o número que o cliente vê seria em boa
+   parte o Google e os pré-visualizadores de link do WhatsApp. */
+const BOT_RE = /bot|crawler|spider|crawling|slurp|bingpreview|facebookexternalhit|whatsapp|telegram|preview|monitor|uptime|curl|wget|python-requests|axios|headless|lighthouse|pagespeed|semrush|ahrefs|mj12|dotbot|petalbot|gptbot|ccbot|claudebot|perplexity/i;
+
+function trackVisit(req, pathname) {
+  try {
+    if (req.method !== "GET") return;
+    const ua = String(req.headers["user-agent"] || "");
+    if (!ua || BOT_RE.test(ua)) return;                 // robôs não são visita
+    if (req.headers["sec-fetch-dest"] === "iframe") return;
+
+    const ipHash = sha(VISIT_SALT + ipDoCliente(req));
+    const agora = Date.now();
+    const ultima = db.prepare("SELECT ts FROM visits WHERE ip_hash=? ORDER BY ts DESC LIMIT 1").get(ipHash);
+    if (ultima && agora - Number(ultima.ts) < VISIT_WINDOW_MIN * 60_000) return;  // ainda na mesma visita
+
+    const ref = String(req.headers.referer || "");
+    db.prepare("INSERT INTO visits(ip_hash,path,referrer,ua,day,ts) VALUES(?,?,?,?,?,?)")
+      .run(ipHash, pathname.slice(0, 300),
+        /* Referência de dentro de casa não é "origem": contá-la encheria a
+           lista com o próprio site e esconderia de onde a visita veio. */
+        ref.includes("formsfitness.com") || ref.includes("localhost") ? "" : ref.slice(0, 300),
+        ua.slice(0, 300), new Date(agora).toISOString().slice(0, 10), agora);
+  } catch { /* medir acesso NUNCA pode derrubar a entrega da página */ }
+}
+
+function statsAcessos() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const desde = (dias) => Date.now() - dias * 86_400_000;
+  const num = (sql, ...p) => Number(db.prepare(sql).get(...p)?.n || 0);
+  return {
+    total: num("SELECT COUNT(*) n FROM visits"),
+    hoje: num("SELECT COUNT(*) n FROM visits WHERE day=?", hoje),
+    semana: num("SELECT COUNT(*) n FROM visits WHERE ts>=?", desde(7)),
+    mes: num("SELECT COUNT(*) n FROM visits WHERE ts>=?", desde(30)),
+    visitantes: num("SELECT COUNT(DISTINCT ip_hash) n FROM visits"),
+    visitantesMes: num("SELECT COUNT(DISTINCT ip_hash) n FROM visits WHERE ts>=?", desde(30)),
+    porDia: db.prepare("SELECT day, COUNT(*) total FROM visits WHERE ts>=? GROUP BY day ORDER BY day").all(desde(30)),
+    topPaginas: db.prepare("SELECT path, COUNT(*) total FROM visits GROUP BY path ORDER BY total DESC LIMIT 12").all(),
+    origens: db.prepare("SELECT referrer, COUNT(*) total FROM visits WHERE referrer<>'' GROUP BY referrer ORDER BY total DESC LIMIT 8").all(),
+    janelaMin: VISIT_WINDOW_MIN,
+  };
+}
 
 /* ------------------------------- Seed ------------------------------------ */
 function seed() {
+  /* As chaves do modo manutenção ficam FORA do if de baixo: o site já existe e
+     já tem hero_title, então um seed que só roda na primeira instalação nunca
+     as criaria. Sem elas, o painel abriria a tela sem valor nenhum. */
+  if (getS("manutencao") === undefined) setS("manutencao", "0");
+  if (getS("manutencao_titulo") === undefined) setS("manutencao_titulo", "Estamos atualizando o site");
+  if (getS("manutencao_texto") === undefined) setS("manutencao_texto", "Volte em instantes.");
   if (getS("hero_title")) return;
   const S = {
     admin_password_hash: hashSenha("forms-admin"),
@@ -146,7 +212,7 @@ function seed() {
     ]),
     whatsapp: "5500000000000",
     whatsapp_display: "(87) 00000-0000",
-    contact_email: "contato@formsfitness.com.br",
+    contact_email: "contato@formsfitness.com",
     instagram: "formsfitnessacademiaaquatica",
     footer_tagline: "Academia aquática em Caruaru-PE: natação infantil e adulta, hidroginástica e preparação TAF. 33 anos formando nadadores.",
   };
@@ -544,12 +610,49 @@ function publish() {
     }));
   }
 
+  /* ---------- índice de busca (search-index.json) ----------
+
+     Um arquivo pequeno com título, endereço e resumo de cada página. A busca
+     roda no NAVEGADOR sobre ele: o site tem algumas dezenas de páginas, o
+     índice cabe em poucos KB, e assim não é preciso um endpoint de busca no
+     servidor — que seria mais uma porta para sondar e um banco consultado a
+     cada tecla digitada. */
+  const semTags = (x) => String(x || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const indiceBusca = [
+    { t: "Início — Forms Fitness Academia Aquática", u: "/", tipo: "Página", d: semTags(S.hero_lead) },
+    { t: "A Academia — 33 anos formando nadadores", u: "/#academia", tipo: "Página", d: semTags(S.about_lead) },
+    { t: "Preparação para o TAF", u: "/#taf", tipo: "Modalidade", d: "Preparação para o Teste de Aptidão Física de concursos: PM, Bombeiros e Forças Armadas, com professores experientes em Caruaru-PE." },
+    { t: "Estrutura da academia", u: "/#estrutura", tipo: "Página", d: "As fotos da piscina, dos vestiários e dos espaços da Forms Fitness." },
+    { t: "Contato e aula experimental", u: "/#contato", tipo: "Página", d: `Fale com a Forms Fitness pelo WhatsApp ${S.whatsapp_display || ""} ou pelo e-mail ${S.contact_email || ""}.` },
+    ...services.map((x) => ({ t: x.title, u: "/#modalidades", tipo: "Modalidade", d: semTags(x.text) })),
+    ...team.map((m) => ({ t: m.name, u: "/#equipe", tipo: "Equipe", d: `${semTags(m.role)}. ${semTags(m.bio)}` })),
+    ...posts.map((p) => ({ t: p.title, u: `/blog/${p.slug}/`, tipo: "Blog", d: semTags(p.excerpt) + " " + semTags(p.content).slice(0, 300) })),
+    { t: "Política de Privacidade", u: "/privacidade/", tipo: "Institucional", d: "Como tratamos os seus dados pessoais: o que coletamos, por quê, com quem compartilhamos, prazos de guarda e como exercer os seus direitos pela LGPD." },
+  ];
+  fs.mkdirSync(path.join(ROOT, "assets", "data"), { recursive: true });
+  fs.writeFileSync(path.join(ROOT, "assets", "data", "search-index.json"), JSON.stringify(indiceBusca));
+
+  /* ---------- páginas fixas geradas de src/ ----------
+     Ficam aqui, e não em arquivos soltos, para que o número do WhatsApp
+     acompanhe o que o cliente salvou no painel — em vez de continuar o
+     placeholder do dia em que a página foi escrita. */
+  for (const pagina of ["busca", "privacidade"]) {
+    const tpl = path.join(ROOT, "src", `${pagina}.html`);
+    if (!fs.existsSync(tpl)) continue;
+    fs.mkdirSync(path.join(ROOT, pagina), { recursive: true });
+    fs.writeFileSync(path.join(ROOT, pagina, "index.html"),
+      fs.readFileSync(tpl, "utf8").replace(/wa\.me\/\d+(?![?\d])/g, `wa.me/${S.whatsapp}`));
+  }
+
   /* ------------------------------ Sitemap --------------------------------- */
   const today = new Date().toISOString().slice(0, 10);
   const urls = [
     `  <url><loc>${SITE}/</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>`,
     `  <url><loc>${SITE}/blog/</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`,
     ...posts.map((p) => `  <url><loc>${SITE}/blog/${p.slug}/</loc><lastmod>${p.date || today}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
+    /* A /busca/ fica de FORA de propósito: é noindex, porque o conteúdo dela
+       muda a cada termo e não é uma página de verdade. */
+    `  <url><loc>${SITE}/privacidade/</loc><lastmod>${today}</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>`,
   ];
   fs.writeFileSync(path.join(ROOT, "sitemap.xml"),
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`);
@@ -563,7 +666,110 @@ function publish() {
   return { services: services.length, works: works.length, team: team.length, posts: posts.length };
 }
 
+/* ============================== BACKUP ==================================
+   Todo o site vive num arquivo só. As cópias ficam FORA de `data/` para que
+   um comando errado na pasta do banco não leve as cópias junto — o backup
+   guardado ao lado do original protege contra defeito, não contra engano. */
+const BACKUP_CFG = {
+  destino: path.join(ROOT, "backups"),
+  bancos: [path.join(ROOT, "data", "site.db")],
+  intervaloHoras: Number(process.env.BACKUP_HORAS) || 24,
+  manter: Number(process.env.BACKUP_MANTER) || 30,
+};
+
+/* `node server.js --backup` força uma cópia agora, SEM subir o servidor. É o
+   que o deploy.sh chama antes de encostar em qualquer coisa: se a atualização
+   der errado, existe um ponto de retorno de segundos atrás. */
+if (process.argv.includes("--backup")) {
+  const { rodarBackup } = require("./backup");
+  const feitos = rodarBackup(BACKUP_CFG, "manual");
+  process.exit(feitos.length ? 0 : 1);
+}
+/* `--backup-status` lista a situação em JSON — usado pelo verificar.sh. */
+if (process.argv.includes("--backup-status")) {
+  const { statusBackup } = require("./backup");
+  console.log(JSON.stringify(statusBackup(BACKUP_CFG), null, 2));
+  process.exit(0);
+}
+
+/* ==========================================================================
+   MODO MANUTENÇÃO — duas camadas, porque uma sozinha não cobre tudo:
+
+   1) Aqui no app: com a chave ligada, todo visitante recebe a página de aviso
+      com HTTP 503. Quem está logado no painel continua vendo o site normal,
+      para poder conferir antes de reabrir.
+
+   2) No nginx: o MESMO arquivo é servido quando o app está FORA DO AR
+      (502/503/504). É o que cobre restart, deploy e queda — momentos em que
+      não existe app para responder coisa nenhuma, e sem o qual o visitante
+      veria a tela cinza de "502 Bad Gateway".
+
+   Por isso a página é gravada em DISCO como arquivo estático: o nginx precisa
+   conseguir lê-la sem depender do Node. E por isso ela não referencia nenhum
+   arquivo externo — CSS e desenho vão embutidos, senão apareceriam quebrados
+   justamente na hora em que o servidor não responde.
+   ========================================================================== */
+const emManutencao = () => getS("manutencao") === "1";
+
+function gerarPaginaManutencao(S) {
+  const titulo = S.manutencao_titulo || "Estamos atualizando o site";
+  const texto = S.manutencao_texto || "Volte em instantes.";
+  const zap = String(S.whatsapp || "").replace(/\D/g, "");
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>${esc(titulo)} — Forms Fitness</title>
+  <style>
+    /* CSS embutido de propósito: se o app estiver fora do ar, o styles.css
+       também não é servido — esta página tem de se sustentar sozinha. As
+       fontes são as do sistema pelo mesmo motivo. */
+    *{box-sizing:border-box;margin:0}
+    body{min-height:100vh;display:grid;place-items:center;padding:2rem;
+      background:radial-gradient(700px 420px at 80% 0%,rgba(31,168,220,.16),transparent 60%),
+                 radial-gradient(560px 380px at 0% 100%,rgba(126,211,33,.12),transparent 60%),#F4FAFE;
+      font-family:"Nunito Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0E2A4A;line-height:1.65}
+    .caixa{max-width:34rem;text-align:center;background:#fff;border-radius:20px;padding:3rem 2.4rem;
+      box-shadow:0 18px 46px -16px rgba(8,59,126,.28)}
+    h1{font-family:Archivo,system-ui,sans-serif;font-weight:900;font-size:clamp(1.5rem,4vw,2.1rem);
+      line-height:1.15;margin-bottom:.8rem;color:#0B4EA2}
+    p{color:#48617E}
+    .onda{margin:0 auto 1.6rem;display:block}
+    .zap{display:inline-flex;align-items:center;gap:.5rem;margin-top:1.6rem;padding:.85rem 1.7rem;
+      border-radius:999px;background:linear-gradient(120deg,#8FE334,#7ED321);color:#072B5C;
+      text-decoration:none;font-weight:800;font-family:Archivo,system-ui,sans-serif}
+    .marca{margin-top:2rem;padding-top:1.4rem;border-top:1px solid rgba(11,78,162,.14);
+      font-family:Archivo,system-ui,sans-serif;letter-spacing:.06em;color:#0B4EA2;font-weight:800;font-size:.9rem}
+    .pulso{animation:pulso 2.6s ease-in-out infinite}
+    @keyframes pulso{0%,100%{opacity:1;transform:translateY(0)}50%{opacity:.7;transform:translateY(-6px)}}
+    @media(prefers-reduced-motion:reduce){.pulso{animation:none}}
+  </style>
+</head>
+<body>
+  <main class="caixa">
+    <svg class="onda pulso" width="96" height="96" viewBox="0 0 24 24" fill="none"
+         stroke="#1FA8DC" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+         role="img" aria-label="Forms Fitness">
+      <circle cx="16.5" cy="6.5" r="2.2" fill="#7ED321" stroke="none"/>
+      <path d="m4 13 4.5-3.5L14 12l4-2.5" stroke="#0B4EA2"/>
+      <path d="M2 18c1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0"/>
+      <path d="M2 21.5c1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0" opacity=".45"/>
+    </svg>
+    <h1>${esc(titulo)}</h1>
+    <p>${esc(texto)}</p>
+    ${zap ? `<a class="zap" href="https://wa.me/${esc(zap)}" target="_blank" rel="noopener">Falar no WhatsApp</a>` : ""}
+    <p class="marca">FORMS FITNESS · ACADEMIA AQUÁTICA</p>
+  </main>
+</body>
+</html>`;
+  fs.writeFileSync(path.join(ROOT, "manutencao.html"), html);
+  return html;
+}
+
 /* ------------------------------ HTTP util --------------------------------- */
+
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".json": "application/json",
   ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
   ".webmanifest": "application/manifest+json", ".xml": "application/xml", ".txt": "text/plain" };
@@ -602,15 +808,34 @@ http.createServer(async (req, res) => {
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
 
   try {
+    /* Modo manutenção: barra o visitante, mas deixa passar o painel, a API e
+       os assets. Quem tem sessão de administrador continua vendo o site
+       normal — é assim que se confere o resultado antes de reabrir. */
+    if (emManutencao() && !p.startsWith("/admin") && !p.startsWith("/api/")
+        && !p.startsWith("/assets/") && !p.startsWith("/.well-known/") && !authed(req)) {
+      const arq = path.join(ROOT, "manutencao.html");
+      const corpo = fs.existsSync(arq) ? fs.readFileSync(arq) : "Estamos atualizando o site. Volte em instantes.";
+      /* 503 + Retry-After diz ao Google que é TEMPORÁRIO. Com 200 ele
+         indexaria a página de aviso no lugar do site; com 404 concluiria que
+         as páginas sumiram e as tiraria do índice. */
+      res.writeHead(503, { "Content-Type": MIME[".html"], "Retry-After": "3600", "Cache-Control": "no-store" });
+      return res.end(corpo);
+    }
+
     if (p.startsWith("/api/")) {
       if (p === "/api/login" && req.method === "POST") {
         const ip = ipDoCliente(req);
-        if (bloqueado(ip)) return json(res, 429, { error: "Muitas tentativas. Aguarde 15 minutos." });
+        /* O painel tem um dono só, então a "conta" é sempre a mesma — e é
+           justamente isso que faz o balde por conta valer aqui: ele soma os
+           erros de TODOS os endereços, que é como o ataque distribuído era
+           invisível para a trava por IP. */
+        const v = limite.verificar("painel", ip, "admin");
+        if (!v.ok) { res.setHeader("Retry-After", String(v.esperar)); return json(res, 429, { error: v.mensagem }); }
         const { password } = await readBody(req);
         const guardado = getS("admin_password_hash");
         const certa = guardado ? confereSenha(password, guardado) : (confereSenha(password, HASH_ISCA), false);
-        if (!certa) { erroDeLogin(ip); return json(res, 401, { error: "Senha incorreta" }); }
-        tentativas.delete(ip);
+        if (!certa) { limite.errou("painel", ip, "admin"); return json(res, 401, { error: "Senha incorreta" }); }
+        limite.acertou("painel", ip, "admin");
         // acertou com o formato antigo: regrava em scrypt e o velho some
         if (!guardado.startsWith("scrypt$")) setS("admin_password_hash", hashSenha(password));
         const t = crypto.randomBytes(24).toString("hex");
@@ -623,14 +848,41 @@ http.createServer(async (req, res) => {
         return json(res, 200, { ok: true });
       }
       if (!authed(req)) return json(res, 401, { error: "Não autenticado" });
-      if (p === "/api/me") return json(res, 200, { ok: true });
+      if (p === "/api/me") return json(res, 200, { ok: true, version: APP_VERSION });
+
+      /* Liga/desliga o modo manutenção e devolve o estado atual. O GET serve
+         para a tela do painel abrir já preenchida. */
+      if (p === "/api/stats") return json(res, 200, statsAcessos());
+      if (p === "/api/manutencao") {
+        if (req.method === "POST") {
+          const { ligar, titulo, texto } = await readBody(req);
+          if (titulo !== undefined) setS("manutencao_titulo", titulo);
+          if (texto !== undefined) setS("manutencao_texto", texto);
+          setS("manutencao", ligar ? "1" : "0");
+          const S = {}; for (const r of db.prepare("SELECT key,value FROM settings").all()) S[r.key] = r.value;
+          gerarPaginaManutencao(S);   // regrava o arquivo que o nginx usa nas quedas
+          console.log("  · modo manutenção " + (ligar ? "LIGADO" : "desligado"));
+        }
+        return json(res, 200, { ok: true, ligado: emManutencao(),
+          titulo: getS("manutencao_titulo") || "", texto: getS("manutencao_texto") || "" });
+      }
       if (p === "/api/logout" && req.method === "POST") {
         const m = /sid=([a-f0-9]+)/.exec(req.headers.cookie || ""); if (m) sessions.delete(m[1]);
         return json(res, 200, { ok: true });
       }
       if (p === "/api/password" && req.method === "POST") {
+        /* Aqui também se adivinha senha: este endereço recebe a senha ATUAL.
+           Sem freio, quem roubasse um cookie de sessão poderia testar a senha
+           atual à vontade por aqui, contornando o login. */
+        const ipT = ipDoCliente(req);
+        const vT = limite.verificar("troca-senha", ipT, "admin");
+        if (!vT.ok) { res.setHeader("Retry-After", String(vT.esperar)); return json(res, 429, { error: vT.mensagem }); }
         const { current, next } = await readBody(req);
-        if (!confereSenha(current, getS("admin_password_hash"))) return json(res, 400, { error: "Senha atual incorreta" });
+        if (!confereSenha(current, getS("admin_password_hash"))) {
+          limite.errou("troca-senha", ipT, "admin");
+          return json(res, 400, { error: "Senha atual incorreta" });
+        }
+        limite.acertou("troca-senha", ipT, "admin");
         if (!next || String(next).length < 8) return json(res, 400, { error: "A nova senha precisa de ao menos 8 caracteres." });
         if (confereSenha(next, getS("admin_password_hash"))) return json(res, 400, { error: "A nova senha é igual à atual." });
         setS("admin_password_hash", hashSenha(next));
@@ -733,6 +985,10 @@ http.createServer(async (req, res) => {
     if (p === "/") file = path.join(ROOT, "index.html");
     else if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html");
     if (!fs.existsSync(file)) { res.writeHead(404, { "Content-Type": "text/plain" }); return res.end("404"); }
+    /* Conta só PÁGINA, não imagem nem CSS: senão um acesso viraria dezenas.
+       Fica aqui, no ponto em que o arquivo já foi resolvido — antes disso não
+       se sabe se a URL era mesmo uma página. */
+    if (path.extname(file) === ".html") trackVisit(req, p);
     res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
     res.end(fs.readFileSync(file));
   } catch (e) { json(res, 500, { error: e.message }); }
@@ -745,6 +1001,8 @@ http.createServer(async (req, res) => {
   console.log(`  · Site:   http://localhost:${PORT}/`);
   console.log(`  · Painel: http://localhost:${PORT}/admin/`);
   console.log(`  · Banco:  ${DRIVER_NOME}${DRIVER_AVISO ? "  ⚠ " + DRIVER_AVISO : ""}`);
+  /* Depois do listen, nunca antes: o backup não pode atrasar o site subir. */
+  agendarBackups(BACKUP_CFG);
   /* Testa a escrita no boot. Sem isto, um banco somente-leitura só aparece
      quando o cliente tenta salvar algo e nada acontece — e o log fica mudo. */
   try {

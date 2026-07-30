@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>Gerenciador — Forms Fitness</title>
-  <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" type="image/png" href="/assets/img/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/img/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap">
@@ -119,13 +120,32 @@
     .ed-area h2,.ed-area h3{margin:.8rem 0 .4rem;color:var(--blue);font-size:1.05rem}
     .ed-area blockquote{margin:.6rem 0;padding-left:.8rem;border-left:3px solid var(--line2);color:var(--muted)}
     .ed-area a{color:var(--blue2)}
+    .manut-estado{margin:.2rem 0 .6rem}
+    .pastilha{display:inline-block;font-size:.78rem;font-weight:700;padding:.3rem .7rem;border-radius:999px}
+    .pastilha-on{background:#e8f7ea;color:#1f7a35}
+    .pastilha-off{background:#fdeef2;color:#c2185b}
+    /* O cartão inteiro muda de cor com o site fora do ar: é um estado que não
+       pode passar despercebido em meio ao resto da tela. */
+    .card.manut-on{border-color:#f6c6d4;background:#fff7f9}
+    .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.8rem}
+    .stat-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:1rem 1.1rem;box-shadow:0 2px 8px rgba(11,78,162,.05)}
+    .stat-card b{display:block;font-size:1.9rem;line-height:1.1;color:var(--blue)}
+    .stat-card span{font-size:.76rem;color:var(--dim);font-weight:700}
+    .stat-two{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    @media(max-width:820px){.stat-two{grid-template-columns:1fr}}
+    .spark{display:flex;align-items:flex-end;gap:2px;height:110px;margin-top:.8rem}
+    .spark-bar{flex:1;background:linear-gradient(180deg,var(--blue),var(--blue2));border-radius:3px 3px 0 0;min-height:3px}
+    .spark-bar:hover{background:var(--lime)}
+    .st-table{width:100%;border-collapse:collapse;font-size:.86rem}
+    .st-table td{padding:.4rem .2rem;border-bottom:1px solid var(--line)}
+    .st-table td:last-child{text-align:right;font-weight:700;color:var(--blue)}
   </style>
 </head>
 <body>
 
 <div id="login" hidden>
   <div class="card">
-    <img src="/assets/img/favicon.svg" width="64" height="64" alt="Forms Fitness" style="margin:0 auto 1rem;border-radius:14px">
+    <img src="/assets/img/favicon.png" width="64" height="64" alt="Forms Fitness" style="margin:0 auto 1rem;border-radius:14px">
     <h2 style="margin-bottom:.4rem">Gerenciador Forms Fitness</h2>
     <p class="hint mb">Entre para editar o site.</p>
     <input type="password" id="pw" placeholder="Senha" autocomplete="current-password">
@@ -136,8 +156,9 @@
 
 <div class="app" id="app" hidden>
   <aside>
-    <span class="logo"><img src="/assets/img/favicon.svg" alt="" style="border-radius:10px"> forms</span>
+    <span class="logo"><img src="/assets/img/favicon.png" alt="" style="border-radius:10px"> forms</span>
     <button class="navbtn on" data-p="dash">▲ Publicar</button>
+    <button class="navbtn" data-p="acessos">📊 Acessos</button>
 
     <div class="navgrupo">
       <button class="navtopo" type="button" aria-expanded="false">🏊 A academia</button>
@@ -178,6 +199,41 @@
         <button class="btn btn-navy mt" onclick="publishSite()">🚀 Publicar site</button>
         <p class="hint mt" id="pub-log"></p>
       </div>
+
+      <div class="card mt" id="card-manutencao">
+        <h3 style="margin:0 0 .3rem">Modo manutenção</h3>
+        <p class="hint mb">Tira o site do ar e mostra um aviso com a identidade da academia. Use antes de atualizar o servidor. Você, logado aqui, continua vendo o site normalmente.</p>
+        <div id="manut-estado" class="manut-estado"></div>
+        <label>Título do aviso</label><input id="manut_titulo">
+        <label>Mensagem</label><input id="manut_texto">
+        <div class="topbar mt" style="margin-bottom:0">
+          <button class="btn btn-ghost btn-sm" onclick="salvarTextoManutencao()">Salvar mensagem</button>
+          <button class="btn" id="btn-manut" onclick="alternarManutencao()"></button>
+        </div>
+        <p class="hint mt">Enquanto ligado, o site responde <b>503</b> — o Google entende que é temporário e não tira as suas páginas do índice.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="p-acessos">
+      <div class="topbar"><h1>Acessos</h1><button class="btn btn-ghost" onclick="loadStats()">↻ Atualizar</button></div>
+      <div class="stat-grid" id="st-cards"></div>
+      <div class="card mt">
+        <h3 style="margin:0 0 .2rem">Últimos 30 dias</h3>
+        <p class="hint" id="st-janela"></p>
+        <div class="spark" id="st-spark"></div>
+      </div>
+      <div class="stat-two mt">
+        <div class="card">
+          <h3 style="margin:0 0 .6rem">Páginas mais acessadas</h3>
+          <table class="st-table" id="st-paginas"></table>
+        </div>
+        <div class="card">
+          <h3 style="margin:0 0 .6rem">De onde vieram</h3>
+          <table class="st-table" id="st-origens"></table>
+          <p class="hint mt" id="st-origens-vazio" hidden>Ainda sem origens externas registradas. Quando alguém chegar pelo Google ou pelo Instagram, aparece aqui.</p>
+        </div>
+      </div>
+      <p class="hint mt">O contador roda no próprio servidor, não usa cookie e não guarda o IP — só um código embaralhado dele. Robôs de busca e de monitoramento são descartados. Nada disso aparece no site: só aqui.</p>
     </section>
 
     <section class="panel" id="p-services">
@@ -558,11 +614,90 @@ document.querySelectorAll(".navbtn[data-p]").forEach((b) =>
     b.classList.add("on");
     $("#p-" + b.dataset.p).classList.add("on");
     revelarGrupoAtivo();
+    // a tela de Acessos busca os números ao ser aberta, não a cada minuto
+    if (b.dataset.p === "acessos") loadStats();
   })
 );
 
+/* ---------------------------- Acessos ---------------------------------- */
+const nf = new Intl.NumberFormat("pt-BR");
+async function loadStats() {
+  let s;
+  try { s = await api("/api/stats"); } catch (e) { return toast(e.message, true); }
+
+  $("#st-cards").innerHTML = [
+    ["Hoje", s.hoje], ["Últimos 7 dias", s.semana], ["Últimos 30 dias", s.mes],
+    ["Total de visitas", s.total], ["Visitantes únicos", s.visitantes], ["Únicos no mês", s.visitantesMes],
+  ].map(([r, v]) => `<div class="stat-card"><b>${nf.format(v)}</b><span>${r}</span></div>`).join("");
+
+  $("#st-janela").textContent =
+    `Uma visita = um visitante contado uma vez a cada ${s.janelaMin} minutos. Se a mesma pessoa voltar depois disso, conta de novo.`;
+
+  /* Gráfico dos 30 dias PREENCHENDO com zero os dias sem acesso: sem isso o
+     desenho pularia os dias vazios e daria a impressão de movimento contínuo
+     onde não houve ninguém. */
+  const mapa = new Map(s.porDia.map((d) => [d.day, d.total]));
+  const dias = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    dias.push([d, mapa.get(d) || 0]);
+  }
+  const topo = Math.max(1, ...dias.map((d) => d[1]));
+  $("#st-spark").innerHTML = dias.map(([d, v]) => {
+    const [, m, dd] = d.split("-");
+    return `<span class="spark-bar" style="height:${Math.max(3, (v / topo) * 100)}%" title="${dd}/${m}: ${v} visita(s)"></span>`;
+  }).join("");
+
+  const linhas = (arr, campo, vazio) => arr.length
+    ? arr.map((r) => `<tr><td>${escA(r[campo] || "/")}</td><td>${nf.format(r.total)}</td></tr>`).join("")
+    : `<tr><td colspan="2" style="color:var(--muted)">${vazio}</td></tr>`;
+  $("#st-paginas").innerHTML = linhas(s.topPaginas, "path", "Nenhum acesso registrado ainda.");
+  $("#st-origens").innerHTML = linhas(s.origens, "referrer", "—");
+  $("#st-origens-vazio").hidden = s.origens.length > 0;
+}
+
+/* --------------------------- Manutenção -------------------------------- */
+let MANUT = null;
+async function carregarManutencao() {
+  try { MANUT = await api("/api/manutencao"); } catch { return; }
+  $("#manut_titulo").value = MANUT.titulo || "";
+  $("#manut_texto").value = MANUT.texto || "";
+  pintarManutencao();
+}
+function pintarManutencao() {
+  const ligado = !!MANUT?.ligado;
+  $("#card-manutencao").classList.toggle("manut-on", ligado);
+  $("#manut-estado").innerHTML = ligado
+    ? '<span class="pastilha pastilha-off">● Site FORA DO AR para visitantes</span>'
+    : '<span class="pastilha pastilha-on">● Site no ar, normalmente</span>';
+  const b = $("#btn-manut");
+  b.textContent = ligado ? "✓ Colocar o site de volta no ar" : "⏻ Tirar o site do ar";
+  b.className = "btn " + (ligado ? "btn-navy" : "btn-danger");
+}
+async function alternarManutencao() {
+  const ligando = !MANUT?.ligado;
+  if (ligando && !confirm("Tirar o site do ar agora?\n\nOs visitantes verão o aviso de manutenção. Você continuará vendo o site normalmente, por estar logado.")) return;
+  try {
+    MANUT = await api("/api/manutencao", "POST", {
+      ligar: ligando, titulo: $("#manut_titulo").value, texto: $("#manut_texto").value,
+    });
+    pintarManutencao();
+    toast(ligando ? "Site fora do ar." : "Site de volta ao ar! 🏊");
+  } catch (e) { toast(e.message, true); }
+}
+async function salvarTextoManutencao() {
+  try {
+    MANUT = await api("/api/manutencao", "POST", {
+      ligar: !!MANUT?.ligado, titulo: $("#manut_titulo").value, texto: $("#manut_texto").value,
+    });
+    pintarManutencao();
+    toast("Mensagem salva.");
+  } catch (e) { toast(e.message, true); }
+}
+
 async function loadAll() {
   DATA = await api("/api/content");
+  carregarManutencao();
   for (const k of ["hero_badge","hero_title","hero_lead","about_title","about_lead","footer_tagline","whatsapp","whatsapp_display","contact_email","instagram","cnpj"])
     $("#s_" + k).value = DATA.settings[k];
   $("#s_stats").value = JSON.parse(DATA.settings.stats || "[]").map((s) => `${s.num} | ${s.label}`).join("\n");
