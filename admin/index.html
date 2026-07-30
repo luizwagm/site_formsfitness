@@ -164,7 +164,6 @@
       <button class="navtopo" type="button" aria-expanded="false">🏊 A academia</button>
       <div class="navsub">
         <button class="navbtn" data-p="services">Modalidades</button>
-        <button class="navbtn" data-p="team">Equipe</button>
         <button class="navbtn" data-p="portfolio">Estrutura (fotos)</button>
       </div>
     </div>
@@ -241,10 +240,6 @@
       <div id="services-list"></div>
     </section>
 
-    <section class="panel" id="p-team">
-      <div class="topbar"><h1>Equipe</h1><button class="btn btn-ghost" onclick="addRow('team')">+ Novo professor</button></div>
-      <div id="team-list"></div>
-    </section>
 
     <section class="panel" id="p-portfolio">
       <div class="topbar"><h1>Estrutura (fotos)</h1><button class="btn btn-ghost" onclick="addRow('portfolio')">+ Nova foto</button></div>
@@ -706,7 +701,10 @@ async function loadAll() {
     $("#s_" + k).value = DATA.settings[k];
   $("#s_stats").value = JSON.parse(DATA.settings.stats || "[]").map((s) => `${s.num} | ${s.label}`).join("\n");
   $("#s_about_bullets").value = JSON.parse(DATA.settings.about_bullets || "[]").join("\n");
-  ["portfolio","services","testimonials","team","posts"].forEach(renderTable);
+  /* "team" saiu da lista junto com a tela: renderTable procura o elemento
+     "#<tabela>-list", e com a seção removida ele viraria null — o erro
+     derrubaria o loadAll inteiro, deixando o painel em branco. */
+  ["portfolio","services","testimonials","posts"].forEach(renderTable);
 }
 
 async function publishSite() {
@@ -734,7 +732,6 @@ const TDEFS = {
   portfolio: [["title","Título","input"],["subtitle","Legenda","input"],["image","Imagem (URL)","image"]],
   services: [["title","Título","input"],["text","Descrição","textarea"]],
   testimonials: [["text","Depoimento","textarea"],["name","Nome","input"],["role","Modalidade / cidade","input"],["initials","Iniciais","input"]],
-  team: [["name","Nome","input"],["role","Função / modalidade","input"],["bio","Mini-bio","textarea"],["photo","Foto (URL)","image"]],
   posts: [["title","Título da matéria","titulo"],["slug","URL amigável","slug"],["date","Data (AAAA-MM-DD)","input"],["excerpt","Resumo (card e Google)","resumo"],["image","Imagem de capa (URL)","image"],["content","Conteúdo","bigtext"]],
 };
 function renderTable(t) {
@@ -780,7 +777,6 @@ async function addRow(t) {
   const blank = { portfolio: { title: "Nova foto", subtitle: "", image: "" },
     services: { title: "Nova modalidade", text: "" },
     testimonials: { text: "", name: "", role: "", initials: "" },
-    team: { name: "Novo professor", role: "", bio: "", photo: "" },
     posts: { title: "Nova matéria", excerpt: "", content: "", image: "", date: new Date().toISOString().slice(0, 10) } }[t];
   await api("/api/" + t, "POST", blank);
   DATA = await api("/api/content");

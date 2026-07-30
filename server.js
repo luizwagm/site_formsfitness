@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.9.0";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -500,7 +500,9 @@ function publish() {
   const services = db.prepare("SELECT * FROM services ORDER BY sort,id").all();
   const works = db.prepare("SELECT * FROM portfolio ORDER BY sort,id").all();
   const deps = db.prepare("SELECT * FROM testimonials ORDER BY sort,id").all();
-  const team = db.prepare("SELECT * FROM team ORDER BY sort,id").all();
+  /* A tabela team continua existindo no banco, mas não é mais lida: a área
+     Equipe saiu do site e do painel. Apagá-la seria irreversível — o que o
+     cliente já cadastrou fica guardado, e continua indo para o backup. */
   const posts = db.prepare("SELECT * FROM posts ORDER BY date DESC, id DESC").all();
 
   const stats = JSON.parse(S.stats || "[]").map((s) =>
@@ -526,13 +528,6 @@ function publish() {
   const worksHtml = works.map((w, i) => `<figure class="foto${i === 0 ? " foto--grande" : ""}" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}><img src="${esc(w.image)}" alt="${esc(w.title)} — Forms Fitness" loading="${i === 0 ? "eager" : "lazy"}"><figcaption class="foto__legenda">${esc(w.title)}<small>${esc(w.subtitle || "")}</small></figcaption></figure>`).join("\n          ");
 
   const bullets = JSON.parse(S.about_bullets || "[]").map((b) => `<li>${CHECK} ${esc(b)}</li>`).join("\n            ");
-
-  const teamHtml = team.map((m, i) => `<article class="card pro" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}>
-            <figure class="pro__photo"><img src="${esc(m.photo)}" alt="${esc(m.name)} — ${esc(m.role)}" loading="lazy" width="300" height="340"></figure>
-            <h3 class="pro__name">${esc(m.name)}</h3>
-            <p class="pro__role">${esc(m.role)}</p>
-            <div class="pro__bio">${blocoTexto(m.bio)}</div>
-          </article>`).join("\n          ");
 
   const depsHtml = deps.map((t, i) => `<figure class="card quote" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}>
             <div class="quote__stars" aria-label="5 de 5">★★★★★</div>
@@ -584,7 +579,6 @@ function publish() {
   html = setMarker(html, "ABOUT_TITLE", S.about_title);
   html = setMarker(html, "ABOUT_LEAD", S.about_lead);
   html = setMarker(html, "ABOUT_BULLETS", "            " + bullets);
-  html = setMarker(html, "TEAM", "          " + teamHtml);
   html = setMarker(html, "PORTFOLIO", "          " + worksHtml);
   html = setMarker(html, "TESTIMONIALS", "          " + depsHtml);
   html = setMarker(html, "BLOG", "          " + blogHome);
@@ -660,7 +654,6 @@ function publish() {
     { t: "Estrutura da academia", u: "/#estrutura", tipo: "Página", d: "As fotos da piscina, dos vestiários e dos espaços da Forms Fitness." },
     { t: "Contato e aula experimental", u: "/#contato", tipo: "Página", d: `Fale com a Forms Fitness pelo WhatsApp ${S.whatsapp_display || ""} ou pelo e-mail ${S.contact_email || ""}.` },
     ...services.map((x) => ({ t: x.title, u: "/#modalidades", tipo: "Modalidade", d: semTags(x.text) })),
-    ...team.map((m) => ({ t: m.name, u: "/#equipe", tipo: "Equipe", d: `${semTags(m.role)}. ${semTags(m.bio)}` })),
     ...posts.map((p) => ({ t: p.title, u: `/blog/${p.slug}/`, tipo: "Blog", d: semTags(p.excerpt) + " " + semTags(p.content).slice(0, 300) })),
     { t: "Matrícula online — Garanta sua vaga", u: "/matricula/", tipo: "Matrícula", d: "Faça a matrícula pela internet: preencha os dados do aluno e do responsável e envie pelo WhatsApp. Horário limite às 17h." },
     { t: "Política de Privacidade", u: "/privacidade/", tipo: "Institucional", d: "Como tratamos os seus dados pessoais: o que coletamos, por quê, com quem compartilhamos, prazos de guarda e como exercer os seus direitos pela LGPD." },
@@ -700,7 +693,7 @@ function publish() {
   cfg = cfg.replace(/WHATSAPP_NUMBER = "[^"]*"/, `WHATSAPP_NUMBER = "${S.whatsapp}"`)
            .replace(/CONTACT_EMAIL = "[^"]*"/, `CONTACT_EMAIL = "${S.contact_email}"`);
   fs.writeFileSync(cfgPath, cfg);
-  return { services: services.length, works: works.length, team: team.length, posts: posts.length };
+  return { services: services.length, works: works.length, posts: posts.length };
 }
 
 /* ============================== BACKUP ==================================

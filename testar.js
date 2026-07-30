@@ -422,8 +422,12 @@ function pngEmPe() {
     const idx = await pedir("GET", "/assets/data/search-index.json");
     eq("o índice de busca é publicado", idx.status, 200);
     certo("o índice tem conteúdo", Array.isArray(idx.json) && idx.json.length > 5, String(idx.json?.length));
-    certo("o índice cobre blog, modalidades e equipe",
-      ["Blog", "Modalidade", "Equipe"].every((t) => idx.json.some((x) => x.tipo === t)));
+    /* "Equipe" saiu: a área foi removida do site e do painel a pedido do
+       cliente. Se voltar a aparecer aqui, é sinal de que o gerador ressuscitou
+       uma seção que não existe mais. */
+    certo("o índice cobre blog, modalidades e matrícula",
+      ["Blog", "Modalidade", "Matrícula"].every((t) => idx.json.some((x) => x.tipo === t)));
+    certo("a equipe não aparece no índice", !idx.json.some((x) => x.tipo === "Equipe"));
 
     const sm = await pedir("GET", "/sitemap.xml");
     certo("a privacidade entra no sitemap", /\/privacidade\//.test(sm.corpo));
@@ -472,6 +476,21 @@ function pngEmPe() {
 
     const sm = await pedir("GET", "/sitemap.xml");
     certo("a matrícula entra no sitemap", /\/matricula\//.test(sm.corpo));
+  }
+
+  /* A área Equipe foi removida a pedido do cliente — do site E do painel.
+     Estas verificações impedem que ela volte por descuido num codemod futuro. */
+  console.log("\n-- Equipe removida --");
+  {
+    const home = await pedir("GET", "/");
+    certo("a seção saiu da home", !/id="equipe"/.test(home.corpo));
+    certo("o link saiu do menu", !/>Equipe</.test(home.corpo));
+    certo("o marcador TEAM não é mais publicado", !/TEAM/.test(home.corpo));
+    const adm = fs.readFileSync(path.join(__dirname, "admin", "index.html"), "utf8");
+    certo("a tela saiu do painel", !/id="p-team"/.test(adm) && !/data-p="team"/.test(adm));
+    /* renderTable procura "#<tabela>-list". Com a tela fora, chamar para "team"
+       devolveria null e derrubaria o loadAll inteiro — painel em branco. */
+    certo("o painel não desenha mais a lista da equipe", !/renderTable\("team"\)/.test(adm) && !/"testimonials","team"/.test(adm));
   }
 
   console.log("\n-- Layout exclusivo --");
