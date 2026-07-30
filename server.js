@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.6.1";
+const APP_VERSION = "1.7.0";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -192,6 +192,12 @@ function seed() {
   if (getS("manutencao") === undefined) setS("manutencao", "0");
   if (getS("manutencao_titulo") === undefined) setS("manutencao_titulo", "Estamos atualizando o site");
   if (getS("manutencao_texto") === undefined) setS("manutencao_texto", "Volte em instantes.");
+  /* Mesma razão das de cima: num banco que já existe, um seed com guarda
+     nunca criaria estas chaves, e o painel abriria a tela sem campo. */
+  if (getS("endereco") === undefined) setS("endereco", "Caruaru-PE");
+  /* Vazio = o cartão monta a busca pelo próprio endereço. Preencher só é
+     preciso para apontar à ficha do negócio no Maps (com foto e avaliações). */
+  if (getS("maps_url") === undefined) setS("maps_url", "");
   if (getS("hero_title")) return;
   const S = {
     admin_password_hash: hashSenha("forms-admin"),
@@ -500,13 +506,24 @@ function publish() {
   const stats = JSON.parse(S.stats || "[]").map((s) =>
     `<div class="stat"><dd class="stat__num">${esc(s.num)}</dd><dt class="stat__label">${esc(s.label)}</dt></div>`).join("\n            ");
 
-  const servicesHtml = services.map((s, i) => `<article class="card" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}>
-            <div class="service__icon">${ICONS[i % ICONS.length]}</div>
-            <h3 class="service__title">${esc(s.title)}</h3>
-            <p class="service__text">${esc(s.text)}</p>
+  /* Cada modalidade é uma RAIA: número, ícone, nome e descrição em linha.
+     O número sai do índice — é o que dá o ar de piscina e, de quebra, ajuda
+     quem lê a saber quantas modalidades existem sem contar. */
+  const servicesHtml = services.map((s, i) => `<article class="raia" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}>
+            <div class="raia__n" aria-hidden="true">${String(i + 1).padStart(2, "0")}</div>
+            <div class="raia__icone">${ICONS[i % ICONS.length]}</div>
+            <div class="raia__corpo">
+              <h3 class="raia__titulo">${esc(s.title)}</h3>
+              <p class="raia__texto">${esc(s.text)}</p>
+            </div>
+            <a class="raia__cta" href="/matricula/" aria-label="Garantir vaga em ${esc(s.title)}">Garantir vaga →</a>
           </article>`).join("\n          ");
 
-  const worksHtml = works.map((w, i) => `<figure class="work" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}><img src="${esc(w.image)}" alt="${esc(w.title)} — Forms Fitness" loading="lazy"><figcaption class="work__label">${esc(w.title)}<small>${esc(w.subtitle || "")}</small></figcaption></figure>`).join("\n          ");
+  /* A PRIMEIRA foto ocupa o dobro no mosaico. Sem esse destaque, o bloco
+     vira uma grade uniforme — que é justamente o formato de onde estamos
+     saindo. `loading` fica "eager" só na primeira: ela aparece cedo na
+     rolagem e adiar o carregamento dela deixaria um buraco visível. */
+  const worksHtml = works.map((w, i) => `<figure class="foto${i === 0 ? " foto--grande" : ""}" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}><img src="${esc(w.image)}" alt="${esc(w.title)} — Forms Fitness" loading="${i === 0 ? "eager" : "lazy"}"><figcaption class="foto__legenda">${esc(w.title)}<small>${esc(w.subtitle || "")}</small></figcaption></figure>`).join("\n          ");
 
   const bullets = JSON.parse(S.about_bullets || "[]").map((b) => `<li>${CHECK} ${esc(b)}</li>`).join("\n            ");
 
@@ -572,6 +589,24 @@ function publish() {
   html = setMarker(html, "TESTIMONIALS", "          " + depsHtml);
   html = setMarker(html, "BLOG", "          " + blogHome);
   html = setMarker(html, "CONTACT_INFO", "            " + contactInfo);
+
+  /* Cartão de endereço. O link do Maps sai do campo do painel; se estiver
+     vazio, monta a busca pelo próprio endereço — assim o cartão nunca aparece
+     sem destino, nem obriga o cliente a saber achar a URL do Maps. */
+  const destinoMapa = S.maps_url && /^https?:\/\//.test(S.maps_url)
+    ? S.maps_url
+    : "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(S.endereco || "Caruaru PE");
+  html = setMarker(html, "ENDERECO_CARD", `            <a class="mapa-card" href="${esc(destinoMapa)}" target="_blank" rel="noopener">
+              <span class="mapa-card__pino" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              </span>
+              <span class="mapa-card__texto">
+                <span class="mapa-card__rotulo">Onde a gente fica</span>
+                <span class="mapa-card__end">${esc(S.endereco || "Caruaru-PE")}</span>
+                <span class="mapa-card__acao">Abrir no Google Maps ↗</span>
+              </span>
+            </a>`);
+
   html = setMarker(html, "FOOTER_TAGLINE", S.footer_tagline);
   html = setMarker(html, "CNPJ", S.cnpj);
   // atualiza QUALQUER wa.me/<numero> restante (footer etc.)
@@ -627,6 +662,7 @@ function publish() {
     ...services.map((x) => ({ t: x.title, u: "/#modalidades", tipo: "Modalidade", d: semTags(x.text) })),
     ...team.map((m) => ({ t: m.name, u: "/#equipe", tipo: "Equipe", d: `${semTags(m.role)}. ${semTags(m.bio)}` })),
     ...posts.map((p) => ({ t: p.title, u: `/blog/${p.slug}/`, tipo: "Blog", d: semTags(p.excerpt) + " " + semTags(p.content).slice(0, 300) })),
+    { t: "Matrícula online — Garanta sua vaga", u: "/matricula/", tipo: "Matrícula", d: "Faça a matrícula pela internet: preencha os dados do aluno e do responsável e envie pelo WhatsApp. Horário limite às 17h." },
     { t: "Política de Privacidade", u: "/privacidade/", tipo: "Institucional", d: "Como tratamos os seus dados pessoais: o que coletamos, por quê, com quem compartilhamos, prazos de guarda e como exercer os seus direitos pela LGPD." },
   ];
   fs.mkdirSync(path.join(ROOT, "assets", "data"), { recursive: true });
@@ -636,7 +672,7 @@ function publish() {
      Ficam aqui, e não em arquivos soltos, para que o número do WhatsApp
      acompanhe o que o cliente salvou no painel — em vez de continuar o
      placeholder do dia em que a página foi escrita. */
-  for (const pagina of ["busca", "privacidade"]) {
+  for (const pagina of ["busca", "privacidade", "matricula"]) {
     const tpl = path.join(ROOT, "src", `${pagina}.html`);
     if (!fs.existsSync(tpl)) continue;
     fs.mkdirSync(path.join(ROOT, pagina), { recursive: true });
@@ -653,6 +689,7 @@ function publish() {
     /* A /busca/ fica de FORA de propósito: é noindex, porque o conteúdo dela
        muda a cada termo e não é uma página de verdade. */
     `  <url><loc>${SITE}/privacidade/</loc><lastmod>${today}</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>`,
+    `  <url><loc>${SITE}/matricula/</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>`,
   ];
   fs.writeFileSync(path.join(ROOT, "sitemap.xml"),
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`);
@@ -783,7 +820,8 @@ const TABLES = { services: ["title", "text", "sort"], portfolio: ["title", "subt
   testimonials: ["text", "name", "role", "initials", "sort"], team: ["name", "role", "bio", "photo", "sort"],
   posts: ["title", "slug", "excerpt", "content", "image", "date", "sort"] };
 const KEYS = ["hero_badge", "hero_title", "hero_lead", "stats", "about_title", "about_lead", "about_bullets",
-  "whatsapp", "whatsapp_display", "contact_email", "instagram", "footer_tagline", "cnpj"];
+  "whatsapp", "whatsapp_display", "contact_email", "instagram", "footer_tagline", "cnpj",
+  "endereco", "maps_url"];
 
 /* ------------------------------ Servidor ---------------------------------- */
 http.createServer(async (req, res) => {

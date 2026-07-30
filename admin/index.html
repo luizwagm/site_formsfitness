@@ -293,6 +293,10 @@
         <label>E-mail</label><input id="s_contact_email" type="email">
         <label>Instagram (sem @)</label><input id="s_instagram">
         <label>CNPJ</label><input id="s_cnpj" placeholder="00.000.000/0001-00">
+        <label>Endereço completo</label><input id="s_endereco" placeholder="Rua, número — Bairro, Caruaru-PE, CEP">
+        <p class="hint">Aparece no cartão da seção Contato. Clicar nele abre o Google Maps numa aba nova.</p>
+        <label>Link do Google Maps (opcional)</label><input id="s_maps_url" placeholder="https://maps.app.goo.gl/…">
+        <p class="hint">Deixe vazio para o cartão buscar pelo endereço acima. Preencha se quiser apontar para a ficha do negócio no Maps — a que tem foto, horário e avaliações.</p>
       </div>
     </section>
 
@@ -698,7 +702,7 @@ async function salvarTextoManutencao() {
 async function loadAll() {
   DATA = await api("/api/content");
   carregarManutencao();
-  for (const k of ["hero_badge","hero_title","hero_lead","about_title","about_lead","footer_tagline","whatsapp","whatsapp_display","contact_email","instagram","cnpj"])
+  for (const k of ["hero_badge","hero_title","hero_lead","about_title","about_lead","footer_tagline","whatsapp","whatsapp_display","contact_email","instagram","cnpj","endereco","maps_url"])
     $("#s_" + k).value = DATA.settings[k];
   $("#s_stats").value = JSON.parse(DATA.settings.stats || "[]").map((s) => `${s.num} | ${s.label}`).join("\n");
   $("#s_about_bullets").value = JSON.parse(DATA.settings.about_bullets || "[]").join("\n");
@@ -716,7 +720,7 @@ async function publishSite() {
 
 async function saveTexts() {
   const body = {};
-  for (const k of ["hero_badge","hero_title","hero_lead","about_title","about_lead","footer_tagline","whatsapp","whatsapp_display","contact_email","instagram","cnpj"])
+  for (const k of ["hero_badge","hero_title","hero_lead","about_title","about_lead","footer_tagline","whatsapp","whatsapp_display","contact_email","instagram","cnpj","endereco","maps_url"])
     body[k] = $("#s_" + k).value;
   body.stats = JSON.stringify($("#s_stats").value.split("\n").filter(Boolean).map((l) => {
     const [num, ...r] = l.split("|"); return { num: num.trim(), label: r.join("|").trim() };

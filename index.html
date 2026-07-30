@@ -156,7 +156,7 @@
         <a href="#estrutura">Estrutura</a>
         <a href="/blog/">Blog</a>
         <a href="#contato">Contato</a>
-        <a class="btn btn--lime nav__cta" href="https://wa.me/5500000000000" target="_blank" rel="noopener">Aula experimental</a>
+        <a class="btn btn--lime nav__cta" href="/matricula/">Garanta sua vaga</a>
       </nav>
       <button class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" aria-label="Abrir menu">
         <span></span><span></span><span></span>
@@ -166,26 +166,48 @@
 
   <main id="inicio">
 
-    <!-- ============================== HERO ============================== -->
+    <!-- ============================== HERO ==============================
+         Reescrito para deixar de ser gêmeo do site da clínica.
+
+         O QUE MUDOU E POR QUÊ: os dois sites usavam a MESMA armação — grade de
+         duas colunas com texto à esquerda e foto à direita, números embaixo do
+         texto. Trocar a cor não resolvia: a silhueta da página continuava a
+         mesma, e é a silhueta que faz alguém dizer "esse site parece o outro".
+
+         Agora a foto SANGRA a tela inteira e o texto vem por cima, com as
+         raias da piscina atravessando o bloco na diagonal. Os números saíram
+         de dentro do texto e viraram uma faixa própria, colada no rodapé do
+         hero. É uma abertura de academia aquática, não de consultório. -->
     <section class="hero">
-      <div class="hero__bubble hero__bubble--a" aria-hidden="true"></div>
-      <div class="hero__bubble hero__bubble--b" aria-hidden="true"></div>
-      <div class="container hero__grid">
-        <div class="hero__content" data-reveal>
-          <p class="badge"><!--#HERO_BADGE-->
+      <div class="hero__fundo" aria-hidden="true">
+        <img src="https://images.unsplash.com/photo-1530549387789-4c1017266635?auto=format&fit=crop&w=1800&q=70"
+             alt="" width="1800" height="1000" fetchpriority="high">
+      </div>
+      <!-- As raias são desenhadas em CSS, não em imagem: acompanham qualquer
+           tamanho de tela e não pesam um byte a mais no carregamento. -->
+      <div class="hero__raias" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+
+      <div class="container hero__dentro">
+        <p class="badge badge--claro"><!--#HERO_BADGE-->
 🏊 33 anos formando nadadores em Caruaru-PE
 <!--/HERO_BADGE--></p>
-          <h1 class="hero__title"><!--#HERO_TITLE-->
+        <h1 class="hero__titulo"><!--#HERO_TITLE-->
 Mergulhe na academia aquática que é <em>referência</em> há 33 anos.
 <!--/HERO_TITLE--></h1>
-          <p class="hero__lead"><!--#HERO_LEAD-->
+        <p class="hero__texto"><!--#HERO_LEAD-->
 Natação para todas as idades, hidroginástica e a preparação TAF que mais aprova na região. Estrutura completa, professores experientes e água na temperatura certa para você evoluir.
 <!--/HERO_LEAD--></p>
-          <div class="hero__ctas">
-            <a class="btn btn--lime btn--lg" href="https://wa.me/5500000000000" target="_blank" rel="noopener">Agendar aula experimental</a>
-            <a class="btn btn--ghost btn--lg" href="#modalidades">Ver modalidades</a>
-          </div>
-          <dl class="stats">
+        <div class="hero__ctas">
+          <a class="btn btn--lime btn--lg" href="/matricula/">Garanta sua vaga</a>
+          <a class="btn btn--vidro btn--lg" href="#modalidades">Ver modalidades</a>
+        </div>
+      </div>
+
+      <!-- Faixa de números colada no fim do hero: some do meio do texto e vira
+           a base da composição, como o bloco de partida de uma piscina. -->
+      <div class="hero__placar">
+        <div class="container">
+          <dl class="placar">
             <!--#STATS-->
             <div class="stat"><dd class="stat__num">33</dd><dt class="stat__label">anos de história</dt></div>
             <div class="stat"><dd class="stat__num">10mil+</dd><dt class="stat__label">alunos formados</dt></div>
@@ -194,21 +216,7 @@ Natação para todas as idades, hidroginástica e a preparação TAF que mais ap
 <!--/STATS-->
           </dl>
         </div>
-        <div class="hero__visual" data-reveal data-reveal-delay="1">
-          <figure class="hero__photo">
-            <img src="https://images.unsplash.com/photo-1530549387789-4c1017266635?auto=format&fit=crop&w=900&q=75" alt="Nadador em raia de piscina durante treino" width="620" height="720" fetchpriority="high">
-          </figure>
-          <div class="float-card float-card--a">
-            <span class="float-card__icon">🏆</span>
-            <span><b>33 anos</b><br>formando nadadores</span>
-          </div>
-          <div class="float-card float-card--b">
-            <span class="float-card__icon">💪</span>
-            <span><b>Referência em TAF</b><br>aprovação comprovada</span>
-          </div>
-        </div>
       </div>
-      <svg class="wave-divider" viewBox="0 0 1440 70" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40 C 240 0 480 70 720 40 S 1200 0 1440 40 V 70 H 0 Z" fill="currentColor"/></svg>
     </section>
 
     <!-- ============================ TICKER ============================== -->
@@ -227,37 +235,64 @@ Natação para todas as idades, hidroginástica e a preparação TAF que mais ap
           <h2 class="section__title">Uma piscina, <em>mil objetivos</em></h2>
           <p class="section__sub">Da primeira braçada do bebê à aprovação no concurso: aqui tem turma, horário e professor para o seu momento.</p>
         </header>
-        <div class="grid grid--3">
+        <!-- Raias, não cards: cada modalidade ocupa a largura toda e vem
+             numerada, como as raias de uma piscina. É a mudança que mais
+             afasta o site do formato "três caixinhas" que todo mundo usa. -->
+        <div class="raias">
           <!--#SERVICES-->
-          <article class="card" data-reveal>
-            <div class="service__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="16.5" cy="6.5" r="2.2"/><path d="m4 13 4.5-3.5L14 12l4-2.5"/><path d="M2 18c1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0"/></svg></div>
-            <h3 class="service__title">Natação Infantil</h3>
-            <p class="service__text">Do primeiro contato com a água à técnica dos quatro nados. Turmas por faixa etária, com professores especializados e muito incentivo.</p>
+          <article class="raia" data-reveal>
+            <div class="raia__n" aria-hidden="true">01</div>
+            <div class="raia__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="16.5" cy="6.5" r="2.2"/><path d="m4 13 4.5-3.5L14 12l4-2.5"/><path d="M2 18c1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0 1.7 1.4 3.3 1.4 5 0"/></svg></div>
+            <div class="raia__corpo">
+              <h3 class="raia__titulo">Natação Infantil</h3>
+              <p class="raia__texto">Do primeiro contato com a água à técnica dos quatro nados. Turmas por faixa etária, com professores especializados e muito incentivo.</p>
+            </div>
+            <a class="raia__cta" href="/matricula/" aria-label="Garantir vaga em Natação Infantil">Garantir vaga →</a>
           </article>
-          <article class="card" data-reveal data-reveal-delay="1">
-            <div class="service__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5.5" r="2.2"/><path d="M12 8v5l-3.5 6M12 13l3.5 6M7 10.5 12 9l5 1.5"/></svg></div>
-            <h3 class="service__title">Natação Adulto</h3>
-            <p class="service__text">Aprenda a nadar em qualquer idade ou aperfeiçoe sua técnica — turmas por nível, do iniciante ao avançado.</p>
+          <article class="raia" data-reveal data-reveal-delay="1">
+            <div class="raia__n" aria-hidden="true">02</div>
+            <div class="raia__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5.5" r="2.2"/><path d="M12 8v5l-3.5 6M12 13l3.5 6M7 10.5 12 9l5 1.5"/></svg></div>
+            <div class="raia__corpo">
+              <h3 class="raia__titulo">Natação Adulto</h3>
+              <p class="raia__texto">Aprenda a nadar em qualquer idade ou aperfeiçoe sua técnica — turmas por nível, do iniciante ao avançado.</p>
+            </div>
+            <a class="raia__cta" href="/matricula/" aria-label="Garantir vaga em Natação Adulto">Garantir vaga →</a>
           </article>
-          <article class="card" data-reveal data-reveal-delay="2">
-            <div class="service__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2h5M12 2v3"/></svg></div>
-            <h3 class="service__title">Preparação TAF</h3>
-            <p class="service__text">Treinamento específico para o Teste de Aptidão Física de concursos: técnica, resistência e estratégia de prova. Somos referência em aprovação.</p>
+          <article class="raia" data-reveal data-reveal-delay="2">
+            <div class="raia__n" aria-hidden="true">03</div>
+            <div class="raia__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2h5M12 2v3"/></svg></div>
+            <div class="raia__corpo">
+              <h3 class="raia__titulo">Preparação TAF</h3>
+              <p class="raia__texto">Treinamento específico para o Teste de Aptidão Física de concursos: técnica, resistência e estratégia de prova. Somos referência em aprovação.</p>
+            </div>
+            <a class="raia__cta" href="/matricula/" aria-label="Garantir vaga em Preparação TAF">Garantir vaga →</a>
           </article>
-          <article class="card" data-reveal>
-            <div class="service__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12.6 12 20l-7.5-7.4a5 5 0 1 1 7.5-6.3 5 5 0 1 1 7.5 6.3Z"/><path d="M7 12c1.7 1.4 3.3 1.4 5 0s3.3-1.4 5 0"/></svg></div>
-            <h3 class="service__title">Hidroginástica</h3>
-            <p class="service__text">Condicionamento, força e alegria — aulas dinâmicas de baixo impacto, perfeitas para todas as idades e articulações.</p>
+          <article class="raia" data-reveal>
+            <div class="raia__n" aria-hidden="true">04</div>
+            <div class="raia__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12.6 12 20l-7.5-7.4a5 5 0 1 1 7.5-6.3 5 5 0 1 1 7.5 6.3Z"/><path d="M7 12c1.7 1.4 3.3 1.4 5 0s3.3-1.4 5 0"/></svg></div>
+            <div class="raia__corpo">
+              <h3 class="raia__titulo">Hidroginástica</h3>
+              <p class="raia__texto">Condicionamento, força e alegria — aulas dinâmicas de baixo impacto, perfeitas para todas as idades e articulações.</p>
+            </div>
+            <a class="raia__cta" href="/matricula/" aria-label="Garantir vaga em Hidroginástica">Garantir vaga →</a>
           </article>
-          <article class="card" data-reveal data-reveal-delay="1">
-            <div class="service__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5c0 4.5 3 8.5 7.5 10 4.5-1.5 7.5-5.5 7.5-10V6Z"/><path d="m9 11.5 2 2 4-4"/></svg></div>
-            <h3 class="service__title">Exames de Pele</h3>
-            <p class="service__text">Avaliação dermatológica periódica para a segurança de todos os alunos — praticidade dentro da própria academia.</p>
+          <article class="raia" data-reveal data-reveal-delay="1">
+            <div class="raia__n" aria-hidden="true">05</div>
+            <div class="raia__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5c0 4.5 3 8.5 7.5 10 4.5-1.5 7.5-5.5 7.5-10V6Z"/><path d="m9 11.5 2 2 4-4"/></svg></div>
+            <div class="raia__corpo">
+              <h3 class="raia__titulo">Exames de Pele</h3>
+              <p class="raia__texto">Avaliação dermatológica periódica para a segurança de todos os alunos — praticidade dentro da própria academia.</p>
+            </div>
+            <a class="raia__cta" href="/matricula/" aria-label="Garantir vaga em Exames de Pele">Garantir vaga →</a>
           </article>
-          <article class="card" data-reveal data-reveal-delay="2">
-            <div class="service__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0Z"/><path d="M7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3"/></svg></div>
-            <h3 class="service__title">Treinamento para Provas</h3>
-            <p class="service__text">Do circuito escolar às travessias: planilhas, acompanhamento e a experiência de quem já formou campeões.</p>
+          <article class="raia" data-reveal data-reveal-delay="2">
+            <div class="raia__n" aria-hidden="true">06</div>
+            <div class="raia__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0Z"/><path d="M7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3"/></svg></div>
+            <div class="raia__corpo">
+              <h3 class="raia__titulo">Treinamento para Provas</h3>
+              <p class="raia__texto">Do circuito escolar às travessias: planilhas, acompanhamento e a experiência de quem já formou campeões.</p>
+            </div>
+            <a class="raia__cta" href="/matricula/" aria-label="Garantir vaga em Treinamento para Provas">Garantir vaga →</a>
           </article>
 <!--/SERVICES-->
         </div>
@@ -356,14 +391,16 @@ Desde 1993 a Forms Fitness ensina Caruaru a nadar. São gerações de alunos que
           <h2 class="section__title">Um espaço feito para <em>evoluir</em></h2>
           <p class="section__sub">Piscina tratada, raias completas, vestiários e ambiente climatizado para treinar o ano inteiro.</p>
         </header>
-        <div class="masonry">
+        <!-- Mosaico irregular: a primeira foto ocupa o dobro, e as demais
+             se encaixam em volta. Uma grade uniforme é o que a clínica usa. -->
+        <div class="mosaico">
           <!--#PORTFOLIO-->
-          <figure class="work" data-reveal><img src="https://images.unsplash.com/photo-1519315901367-f34ff9154487?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Piscina semiolímpica — Forms Fitness" loading="lazy"><figcaption class="work__label">Piscina semiolímpica<small>Raias completas · água tratada</small></figcaption></figure>
-          <figure class="work" data-reveal data-reveal-delay="1"><img src="https://images.unsplash.com/photo-1530549387789-4c1017266635?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Aulas em raia — Forms Fitness" loading="lazy"><figcaption class="work__label">Aulas em raia<small>Técnica dos 4 nados</small></figcaption></figure>
-          <figure class="work" data-reveal data-reveal-delay="2"><img src="https://images.unsplash.com/photo-1560090995-01632a28895b?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Treino de velocidade — Forms Fitness" loading="lazy"><figcaption class="work__label">Treino de velocidade<small>Preparação para provas e TAF</small></figcaption></figure>
-          <figure class="work" data-reveal><img src="https://images.unsplash.com/photo-1575052814086-f385e2e2ad1b?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Hidroginástica — Forms Fitness" loading="lazy"><figcaption class="work__label">Hidroginástica<small>Turmas animadas todo dia</small></figcaption></figure>
-          <figure class="work" data-reveal data-reveal-delay="1"><img src="https://images.unsplash.com/photo-1519311965067-36d3e5f33d39?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Vista da piscina — Forms Fitness" loading="lazy"><figcaption class="work__label">Vista da piscina<small>Estrutura pensada para o aluno</small></figcaption></figure>
-          <figure class="work" data-reveal data-reveal-delay="2"><img src="https://images.unsplash.com/photo-1438029071396-1e831a7fa6d8?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Nado livre — Forms Fitness" loading="lazy"><figcaption class="work__label">Nado livre<small>Horários para treinar no seu ritmo</small></figcaption></figure>
+          <figure class="foto foto--grande" data-reveal><img src="https://images.unsplash.com/photo-1519315901367-f34ff9154487?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Piscina semiolímpica — Forms Fitness" loading="eager"><figcaption class="foto__legenda">Piscina semiolímpica<small>Raias completas · água tratada</small></figcaption></figure>
+          <figure class="foto" data-reveal data-reveal-delay="1"><img src="https://images.unsplash.com/photo-1530549387789-4c1017266635?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Aulas em raia — Forms Fitness" loading="lazy"><figcaption class="foto__legenda">Aulas em raia<small>Técnica dos 4 nados</small></figcaption></figure>
+          <figure class="foto" data-reveal data-reveal-delay="2"><img src="https://images.unsplash.com/photo-1560090995-01632a28895b?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Treino de velocidade — Forms Fitness" loading="lazy"><figcaption class="foto__legenda">Treino de velocidade<small>Preparação para provas e TAF</small></figcaption></figure>
+          <figure class="foto" data-reveal><img src="https://images.unsplash.com/photo-1575052814086-f385e2e2ad1b?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Hidroginástica — Forms Fitness" loading="lazy"><figcaption class="foto__legenda">Hidroginástica<small>Turmas animadas todo dia</small></figcaption></figure>
+          <figure class="foto" data-reveal data-reveal-delay="1"><img src="https://images.unsplash.com/photo-1519311965067-36d3e5f33d39?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Vista da piscina — Forms Fitness" loading="lazy"><figcaption class="foto__legenda">Vista da piscina<small>Estrutura pensada para o aluno</small></figcaption></figure>
+          <figure class="foto" data-reveal data-reveal-delay="2"><img src="https://images.unsplash.com/photo-1438029071396-1e831a7fa6d8?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Nado livre — Forms Fitness" loading="lazy"><figcaption class="foto__legenda">Nado livre<small>Horários para treinar no seu ritmo</small></figcaption></figure>
 <!--/PORTFOLIO-->
         </div>
       </div>
@@ -501,10 +538,18 @@ Desde 1993 a Forms Fitness ensina Caruaru a nadar. São gerações de alunos que
             </a>
 <!--/CONTACT_INFO-->
             </div>
-            <div class="card map-card">
-              <iframe title="Mapa — Forms Fitness em Caruaru-PE" src="https://www.google.com/maps?q=Caruaru%2C%20PE&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
-              <p class="map-card__note">📍 Caruaru-PE — endereço completo no agendamento</p>
-            </div>
+            <!--#ENDERECO_CARD-->
+            <a class="mapa-card" href="https://www.google.com/maps/search/?api=1&amp;query=Rua%20Jos%C3%A9%20de%20Alencar%2C%20210%20%E2%80%94%20Maur%C3%ADcio%20de%20Nassau%2C%20Caruaru-PE%2C%2055012-260" target="_blank" rel="noopener">
+              <span class="mapa-card__pino" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              </span>
+              <span class="mapa-card__texto">
+                <span class="mapa-card__rotulo">Onde a gente fica</span>
+                <span class="mapa-card__end">Rua José de Alencar, 210 — Maurício de Nassau, Caruaru-PE, 55012-260</span>
+                <span class="mapa-card__acao">Abrir no Google Maps ↗</span>
+              </span>
+            </a>
+<!--/ENDERECO_CARD-->
           </div>
         </div>
       </div>

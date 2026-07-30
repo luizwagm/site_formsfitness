@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Garanta sua vaga — Matrícula online | Forms Fitness</title>
+  <meta name="description" content="Faça sua matrícula online na Forms Fitness Academia Aquática, em Caruaru-PE. Preencha os dados e envie pelo WhatsApp em um clique.">
+  <link rel="canonical" href="https://formsfitness.com/matricula/">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#0B4EA2">
+
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:site_name" content="Forms Fitness Academia Aquática">
+  <meta property="og:title" content="Garanta sua vaga — Forms Fitness">
+  <meta property="og:description" content="Matrícula online: preencha e envie pelo WhatsApp.">
+  <meta property="og:url" content="https://formsfitness.com/matricula/">
+  <meta property="og:image" content="https://formsfitness.com/assets/img/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" type="image/png" href="/assets/img/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/img/favicon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Nunito+Sans:wght@300;400;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/styles.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="container header__inner">
+      <a class="brand" href="/" aria-label="Forms Fitness — início">
+        <img class="brand__logo" src="/assets/img/logo-original.png" alt="Forms Fitness — Academia Aquática" width="697" height="358">
+      </a>
+      <nav id="primary-nav" class="nav" aria-label="Navegação principal">
+        <a href="/#modalidades">Modalidades</a>
+        <a href="/#taf">TAF</a>
+        <a href="/#academia">A Academia</a>
+        <a href="/#equipe">Equipe</a>
+        <a href="/#estrutura">Estrutura</a>
+        <a href="/blog/">Blog</a>
+        <a href="/#contato">Contato</a>
+        <a class="btn btn--lime nav__cta" href="/matricula/" aria-current="page">Garanta sua vaga</a>
+      </nav>
+      <button class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" aria-label="Abrir menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="page-hero">
+      <div class="container container--narrow">
+        <nav class="breadcrumb" aria-label="Você está aqui"><a href="/">Início</a> <span>›</span> <b>Matrícula</b></nav>
+        <h1 class="page-hero__title">Garanta sua <em>vaga</em></h1>
+        <p class="page-hero__lead">Preencha os dados abaixo. Ao final, tudo é enviado pelo WhatsApp já formatado — você só confere e aperta enviar.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container container--narrow">
+
+        <!-- O aviso do horário-limite vem ANTES do formulário, não depois:
+             descobrir que passou das 17h só no fim seria descobrir tarde. -->
+        <p class="mat-aviso">
+          <b>⏳ Horário limite para matrícula online: até 17h.</b>
+          Depois desse horário, o pedido é processado no dia seguinte.
+        </p>
+
+        <form id="matricula-form" class="mat-form" novalidate>
+
+          <!-- ============================ ALUNO ============================ -->
+          <fieldset class="mat-bloco">
+            <legend><span class="mat-bloco__n">1</span> Dados do aluno</legend>
+
+            <div class="field">
+              <label for="m-nome">Nome completo <span class="req">*</span></label>
+              <input id="m-nome" name="nome" type="text" required autocomplete="name">
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-nasc">Data de nascimento <span class="req">*</span></label>
+                <input id="m-nasc" name="nascimento" type="date" required>
+              </div>
+              <div class="field">
+                <label for="m-horario">Horário escolhido para as aulas <span class="req">*</span></label>
+                <input id="m-horario" name="horario" type="text" required placeholder="Ex.: Seg/Qua/Sex às 7h">
+              </div>
+            </div>
+
+            <!-- RG e CPF só valem para maior de idade, e é a data de nascimento
+                 que decide. O bloco aparece sozinho: pedir documento de uma
+                 criança seria erro, e explicar em texto ninguém lê. -->
+            <div class="field-row" id="mat-docs" hidden>
+              <div class="field">
+                <label for="m-rg">RG</label>
+                <input id="m-rg" name="rg" type="text" inputmode="numeric">
+              </div>
+              <div class="field">
+                <label for="m-cpf">CPF</label>
+                <input id="m-cpf" name="cpf" type="text" inputmode="numeric" placeholder="000.000.000-00">
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="m-endereco">Endereço completo <span class="req">*</span></label>
+              <input id="m-endereco" name="endereco" type="text" required placeholder="Rua, número, bairro" autocomplete="street-address">
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-cep">CEP <span class="req">*</span></label>
+                <input id="m-cep" name="cep" type="text" inputmode="numeric" required placeholder="00000-000" autocomplete="postal-code">
+              </div>
+              <div class="field">
+                <label for="m-profissao">Profissão</label>
+                <input id="m-profissao" name="profissao" type="text">
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-civil">Estado civil</label>
+                <select id="m-civil" name="estado_civil">
+                  <option value="">Selecione…</option>
+                  <option>Solteiro(a)</option>
+                  <option>Casado(a)</option>
+                  <option>União estável</option>
+                  <option>Divorciado(a)</option>
+                  <option>Viúvo(a)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="m-mae">Nome da mãe <span class="req">*</span></label>
+                <input id="m-mae" name="mae" type="text" required>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="m-pai">Nome do pai</label>
+              <input id="m-pai" name="pai" type="text">
+            </div>
+          </fieldset>
+
+          <!-- ========================= RESPONSÁVEL ========================= -->
+          <!-- Aparece só quando a data de nascimento indica menor de 18. -->
+          <fieldset class="mat-bloco" id="mat-responsavel" hidden>
+            <legend><span class="mat-bloco__n">2</span> Dados do responsável</legend>
+            <p class="mat-bloco__nota">O aluno é menor de idade, então precisamos dos dados de quem responde por ele.</p>
+
+            <div class="field">
+              <label for="m-r-nome">Nome completo do responsável <span class="req">*</span></label>
+              <input id="m-r-nome" name="resp_nome" type="text">
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-r-rg">RG do responsável <span class="req">*</span></label>
+                <input id="m-r-rg" name="resp_rg" type="text" inputmode="numeric">
+              </div>
+              <div class="field">
+                <label for="m-r-cpf">CPF do responsável <span class="req">*</span></label>
+                <input id="m-r-cpf" name="resp_cpf" type="text" inputmode="numeric" placeholder="000.000.000-00">
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-r-profissao">Profissão do responsável</label>
+                <input id="m-r-profissao" name="resp_profissao" type="text">
+              </div>
+              <div class="field">
+                <label for="m-r-civil">Estado civil do responsável</label>
+                <select id="m-r-civil" name="resp_estado_civil">
+                  <option value="">Selecione…</option>
+                  <option>Solteiro(a)</option>
+                  <option>Casado(a)</option>
+                  <option>União estável</option>
+                  <option>Divorciado(a)</option>
+                  <option>Viúvo(a)</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- ============================ CONTATO =========================== -->
+          <fieldset class="mat-bloco">
+            <legend><span class="mat-bloco__n">3</span> Contato para a matrícula</legend>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-whats">WhatsApp <span class="req">*</span></label>
+                <input id="m-whats" name="whatsapp" type="tel" required placeholder="(00) 00000-0000" autocomplete="tel">
+              </div>
+              <div class="field">
+                <label for="m-insta">Instagram</label>
+                <input id="m-insta" name="instagram" type="text" placeholder="@seuperfil">
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- =========================== DOCUMENTOS ========================= -->
+          <fieldset class="mat-bloco">
+            <legend><span class="mat-bloco__n">4</span> Documentos</legend>
+            <!-- Foto e comprovante NÃO são enviados por aqui de propósito: subir
+                 documento pessoal para um servidor cria uma guarda de dado
+                 sensível que este site não precisa ter. Vão pelo WhatsApp,
+                 junto da conversa. -->
+            <ul class="mat-docs">
+              <li>📸 <b>Foto do aluno</b> — envie pelo WhatsApp, junto com esta mensagem.</li>
+              <li>📄 <b>Comprovante de pagamento</b> — envie pelo WhatsApp também.</li>
+            </ul>
+            <p class="mat-bloco__nota">Não anexe documentos por esta página: eles vão direto na conversa do WhatsApp, que fica só entre você e a academia.</p>
+          </fieldset>
+
+          <!-- ========================== AUTORIZAÇÃO ========================= -->
+          <fieldset class="mat-bloco mat-bloco--termos">
+            <legend><span class="mat-bloco__n">5</span> Autorização e compromisso</legend>
+            <p class="mat-bloco__nota">Marque as três para validar a matrícula.</p>
+
+            <label class="mat-check">
+              <input type="checkbox" name="t1" required>
+              <span>Declaro que realizei a matrícula online e sou responsável pelas informações fornecidas.</span>
+            </label>
+            <label class="mat-check">
+              <input type="checkbox" name="t2" required>
+              <span>Reconheço que devo cumprir com os pagamentos e com o horário fixo escolhido, conforme contrato.</span>
+            </label>
+            <label class="mat-check">
+              <input type="checkbox" name="t3" required>
+              <span>Autorizo a efetivação da matrícula.</span>
+            </label>
+          </fieldset>
+
+          <p class="mat-erro" id="mat-erro" role="alert" hidden></p>
+
+          <button class="btn btn--lime btn--lg mat-enviar" type="submit">Enviar matrícula pelo WhatsApp</button>
+
+          <p class="mat-privacidade">
+            ⚠️ Caso alguma informação esteja faltando, entraremos em contato.<br>
+            🔒 Os dados vão direto para o WhatsApp da academia — <b>nada é guardado neste site</b>.
+            <a href="/privacidade/">Política de Privacidade</a>.
+          </p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <svg class="footer__wave" viewBox="0 0 1440 70" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40 C 240 0 480 70 720 40 S 1200 0 1440 40 V 70 H 0 Z" fill="currentColor"/></svg>
+    <div class="container">
+      <div class="footer__bottom footer__bottom--single">
+        <p>© <span id="year">2026</span> Forms Fitness Academia Aquática® · <a href="/">voltar ao site</a></p>
+        <a class="dev-credit" href="https://luizaugust.me" target="_blank" rel="noopener" title="Sites, sistemas e apps sob medida">
+          <svg viewBox="0 0 100 100" width="15" height="15" fill="currentColor" aria-hidden="true"><rect x="17" y="42" width="10" height="34" rx="4.5"/><rect x="17" y="74" width="66" height="8" rx="4"/><rect x="33" y="50" width="10" height="24" rx="4.5"/><rect x="47" y="21" width="10" height="53" rx="4.5"/><rect x="61" y="38" width="10" height="36" rx="4.5"/><rect x="75" y="55" width="8" height="19" rx="4"/><path d="M52 4 L54.7 10.4 L61 13 L54.7 15.6 L52 22 L49.3 15.6 L43 13 L49.3 10.4 Z"/></svg>
+          <span>Desenvolvido por <b>LA&nbsp;Software&nbsp;House</b></span>
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <script type="module" src="/assets/js/main.js"></script>
+</body>
+</html>

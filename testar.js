@@ -431,6 +431,68 @@ function pngEmPe() {
   }
 
   /* ====================================================================
+     ENDEREÇO, MATRÍCULA E LAYOUT
+     ==================================================================== */
+  console.log("\n-- Endereço com Maps --");
+  {
+    const home = await pedir("GET", "/");
+    certo("o cartão de endereço está na home", /class="mapa-card"/.test(home.corpo));
+    const destino = (/class="mapa-card" href="([^"]+)"/.exec(home.corpo) || [])[1] || "";
+    certo("ele aponta para o Google Maps", /google\.com\/maps/.test(destino), destino.slice(0, 60));
+    certo("abre em aba nova", /class="mapa-card"[^>]*target="_blank"/.test(home.corpo));
+    /* O iframe do Maps carregava ~900 KB de script do Google em toda visita e
+       plantava cookie ANTES do consentimento — o oposto do que o banner faz. */
+    certo("o mapa embutido não voltou", !/maps[^"]*output=embed/.test(home.corpo));
+    certo("o endereço é editável no painel",
+      /s_endereco/.test(fs.readFileSync(path.join(__dirname, "admin", "index.html"), "utf8")));
+  }
+
+  console.log("\n-- Matrícula --");
+  {
+    const mat = await pedir("GET", "/matricula/");
+    eq("a página abre", mat.status, 200);
+    certo("tem os blocos do aluno e do responsável",
+      /id="mat-responsavel"/.test(mat.corpo) && /id="mat-docs"/.test(mat.corpo));
+    certo("as três autorizações estão lá", (mat.corpo.match(/class="mat-check"/g) || []).length === 3);
+    certo("avisa o horário limite de 17h", /até 17h/.test(mat.corpo));
+    certo("pede foto e comprovante pelo WhatsApp", /Foto do aluno/.test(mat.corpo) && /Comprovante de pagamento/.test(mat.corpo));
+    /* Documento pessoal — de criança, inclusive — não sobe para o servidor:
+       guardar isso criaria uma obrigação de proteção desnecessária. */
+    certo("a página não sobe arquivo nenhum", !/type="file"/.test(mat.corpo));
+
+    const js = fs.readFileSync(path.join(__dirname, "assets", "js", "main.js"), "utf8");
+    certo("o formulário monta a mensagem e vai para o WhatsApp do painel",
+      /wa\.me\/\$\{WHATSAPP_NUMBER\}/.test(js) && /MATRÍCULA ONLINE/.test(js));
+    certo("menor de idade passa a exigir responsável", /el\.required = menor/.test(js));
+
+    const home = await pedir("GET", "/");
+    certo('o botão agora é "Garanta sua vaga"', /Garanta sua vaga/.test(home.corpo));
+    certo("e leva para a matrícula", /href="\/matricula\/"/.test(home.corpo));
+    certo('"aula experimental" saiu dos botões', !/>\s*(Agendar )?[Aa]ula experimental\s*</.test(home.corpo));
+
+    const sm = await pedir("GET", "/sitemap.xml");
+    certo("a matrícula entra no sitemap", /\/matricula\//.test(sm.corpo));
+  }
+
+  console.log("\n-- Layout exclusivo --");
+  {
+    const home = await pedir("GET", "/");
+    /* O site nasceu com a MESMA armação do site da clínica — hero de duas
+       colunas, modalidades em três cards, estrutura em grade uniforme. Estas
+       verificações existem para que ninguém volte ao molde antigo sem notar. */
+    certo("o hero sangra a tela (não é mais grade de 2 colunas)",
+      /class="hero__fundo"/.test(home.corpo) && !/class="container hero__grid"/.test(home.corpo));
+    certo("as raias da piscina estão no hero", /class="hero__raias"/.test(home.corpo));
+    certo("os números viraram faixa própria", /class="placar"/.test(home.corpo));
+    const raias = (home.corpo.match(/class="raia"/g) || []).length;
+    certo("as modalidades são raias numeradas, não cards", raias >= 3, `${raias} raias`);
+    certo("cada raia tem número", /class="raia__n"/.test(home.corpo));
+    certo("a estrutura é mosaico, não grade uniforme",
+      /class="mosaico"/.test(home.corpo) && /foto--grande/.test(home.corpo));
+    certo("o markup antigo do hero não voltou", !/hero__grid|class="masonry"/.test(home.corpo));
+  }
+
+  /* ====================================================================
      8. PAINEL: editor, URL automática e resumo
      ==================================================================== */
   console.log("\n-- Painel --");

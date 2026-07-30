@@ -303,7 +303,7 @@ async function initSearchResults() {
     let t = escapar(texto.slice(0, 180));
     /* Escapa o termo antes de virar regex: quem buscar "c++" ou "(taf)" faria
        a expressão explodir, e a página ficaria em branco sem explicação. */
-    terms.forEach((term) => { t = t.replace(new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\function initConsent() {")})`, "gi"), "<mark>$1</mark>"); });
+    terms.forEach((term) => { t = t.replace(new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"), "<mark>$1</mark>"); });
     return t;
   };
 
@@ -315,6 +315,150 @@ async function initSearchResults() {
     </a>`).join("");
 }
 
+/* ==========================================================================
+   MATRÍCULA ONLINE (/matricula/)
+
+   Monta a mensagem e abre o WhatsApp da academia — o número vem do painel,
+   pelo config.js, e não fica escrito aqui.
+
+   NADA É GRAVADO NO SITE. É decisão, não limitação: a ficha tem RG, CPF,
+   endereço e filiação, inclusive de criança. Guardar isso num servidor cria
+   uma obrigação de proteção que a academia não precisa assumir para um
+   formulário que termina numa conversa de WhatsApp de qualquer jeito.
+   ========================================================================== */
+function initMatricula() {
+  const form = $("#matricula-form");
+  if (!form) return;
+
+  const erro = $("#mat-erro");
+  const blocoResp = $("#mat-responsavel");
+  const blocoDocs = $("#mat-docs");
+  const nasc = $("#m-nasc");
+
+  /* Idade em anos completos. Comparar só o ano erraria em quem faz aniversário
+     depois de hoje — e a diferença entre 17 e 18 é justamente o que decide se
+     o responsável precisa entrar. */
+  const idadeEm = (iso) => {
+    if (!iso) return null;
+    const d = new Date(iso + "T00:00:00");
+    if (isNaN(d)) return null;
+    const hoje = new Date();
+    let a = hoje.getFullYear() - d.getFullYear();
+    const m = hoje.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < d.getDate())) a--;
+    return a;
+  };
+
+  /* Menor de idade → pede responsável. Maior → pede RG e CPF. Os dois blocos
+     se revezam, e o `required` acompanha: campo escondido e obrigatório trava
+     o envio sem mostrar onde está o problema. */
+  function ajustarPorIdade() {
+    const idade = idadeEm(nasc.value);
+    const menor = idade !== null && idade < 18;
+    const maior = idade !== null && idade >= 18;
+
+    blocoResp.hidden = !menor;
+    blocoDocs.hidden = !maior;
+
+    ["m-r-nome", "m-r-rg", "m-r-cpf"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.required = menor;
+    });
+  }
+  nasc.addEventListener("change", ajustarPorIdade);
+  nasc.addEventListener("blur", ajustarPorIdade);
+  ajustarPorIdade();
+
+  /* Máscaras leves: ajudam a digitar sem impedir colar nem atrapalhar quem usa
+     leitor de tela. Só formatam o que já é número. */
+  const soDig = (v) => String(v || "").replace(/\D/g, "");
+  const mascara = (el, fn) => el && el.addEventListener("input", () => { el.value = fn(el.value); });
+  mascara($("#m-cep"), (v) => soDig(v).slice(0, 8).replace(/^(\d{5})(\d)/, "$1-$2"));
+  const cpf = (v) => soDig(v).slice(0, 11)
+    .replace(/^(\d{3})(\d)/, "$1.$2").replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2");
+  mascara($("#m-cpf"), cpf);
+  mascara($("#m-r-cpf"), cpf);
+  const fone = (v) => soDig(v).slice(0, 11)
+    .replace(/^(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d{1,4})$/, "$1-$2");
+  mascara($("#m-whats"), fone);
+
+  const dataBR = (iso) => {
+    const [a, m, d] = String(iso || "").split("-");
+    return d ? `${d}/${m}/${a}` : (iso || "—");
+  };
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    erro.hidden = true;
+
+    /* `reportValidity` só aponta o primeiro campo. A mensagem própria diz
+       QUANTOS faltam e leva até o primeiro — numa ficha longa, sair rolando
+       atrás do campo vermelho é o que faz a pessoa desistir. */
+    if (!form.checkValidity()) {
+      const faltando = [...form.querySelectorAll(":invalid")].filter((el) => !el.disabled);
+      const primeiro = faltando[0];
+      erro.textContent = faltando.length === 1
+        ? "Falta preencher um campo obrigatório."
+        : `Faltam ${faltando.length} campos obrigatórios.`;
+      erro.hidden = false;
+      if (primeiro) {
+        primeiro.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => primeiro.focus({ preventScroll: true }), 350);
+      }
+      return;
+    }
+
+    const d = Object.fromEntries(new FormData(form).entries());
+    const idade = idadeEm(d.nascimento);
+    const menor = idade !== null && idade < 18;
+    const v = (x) => (String(x || "").trim() || "—");
+
+    const linhas = ["*MATRÍCULA ONLINE — FORMS FITNESS* 🏊", "", "*DADOS DO ALUNO*"];
+
+    /* Numeração em sequência, e não fixa de 1 a 10. RG e CPF só entram quando
+       o aluno é maior; com números fixos, a lista de um menor saltaria de "2"
+       para "5" e pareceria que dois campos ficaram sem resposta. */
+    let i = 0;
+    const item = (rotulo, valor) => linhas.push(`${++i}. ${rotulo}: ${valor}`);
+
+    item("Nome", v(d.nome));
+    item("Nascimento", `${dataBR(d.nascimento)}${idade !== null ? ` (${idade} anos)` : ""}`);
+    if (!menor) { item("RG", v(d.rg)); item("CPF", v(d.cpf)); }
+    item("Endereço", `${v(d.endereco)} — CEP ${v(d.cep)}`);
+    item("Profissão", v(d.profissao));
+    item("Estado civil", v(d.estado_civil));
+    item("Mãe", v(d.mae));
+    item("Pai", v(d.pai));
+    item("Horário escolhido", v(d.horario));
+
+    if (menor) {
+      linhas.push(
+        "", "*RESPONSÁVEL* (aluno menor de idade)",
+        `• Nome: ${v(d.resp_nome)}`,
+        `• RG: ${v(d.resp_rg)}`,
+        `• CPF: ${v(d.resp_cpf)}`,
+        `• Profissão: ${v(d.resp_profissao)}`,
+        `• Estado civil: ${v(d.resp_estado_civil)}`,
+      );
+    }
+
+    linhas.push(
+      "", "*CONTATO*",
+      `📞 WhatsApp: ${v(d.whatsapp)}`,
+      `📷 Instagram: ${v(d.instagram)}`,
+      "", "*AUTORIZAÇÃO*",
+      "(X) Declaro que realizei a matrícula online e sou responsável pelas informações fornecidas.",
+      "(X) Reconheço que devo cumprir com os pagamentos e com o horário fixo escolhido, conforme contrato.",
+      "(X) Autorizo a efetivação da matrícula.",
+      "", "_Falta enviar: foto do aluno e comprovante de pagamento._",
+    );
+
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(linhas.join("\n"))}`, "_blank", "noopener");
+    toast("Abrindo o WhatsApp com a sua matrícula…");
+  });
+}
+
 function initConsent() {
   linksRodape();
   const escolha = lerConsent();
@@ -324,6 +468,6 @@ function initConsent() {
 
 function initYear() { const y = $("#year"); if (y) y.textContent = new Date().getFullYear(); }
 
-function boot() { initHeader(); initMobileNav(); initHeaderSearch(); initReveal(); initForm(); initFab(); initYear(); initSearchResults(); initConsent(); }
+function boot() { initHeader(); initMobileNav(); initHeaderSearch(); initReveal(); initForm(); initFab(); initYear(); initSearchResults(); initMatricula(); initConsent(); }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
 else boot();
