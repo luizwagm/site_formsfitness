@@ -36,6 +36,13 @@ vermelho(){ printf "\033[1;31m%s\033[0m\n" "$1"; }
 
 # Conta o que existe no banco. Serve para PROVAR, no fim, que nada sumiu —
 # um deploy que "deu certo" mas comeu as matérias não deu certo.
+#
+# Devolve "ILEGIVEL" (sem detalhe) quando não conseguiu ler. Antes devolvia a
+# mensagem de erro inteira, e ela era COMPARADA com o inventário real no fim —
+# então "não consegui ler" contra "6 modalidades · 3 equipe…" parecia conteúdo
+# alterado e disparava a restauração à toa. Foi o que aconteceu quando o
+# node_modules veio do git com o binário de outra plataforma: o leitor estava
+# quebrado ANTES e funcionando DEPOIS, e nada no banco havia mudado.
 inventario() {
   [ -f data/site.db ] || { echo "SEM BANCO"; return; }
   node -e '
@@ -44,8 +51,32 @@ inventario() {
       const db = abrirBanco("data/site.db");
       const n = (t) => { try { return db.prepare(`SELECT COUNT(*) c FROM ${t}`).get().c; } catch { return 0; } };
       console.log(`${n("services")} modalidades · ${n("team")} equipe · ${n("posts")} matérias · ${n("portfolio")} fotos · ${n("testimonials")} depoimentos · ${n("settings")} textos · ${n("visits")} visitas`);
-    } catch (e) { console.log("BANCO ILEGÍVEL: " + e.message); }
+    } catch (e) { console.log("ILEGIVEL"); }
   ' 2>/dev/null
+}
+
+# Verdadeiro quando o inventário não é uma CONTAGEM, e sim um estado de "não
+# consegui olhar". Comparar um desses com uma contagem real não diz nada sobre
+# o conteúdo ter mudado — só que a leitura falhou num dos dois momentos.
+sem_leitura() { case "$1" in "ILEGIVEL"|"SEM BANCO"|"") return 0;; *) return 1;; esac; }
+
+# O binário do better-sqlite3 é COMPILADO para a plataforma. Se ele vier do
+# repositório (compilado no Windows), o Linux recusa com "invalid ELF header" e
+# o banco fica ilegível — mesmo intacto. Detectar isso cedo e por nome evita
+# perseguir um problema de dados que não existe.
+diagnosticar_banco() {
+  local motivo
+  motivo=$(node -e 'try{require("./db").abrirBanco("data/site.db").close()}catch(e){console.log(e.message.split("\n")[0])}' 2>&1 | head -1)
+  [ -z "$motivo" ] && return 0
+  vermelho "     não consigo LER o banco: $motivo"
+  case "$motivo" in
+    *"invalid ELF header"*|*ERR_DLOPEN*)
+      amarelo "     Isto é o driver compilado para OUTRA plataforma — quase sempre um"
+      amarelo "     node_modules que veio do git. O conteúdo do banco está intacto."
+      amarelo "     Conserte com:  rm -rf node_modules && npm ci --omit=dev"
+      ;;
+  esac
+  return 1
 }
 
 restaurar_e_sair() {
@@ -83,6 +114,9 @@ fi
 azul "2/7  Conteúdo atual"
 ANTES=$(inventario)
 echo "     $ANTES"
+# Se não deu para ler, diga POR QUÊ agora — e não trinta linhas depois, quando
+# o sintoma já virou "o conteúdo mudou".
+sem_leitura "$ANTES" && diagnosticar_banco || true
 
 # ------------------------------------------------------------ 3. parar
 azul "3/7  Parando o serviço"
@@ -167,7 +201,17 @@ azul "7/7  Conferindo"
 DEPOIS=$(inventario)
 echo "     antes : $ANTES"
 echo "     depois: $DEPOIS"
-if [ "$ANTES" != "$DEPOIS" ] && [ "$ANTES" != "SEM BANCO" ]; then
+# Só compara CONTAGEM com CONTAGEM. Se um dos dois lados é "não consegui ler",
+# a diferença é da LEITURA, não do conteúdo — restaurar aí seria desfazer um
+# deploy correto por causa de um driver quebrado. Foi exatamente o que
+# aconteceu quando o node_modules do Windows veio pelo git: o leitor falhou
+# antes, o `npm ci` o consertou no meio, e o "antes ≠ depois" acusou uma perda
+# de dados que nunca existiu.
+if sem_leitura "$ANTES" || sem_leitura "$DEPOIS"; then
+  amarelo "     não deu para comparar o conteúdo (o banco não pôde ser lido em um dos momentos)."
+  amarelo "     NADA foi restaurado — o banco continua como está, e o backup do passo 1 segue guardado."
+  diagnosticar_banco || true
+elif [ "$ANTES" != "$DEPOIS" ]; then
   # a contagem de visitas muda sozinha entre as duas leituras; só alerta se o
   # CONTEÚDO mudou — por isso compara ignorando o último campo
   A_SEM_VISITAS="${ANTES%· *}"; D_SEM_VISITAS="${DEPOIS%· *}"
