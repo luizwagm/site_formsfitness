@@ -935,42 +935,51 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
   display: grid;
   grid-template-columns: minmax(240px, 330px) 1fr;
   gap: 1rem;
-  /* `stretch` e não `start`: assim a coluna do vídeo acompanha a altura do
-     mosaico ao lado. Com `start`, o cartão parava na altura da sua própria
-     proporção e sobrava um vão de ~220px embaixo dele — o bloco ficava
-     visivelmente torto. */
-  align-items: stretch;
+  /* `start`: cada coluna tem a altura do próprio conteúdo. O vídeo NÃO é
+     esticado até a altura do mosaico — se fosse, teria de ser cortado para
+     preencher, e o arquivo apareceria pela metade. */
+  align-items: start;
 }
 /* Sem vídeo publicado, o marcador não gera elemento nenhum — e a regra abaixo
    faz o mosaico ocupar a largura toda, sem coluna vazia sobrando. */
 .estrutura-galeria > .mosaico:only-child { grid-column: 1 / -1; }
 
 .video-coluna {
-  margin: 0; position: relative; overflow: hidden;
+  margin: 0; overflow: hidden;
   border-radius: var(--radius); box-shadow: var(--shadow); background: #000;
-  /* Sem proporção fixa: a altura vem da GRADE, para bater com o mosaico.
-     O `min-height` evita o outro extremo — com poucas fotos, o mosaico fica
-     baixo e o cartão viraria uma tarja achatada. */
-  height: 100%;
-  min-height: 420px;
+  /* Sem altura imposta: quem manda é a proporção do arquivo, logo abaixo. */
 }
-.video-coluna video,
+/* A ALTURA VEM DO VÍDEO. Largura cheia da coluna, altura em `auto`: o
+   navegador aplica a proporção real assim que lê os metadados. Em pé fica
+   alto, deitado fica baixo — e em nenhum dos dois casos há corte ou
+   deformação, que é o que "proporcional" quer dizer.
+
+   Sem `object-fit`: ele só entra em cena quando a caixa tem tamanho próprio
+   e o conteúdo precisa se acomodar dentro dela. Aqui a caixa é do tamanho do
+   conteúdo, então não há o que acomodar. */
+.video-coluna video {
+  display: block; width: 100%; height: auto;
+  /* `auto 9/16` NÃO é o mesmo que `9/16`. A palavra `auto` diz: use a
+     proporção REAL do arquivo quando ela for conhecida; use 9/16 só enquanto
+     não for. Ou seja, o vídeo continua proporcional — o 9/16 é apenas o
+     formato de espera.
+
+     Sem isso, o cartão fica com os 150px de altura padrão do <video> até os
+     metadados chegarem e então PULA para a altura certa, empurrando a página
+     enquanto alguém lê. É o mesmo motivo pelo qual as fotos declaram
+     width/height no HTML. */
+  aspect-ratio: auto 9 / 16;
+}
+/* O iframe é a exceção: conteúdo de outro domínio não tem tamanho natural que
+   o navegador possa medir, então a proporção precisa ser declarada. 16/9 é o
+   formato do player do YouTube e do Vimeo. */
 .video-coluna iframe {
-  display: block; width: 100%; height: 100%; border: 0;
-  /* `cover` preenche o cartão sem barra preta — o certo para vídeo em pé.
-     Vídeo DEITADO seria cortado nas laterais, então o main.js mede a proporção
-     ao carregar e troca para `contain` quando é o caso (.e-deitado). */
-  object-fit: cover;
+  display: block; width: 100%; aspect-ratio: 16 / 9; border: 0;
 }
-.video-coluna.e-deitado video { object-fit: contain; }
-/* O iframe do YouTube não aceita object-fit: o player decide sozinho como se
-   encaixar. Para link externo, a coluna volta ao formato do player. */
-.video-coluna--externo { aspect-ratio: 9 / 16; }
-.video-coluna--externo.e-deitado { aspect-ratio: 16 / 9; align-self: start; }
 
 @media (max-width: 900px) {
   /* Empilha: o vídeo em cima, com altura contida para não tomar a tela toda,
      e as fotos abaixo. Duas colunas em 700px deixariam ambas ilegíveis. */
   .estrutura-galeria { grid-template-columns: 1fr; }
-  .video-coluna { max-height: 70vh; margin-inline: auto; width: min(100%, 340px); }
+  .video-coluna { margin-inline: auto; width: min(100%, 340px); }
 }

@@ -531,12 +531,24 @@ function pngEmPe() {
     certo("o vídeo vem ANTES do mosaico no HTML",
       idx.indexOf("ESTRUTURA_VIDEO") < idx.indexOf('class="mosaico"'));
     certo("o bloco largo antigo do vídeo não voltou", !/video-estrutura/.test(css));
-    certo("a coluna do vídeo acompanha a altura do mosaico",
-      /\.estrutura-galeria \{[^}]*align-items: stretch/s.test(css));
-    /* Vídeo deitado num cartão em pé seria cortado nas laterais — é lá que
-       aparece o espaço. O main.js mede e troca para "conter". */
-    certo("vídeo deitado é contido, não cortado",
-      /e-deitado/.test(css) && /videoWidth > v\.videoHeight/.test(js));
+    /* O vídeo mantém a PRÓPRIA proporção na coluna: largura cheia, altura em
+       `auto`. Esticá-lo até a altura do mosaico obrigaria a cortar para
+       preencher, e o arquivo apareceria pela metade. */
+    certo("a coluna tem a altura do próprio conteúdo",
+      /\.estrutura-galeria \{[^}]*align-items: start/s.test(css));
+    certo("o vídeo usa a proporção do arquivo",
+      /\.video-coluna video \{[^}]*height: auto/s.test(css));
+    /* `auto 9/16` e não `9/16`: a palavra `auto` faz a proporção REAL do
+       arquivo vencer; o 9/16 vale só enquanto os metadados não chegam. Sem
+       ele, o <video> fica nos 150px padrão e a página PULA quando carrega. */
+    certo("há formato de espera até o arquivo informar o seu",
+      /\.video-coluna video \{[^}]*aspect-ratio: auto 9 \/ 16/s.test(css));
+    certo("o vídeo não é cortado nem esticado",
+      !/\.video-coluna video[^}]*object-fit/s.test(css) && !/\.video-coluna \{[^}]*height: 100%/s.test(css));
+    /* O iframe é a exceção: conteúdo de outro domínio não tem tamanho natural
+       que o navegador possa medir, então a proporção precisa ser declarada. */
+    certo("o iframe declara 16/9 (player não tem tamanho natural)",
+      /\.video-coluna iframe \{[^}]*aspect-ratio: 16 \/ 9/s.test(css));
     /* Sem barra de progresso, um envio de 80 MB parece travado e a pessoa
        clica de novo — o que dispara um segundo envio. */
     certo("o envio mostra progresso", /xhr\.upload\.onprogress/.test(adm));

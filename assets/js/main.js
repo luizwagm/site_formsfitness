@@ -58,28 +58,6 @@ function initForm() {
   });
 }
 
-/* O cartão do vídeo na Estrutura é EM PÉ (9/16), que é o formato de quem
-   grava no celular. Se o arquivo for deitado, preencher o cartão cortaria as
-   laterais — e num vídeo de piscina é justamente a lateral que mostra o
-   espaço. Aqui a proporção real é medida quando os metadados chegam, e o
-   cartão passa a CONTER o vídeo em vez de cortá-lo.
-
-   Só o arquivo local dá para medir. Link do YouTube vem em iframe, e o
-   conteúdo de outro domínio não pode ser inspecionado — nesse caso o player
-   se vira sozinho dentro do cartão. */
-function initVideoEstrutura() {
-  const cartao = $(".video-coluna");
-  if (!cartao) return;
-  const v = cartao.querySelector("video");
-  if (!v) return;
-  const medir = () => {
-    if (!v.videoWidth || !v.videoHeight) return;
-    cartao.classList.toggle("e-deitado", v.videoWidth > v.videoHeight);
-  };
-  if (v.readyState >= 1) medir();
-  v.addEventListener("loadedmetadata", medir);
-}
-
 function initFab() {
   if ($(".wa-fab")) return;
   const msg = encodeURIComponent("Olá! Vim pelo site da Forms Fitness e quero agendar uma aula experimental. 🏊");
@@ -493,6 +471,6 @@ function initConsent() {
 
 function initYear() { const y = $("#year"); if (y) y.textContent = new Date().getFullYear(); }
 
-function boot() { initHeader(); initMobileNav(); initHeaderSearch(); initReveal(); initForm(); initFab(); initYear(); initSearchResults(); initMatricula(); initVideoEstrutura(); initConsent(); }
+function boot() { initHeader(); initMobileNav(); initHeaderSearch(); initReveal(); initForm(); initFab(); initYear(); initSearchResults(); initMatricula(); initConsent(); }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
 else boot();
