@@ -478,6 +478,44 @@ function pngEmPe() {
     certo("a matrícula entra no sitemap", /\/matricula\//.test(sm.corpo));
   }
 
+  console.log("\n-- Seções editáveis, HTML e vídeo --");
+  {
+    const adm = fs.readFileSync(path.join(__dirname, "admin", "index.html"), "utf8");
+    const srv = fs.readFileSync(path.join(__dirname, "server.js"), "utf8");
+    const home = await pedir("GET", "/");
+
+    /* Cabeçalhos de Modalidades e Estrutura saem do painel. */
+    for (const m of ["SEC_SERV_ROTULO", "SEC_SERV_TITULO", "SEC_SERV_SUB",
+                     "SEC_ESTR_ROTULO", "SEC_ESTR_TITULO", "SEC_ESTR_SUB", "FOOTER_DIAS"])
+      certo(`${m} é escrito pela publicação`, srv.includes(`setMarker(html, "${m}"`));
+    certo("os campos existem no painel",
+      ["s_sec_serv_rotulo", "ed_sec_serv_titulo", "ed_sec_serv_sub",
+       "s_sec_estr_rotulo", "ed_sec_estr_titulo", "ed_sec_estr_sub", "ed_footer_dias"].every((id) => adm.includes(id)));
+
+    /* Editor rico nos textos que viram HTML na página. */
+    certo("os textos longos usam o editor formatado", /COM_EDITOR\s*=/.test(adm) && adm.includes("montarEditores"));
+    /* O editorRico dá id próprio ao input oculto; quem lê o valor precisa
+       chegar nele pelo contêiner, senão o edSync para de sincronizar. */
+    certo("o valor do editor é lido pelo contêiner, não por id renomeado",
+      /function campoDe/.test(adm) && !/oculto\.id = "s_"/.test(adm));
+
+    /* Modalidade aceita HTML. */
+    certo("a modalidade passa por blocoTexto (aceita HTML)", /raia__texto">\$\{blocoTexto\(s\.text\)\}/.test(srv));
+
+    /* Vídeo: converte o link e não deixa injetar. */
+    certo("existe o conversor de link de vídeo", /function embutirVideo|const embutirVideo/.test(srv));
+    certo("o id do vídeo é filtrado antes de virar HTML", /replace\(\/\[\^A-Za-z0-9_-\]\/g/.test(srv));
+    certo("o campo do vídeo existe no painel", adm.includes("s_estrutura_video"));
+    /* Sem link, nem a moldura aparece — a seção fica como está hoje. */
+    certo("sem link, a seção não ganha moldura vazia", !/class="video-estrutura"/.test(home.corpo));
+
+    /* Troca de imagem: a miniatura tem de mudar na hora, e a lista recarregar
+       depois de salvar. Foi o que fez parecer que a imagem não substituía. */
+    certo("a miniatura é trocada logo após o envio", /prev\.src = r\.path/.test(adm));
+    certo("a lista recarrega depois de salvar (não só em posts)",
+      !/if \(t === "posts"\) \{ DATA = await api/.test(adm));
+  }
+
   /* A área Equipe foi removida a pedido do cliente — do site E do painel.
      Estas verificações impedem que ela volte por descuido num codemod futuro. */
   console.log("\n-- Equipe removida --");
@@ -538,12 +576,18 @@ function pngEmPe() {
   }
   {
     const home = await pedir("GET", "/");
-    certo("a home usa o logotipo original do cliente", /logo-original\.png/.test(home.corpo));
-    /* O SVG antigo tinha 3,65 MB (um PNG de 3905×2048 embutido, exibido a
-       ~130px) e carregava em toda página. O arquivo novo do cliente tem 295 KB
-       com o mesmo desenho — se alguém reapontar para o SVG, isto avisa. */
-    certo("o logotipo não é mais o SVG de 3,6 MB", !/logo-original\.svg/.test(home.corpo));
-    certo("o favicon é o PNG do cliente", /favicon\.png/.test(home.corpo) && !/favicon\.svg/.test(home.corpo));
+    /* O cliente passou a entregar os dois em SVG (2026-07-31). O SVG anterior
+       do logo tinha 3,65 MB porque carregava um PNG de 3905×2048 embutido; o
+       de agora é vetor de verdade, 37 KB. Se algum dia voltar a passar de
+       500 KB, é sinal de que embutiram bitmap de novo. */
+    certo("a home usa o logotipo do cliente", /logo-original\.svg/.test(home.corpo));
+    certo("o favicon é o do cliente", /favicon\.svg/.test(home.corpo) && !/favicon\.png/.test(home.corpo));
+    const logo = fs.statSync(path.join(__dirname, "assets", "img", "logo-original.svg"));
+    certo("o logotipo é leve (vetor, não bitmap embutido)", logo.size < 500_000,
+      `${Math.round(logo.size / 1024)} KB`);
+    /* As medidas no HTML dizem a PROPORÇÃO ao navegador. Erradas, ele reserva
+       um retângulo de outro formato e a página pula quando a imagem chega. */
+    certo("as medidas batem com o viewBox do arquivo", /width="891" height="458"/.test(home.corpo));
   }
 
   /* --------------------------------------------------------------------- */

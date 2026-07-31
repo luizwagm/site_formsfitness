@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Camada_1" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 632.37 856.57">
+  <!-- Generator: Adobe Illustrator 30.6.0, SVG Export Plug-In . SVG Version: 2.1.4 Build 109)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: url(#Gradiente_sem_nome_171);
+      }
+
+      .st1 {
+        fill: #fff;
+      }
+
+      .st2 {
+        fill: url(#Gradiente_sem_nome_17);
+      }
+
+      .st3 {
+        fill: url(#Gradiente_sem_nome_179);
+      }
+
+      .st4 {
+        fill: url(#Gradiente_sem_nome_175);
+      }
+
+      .st5 {
+        fill: url(#Gradiente_sem_nome_174);
+      }
+
+      .st6 {
+        fill: url(#Gradiente_sem_nome_172);
+      }
+
+      .st7 {
+        fill: url(#Gradiente_sem_nome_176);
+      }
+
+      .st8 {
+        fill: url(#Gradiente_sem_nome_178);
+      }
+
+      .st9 {
+        fill: url(#Gradiente_sem_nome_173);
+      }
+
+      .st10 {
+        fill: url(#Gradiente_sem_nome_177);
+      }
+    </style>
+    <linearGradient id="Gradiente_sem_nome_17" data-name="Gradiente sem nome 17" x1="527.39" y1="140.54" x2="189.06" y2="246.32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#282829"/>
+      <stop offset="1" stop-color="#a7cf45"/>
+    </linearGradient>
+    <linearGradient id="Gradiente_sem_nome_171" data-name="Gradiente sem nome 17" x1="272.28" y1="323.02" x2="568.31" y2="107.73" xlink:href="#Gradiente_sem_nome_17"/>
+    <linearGradient id="Gradiente_sem_nome_172" data-name="Gradiente sem nome 17" x1="580.86" y1="359" x2="271.47" y2="312.56" xlink:href="#Gradiente_sem_nome_17"/>
+    <linearGradient id="Gradiente_sem_nome_173" data-name="Gradiente sem nome 17" x1="291.01" y1="425.92" x2="566.39" y2="353.14" xlink:href="#Gradiente_sem_nome_17"/>
+    <linearGradient id="Gradiente_sem_nome_174" data-name="Gradiente sem nome 17" x1="65.23" y1="410.85" x2="176.26" y2="237.32" xlink:href="#Gradiente_sem_nome_17"/>
+    <linearGradient id="Gradiente_sem_nome_175" data-name="Gradiente sem nome 17" x1="175.02" y1="317.35" x2="64.87" y2="411.77" xlink:href="#Gradiente_sem_nome_17"/>
+    <linearGradient id="Gradiente_sem_nome_176" data-name="Gradiente sem nome 17" x1="297.25" y1="454.34" x2="37.12" y2="677.3" xlink:href="#Gradiente_sem_nome_17"/>
+    <linearGradient id="Gradiente_sem_nome_177" data-name="Gradiente sem nome 17" x1="278.02" y1="426.34" x2="132.9" y2="838.97" xlink:href="#Gradiente_sem_nome_17"/>
+    <linearGradient id="Gradiente_sem_nome_178" data-name="Gradiente sem nome 17" x1="218.09" y1="136.2" x2="303.77" y2="43.53" xlink:href="#Gradiente_sem_nome_17"/>
+    <linearGradient id="Gradiente_sem_nome_179" data-name="Gradiente sem nome 17" x1="382.05" y1="67.66" x2="202.45" y2="123.82" xlink:href="#Gradiente_sem_nome_17"/>
+  </defs>
+  <path class="st1" d="M124.01,424.38l-13.83,13.56L0,407.47l132.84-179.38,395.17-137.55,48.96,67.22-201.03,148.07,178.96,24.06,77.48,40.36-314.57,74.94-133.99,400.77-107.11,10.61,47.31-432.19ZM235.91,350.87l-9.23,90.59,13.32-36.03,195.13-47.66-124.26-14.05-87.45-44.26,84.11-58.49-79.3,18.57-39.27,60.26,46.95,31.08Z"/>
+  <path class="st1" d="M257.83,189.25c-46.06-1.13-70.67-22.19-77.5-29.09-1.71-1.52-3.17-2.89-4.53-4.27-2.51-2.23-10.76-10.67-12.22-26.36-1.95-20.95,8.85-45.21,32.1-72.12C242.89,2.77,297.39,0,307.84,0c6.51,0,11.43.75,14.61,2.22l1.17.54c10.38,4.77,41.95,19.28,60.82,36.99l-.18.31c12.02,11.94,13.95,29.99,5.42,50.85-18.1,44.28-81.77,98.36-130.26,98.36,0,0-1.08,0-1.6-.02ZM325.73,59.29c-15.3,4.86-28.47,13.62-39.27,26.15-11.8,13.69-19.08,28.28-21.76,43.54,12.84-7.65,24.52-16.92,32.37-25.9,16.37-18.72,24.67-33.12,28.67-43.79Z"/>
+  <g>
+    <polygon class="st2" points="139.08 236.57 222.02 250.66 532.65 177.92 524.28 102.49 139.08 236.57"/>
+    <polygon class="st0" points="524.28 102.49 243 298.09 319.89 334.62 562.96 155.59 524.28 102.49"/>
+    <polygon class="st6" points="603.83 366.72 313.81 333.93 243 298.09 551.81 339.62 603.83 366.72"/>
+    <polygon class="st9" points="247.59 413.92 310.04 436.71 603.83 366.72 551.81 339.62 247.59 413.92"/>
+    <polygon class="st5" points="139.08 236.57 16.8 401.69 107.28 426.71 222.02 250.66 139.08 236.57"/>
+    <polygon class="st4" points="16.8 401.69 107.28 426.71 197.87 337.87 147.27 304.25 16.8 401.69"/>
+    <polygon class="st7" points="147.27 304.25 225.3 355.9 176.34 836.61 88.04 845.35 147.27 304.25"/>
+    <polygon class="st10" points="88.04 845.35 247.59 413.92 310.04 436.71 176.34 836.61 88.04 845.35"/>
+    <path class="st8" d="M182.68,148.55s-31.09-24.75,20.6-84.57C252.01,7.58,310.64,7.83,318.24,11.34c7.6,3.51,40.81,18.36,59.34,35.73,0,0-58.35-15.04-98.73,31.81-43.71,50.7-17.71,99.17-17.71,99.17,0,0-46.49,3.11-78.45-29.5Z"/>
+    <path class="st3" d="M186.28,151.82s22.29,26.16,71.79,27.37c60.16,1.48,154.74-97.04,119-132.12,0,0-18.36-17.38-59.34-35.73,0,0,56.08,19.18-13.11,98.35-25.79,29.5-87.04,60.81-118.35,42.13Z"/>
+  </g>
+</svg>

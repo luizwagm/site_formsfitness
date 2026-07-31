@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.9.0";
+const APP_VERSION = "1.10.0";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -198,6 +198,19 @@ function seed() {
   /* Vazio = o cartão monta a busca pelo próprio endereço. Preencher só é
      preciso para apontar à ficha do negócio no Maps (com foto e avaliações). */
   if (getS("maps_url") === undefined) setS("maps_url", "");
+  /* Cabeçalhos de seção e rodapé, agora editáveis. Mesma razão das de cima:
+     um seed com guarda não alcança banco que já existe. */
+  const PADROES = {
+    sec_serv_rotulo: "Modalidades",
+    sec_serv_titulo: "Uma piscina, <em>mil objetivos</em>",
+    sec_serv_sub: "Da primeira braçada do bebê à aprovação no concurso: aqui tem turma, horário e professor para o seu momento.",
+    sec_estr_rotulo: "Estrutura",
+    sec_estr_titulo: "Um espaço feito para <em>evoluir</em>",
+    sec_estr_sub: "Piscina tratada, raias completas, vestiários e ambiente climatizado para treinar o ano inteiro.",
+    estrutura_video: "",
+    footer_dias: "Seg. a sáb. · horários de turma<br>consulte a grade pelo WhatsApp",
+  };
+  for (const [k, v] of Object.entries(PADROES)) if (getS(k) === undefined) setS(k, v);
   if (getS("hero_title")) return;
   const S = {
     admin_password_hash: hashSenha("forms-admin"),
@@ -516,7 +529,11 @@ function publish() {
             <div class="raia__icone">${ICONS[i % ICONS.length]}</div>
             <div class="raia__corpo">
               <h3 class="raia__titulo">${esc(s.title)}</h3>
-              <p class="raia__texto">${esc(s.text)}</p>
+              <!-- ACEITA HTML: negrito, link e lista escritos no painel saem
+                   formatados aqui. Passa pelo mesmo filtro de sempre, então
+                   script continua sendo descartado. Antes era escapado, e as
+                   tags apareciam como texto cru na tela. -->
+              <div class="raia__texto">${blocoTexto(s.text)}</div>
             </div>
             <a class="raia__cta" href="/matricula/" aria-label="Garantir vaga em ${esc(s.title)}">Garantir vaga →</a>
           </article>`).join("\n          ");
@@ -575,7 +592,45 @@ function publish() {
   html = setMarker(html, "HERO_TITLE", S.hero_title);
   html = setMarker(html, "HERO_LEAD", S.hero_lead);
   html = setMarker(html, "STATS", "            " + stats);
+  /* ============================ VÍDEO DA ESTRUTURA ======================
+     O cliente cola o link como ele copia do navegador — do YouTube, do
+     YouTube curto (youtu.be), do Shorts ou do Vimeo. Nenhum desses endereços
+     funciona dentro de um <iframe>: é preciso o endereço de INCORPORAÇÃO.
+     Converter aqui evita pedir a ele que saiba a diferença.
+
+     Só o ID é aproveitado, e ele é filtrado a letras, números, hífen e
+     sublinhado. Assim nada do que for colado no campo vira atributo solto
+     dentro da tag — um link torto não consegue injetar HTML na página.
+
+     Sem link, devolve vazio: a seção fica exatamente como está hoje, sem
+     moldura nem buraco. */
+  const embutirVideo = (url) => {
+    const u = String(url || "").trim();
+    if (!u) return "";
+    const limpo = (x) => String(x || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    let src = "";
+    const yt = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/.exec(u);
+    const vm = /vimeo\.com\/(?:video\/)?(\d{6,})/.exec(u);
+    if (yt) src = `https://www.youtube-nocookie.com/embed/${limpo(yt[1])}`;   // -nocookie: não rastreia antes do aceite
+    else if (vm) src = `https://player.vimeo.com/video/${limpo(vm[1])}`;
+    if (!src) return "";
+    return `<figure class="video-estrutura">
+          <iframe src="${esc(src)}" title="Vídeo da estrutura — Forms Fitness" loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        </figure>`;
+  };
+  const videoEstrutura = embutirVideo(S.estrutura_video);
+
+  html = setMarker(html, "SEC_SERV_ROTULO", S.sec_serv_rotulo);
+  html = setMarker(html, "SEC_SERV_TITULO", S.sec_serv_titulo);
+  html = setMarker(html, "SEC_SERV_SUB", S.sec_serv_sub);
   html = setMarker(html, "SERVICES", "          " + servicesHtml);
+  html = setMarker(html, "SEC_ESTR_ROTULO", S.sec_estr_rotulo);
+  html = setMarker(html, "SEC_ESTR_TITULO", S.sec_estr_titulo);
+  html = setMarker(html, "SEC_ESTR_SUB", S.sec_estr_sub);
+  html = setMarker(html, "ESTRUTURA_VIDEO", "        " + videoEstrutura);
+  html = setMarker(html, "FOOTER_DIAS", S.footer_dias);
   html = setMarker(html, "ABOUT_TITLE", S.about_title);
   html = setMarker(html, "ABOUT_LEAD", S.about_lead);
   html = setMarker(html, "ABOUT_BULLETS", "            " + bullets);
@@ -814,7 +869,10 @@ const TABLES = { services: ["title", "text", "sort"], portfolio: ["title", "subt
   posts: ["title", "slug", "excerpt", "content", "image", "date", "sort"] };
 const KEYS = ["hero_badge", "hero_title", "hero_lead", "stats", "about_title", "about_lead", "about_bullets",
   "whatsapp", "whatsapp_display", "contact_email", "instagram", "footer_tagline", "cnpj",
-  "endereco", "maps_url"];
+  "endereco", "maps_url",
+  "sec_serv_rotulo", "sec_serv_titulo", "sec_serv_sub",
+  "sec_estr_rotulo", "sec_estr_titulo", "sec_estr_sub",
+  "estrutura_video", "footer_dias"];
 
 /* ------------------------------ Servidor ---------------------------------- */
 http.createServer(async (req, res) => {

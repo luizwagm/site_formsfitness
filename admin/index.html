@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>Gerenciador — Forms Fitness</title>
-  <link rel="icon" type="image/png" href="/assets/img/favicon.png">
-  <link rel="apple-touch-icon" href="/assets/img/favicon.png">
+  <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
+  <link rel="apple-touch-icon" href="/assets/img/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap">
@@ -145,7 +145,7 @@
 
 <div id="login" hidden>
   <div class="card">
-    <img src="/assets/img/favicon.png" width="64" height="64" alt="Forms Fitness" style="margin:0 auto 1rem;border-radius:14px">
+    <img src="/assets/img/favicon.svg" width="64" height="64" alt="Forms Fitness" style="margin:0 auto 1rem;border-radius:14px">
     <h2 style="margin-bottom:.4rem">Gerenciador Forms Fitness</h2>
     <p class="hint mb">Entre para editar o site.</p>
     <input type="password" id="pw" placeholder="Senha" autocomplete="current-password">
@@ -156,7 +156,7 @@
 
 <div class="app" id="app" hidden>
   <aside>
-    <span class="logo"><img src="/assets/img/favicon.png" alt="" style="border-radius:10px"> forms</span>
+    <span class="logo"><img src="/assets/img/favicon.svg" alt="" style="border-radius:10px"> forms</span>
     <button class="navbtn on" data-p="dash">▲ Publicar</button>
     <button class="navbtn" data-p="acessos">📊 Acessos</button>
 
@@ -254,22 +254,43 @@
 
     <section class="panel" id="p-texts">
       <div class="topbar"><h1>Textos do site</h1><button class="btn btn-navy" onclick="saveTexts()">Salvar textos</button></div>
+
       <div class="card">
         <h3>Topo (hero)</h3>
         <label>Selo</label><input id="s_hero_badge">
-        <label>Título <span class="hint">use &lt;em&gt;palavra&lt;/em&gt; para destacar</span></label><textarea id="s_hero_title"></textarea>
-        <label>Subtítulo</label><textarea id="s_hero_lead"></textarea>
+        <label>Título <span class="hint">use &lt;em&gt;palavra&lt;/em&gt; para destacar</span></label><div id="ed_hero_title"></div>
+        <label>Subtítulo</label><div id="ed_hero_lead"></div>
         <label>Métricas <span class="hint">uma por linha: numero | texto</span></label><textarea id="s_stats"></textarea>
       </div>
+
+      <div class="card">
+        <h3>Seção "Modalidades"</h3>
+        <label>Rótulo <span class="hint">a palavrinha acima do título</span></label><input id="s_sec_serv_rotulo">
+        <label>Título</label><div id="ed_sec_serv_titulo"></div>
+        <label>Descrição</label><div id="ed_sec_serv_sub"></div>
+        <p class="hint">As modalidades em si ficam na tela <b>Modalidades</b>, no menu.</p>
+      </div>
+
       <div class="card">
         <h3>Seção "A Academia"</h3>
-        <label>Título</label><input id="s_about_title">
-        <label>Texto</label><textarea id="s_about_lead"></textarea>
+        <label>Título</label><div id="ed_about_title"></div>
+        <label>Texto</label><div id="ed_about_lead"></div>
         <label>Bullets <span class="hint">um por linha</span></label><textarea id="s_about_bullets"></textarea>
       </div>
+
+      <div class="card">
+        <h3>Seção "Estrutura"</h3>
+        <label>Rótulo</label><input id="s_sec_estr_rotulo">
+        <label>Título</label><div id="ed_sec_estr_titulo"></div>
+        <label>Descrição</label><div id="ed_sec_estr_sub"></div>
+        <label>Vídeo <span class="hint">cole o link do YouTube ou do Vimeo</span></label><input id="s_estrutura_video" placeholder="https://www.youtube.com/watch?v=...">
+        <p class="hint">Aparece abaixo das fotos. Deixe vazio para não mostrar vídeo nenhum. Funciona com link normal, com o curto (youtu.be), com Shorts e com Vimeo — o sistema converte sozinho.</p>
+      </div>
+
       <div class="card">
         <h3>Rodapé</h3>
-        <label>Frase da marca</label><textarea id="s_footer_tagline"></textarea>
+        <label>Frase da marca</label><div id="ed_footer_tagline"></div>
+        <label>Dias e horários <span class="hint">a linha ao lado do contato</span></label><div id="ed_footer_dias"></div>
       </div>
     </section>
 
@@ -694,11 +715,52 @@ async function salvarTextoManutencao() {
   } catch (e) { toast(e.message, true); }
 }
 
+/* Campos de texto simples (input/textarea comum). */
+const CAMPOS_SIMPLES = ["hero_badge","hero_title","hero_lead","about_title","about_lead","footer_tagline","footer_dias",
+  "whatsapp","whatsapp_display","contact_email","instagram","cnpj","endereco","maps_url",
+  "sec_serv_rotulo","sec_serv_titulo","sec_serv_sub","sec_estr_rotulo","sec_estr_titulo","sec_estr_sub","estrutura_video"];
+
+/* Quais deles ganham o EDITOR RICO, em vez de uma caixa de texto crua. São os
+   que viram HTML na página — título com <em>, descrição com negrito ou link.
+   Ficam de fora: selo, rótulo, link do vídeo, WhatsApp, CNPJ e afins, onde
+   formatação não faz sentido e só atrapalharia. */
+const COM_EDITOR = ["hero_title","hero_lead","about_title","about_lead","footer_tagline","footer_dias",
+  "sec_serv_titulo","sec_serv_sub","sec_estr_titulo","sec_estr_sub"];
+
+/* Monta os editores no lugar dos <div id="ed_*"> e devolve um input oculto
+   com o id "s_<chave>" — que é o que o resto da tela já procura para ler e
+   gravar. Assim o salvar não muda em nada. */
+/* O campo de uma chave pode ser um <input> comum ("s_<chave>") ou o input
+   oculto dentro de um editor rico ("#ed_<chave> input[hidden]"). Esta função
+   é o único lugar que sabe disso — carregar e salvar usam os dois sem se
+   importar com qual é qual. */
+function campoDe(k) {
+  return document.getElementById("s_" + k)
+      || document.querySelector("#ed_" + k + " input[type=hidden]");
+}
+
+function montarEditores() {
+  for (const k of COM_EDITOR) {
+    const caixa = document.getElementById("ed_" + k);
+    if (!caixa || caixa.dataset.pronto) continue;
+    /* Sem mexer no id: o editorRico dá o dele ("edN") e o edSync depende
+       disso para escrever o texto formatado no campo. Quem precisa do valor
+       chega nele pelo CONTÊINER, com campoDe(). */
+    caixa.innerHTML = editorRico("", DATA.settings[k] || "");
+    caixa.dataset.pronto = "1";
+  }
+}
+
 async function loadAll() {
   DATA = await api("/api/content");
   carregarManutencao();
-  for (const k of ["hero_badge","hero_title","hero_lead","about_title","about_lead","footer_tagline","whatsapp","whatsapp_display","contact_email","instagram","cnpj","endereco","maps_url"])
-    $("#s_" + k).value = DATA.settings[k];
+  /* Os editores primeiro: eles CRIAM os inputs "s_<chave>" que o laço de
+     baixo vai preencher. Na ordem inversa, o laço não acharia o campo. */
+  montarEditores();
+  for (const k of CAMPOS_SIMPLES) {
+    const el = campoDe(k);
+    if (el) el.value = DATA.settings[k] ?? "";
+  }
   $("#s_stats").value = JSON.parse(DATA.settings.stats || "[]").map((s) => `${s.num} | ${s.label}`).join("\n");
   $("#s_about_bullets").value = JSON.parse(DATA.settings.about_bullets || "[]").join("\n");
   /* "team" saiu da lista junto com a tela: renderTable procura o elemento
@@ -718,8 +780,10 @@ async function publishSite() {
 
 async function saveTexts() {
   const body = {};
-  for (const k of ["hero_badge","hero_title","hero_lead","about_title","about_lead","footer_tagline","whatsapp","whatsapp_display","contact_email","instagram","cnpj","endereco","maps_url"])
-    body[k] = $("#s_" + k).value;
+  for (const k of CAMPOS_SIMPLES) {
+    const el = campoDe(k);
+    if (el) body[k] = el.value;      // campo ausente na tela não vai vazio para o banco
+  }
   body.stats = JSON.stringify($("#s_stats").value.split("\n").filter(Boolean).map((l) => {
     const [num, ...r] = l.split("|"); return { num: num.trim(), label: r.join("|").trim() };
   }));
@@ -770,7 +834,12 @@ async function saveRow(t, id) {
   const body = {};
   document.querySelectorAll(`[data-t="${t}"][data-id="${id}"]`).forEach((el) => body[el.dataset.f] = el.value);
   await api(`/api/${t}/${id}`, "PUT", body);
-  if (t === "posts") { DATA = await api("/api/content"); renderTable("posts"); }
+  /* Relê e redesenha SEMPRE, não só em "posts". Sem isto, as outras listas
+     (fotos da Estrutura, modalidades, depoimentos) continuavam mostrando o
+     valor antigo depois de salvar — o dado ia para o banco, mas a tela
+     insistia no anterior, e a impressão era de que a troca não pegou. */
+  DATA = await api("/api/content");
+  renderTable(t);
   toast("Salvo! Lembre de publicar.");
 }
 async function addRow(t) {
@@ -801,7 +870,17 @@ function pickImg(btn) {
       try {
         const r = await api("/api/upload", "POST", { name: file.name, dataUrl: fr.result });
         target.value = r.path;
-        toast("Foto enviada! Salve o item.");
+        /* Troca a MINIATURA na hora. Sem isto o campo já tem o caminho novo,
+           mas a prévia continua mostrando a foto antiga — e a tela diz que
+           nada aconteceu, que foi exatamente a queixa. */
+        let prev = target.parentElement.querySelector("img.thumb");
+        if (!prev) {
+          prev = document.createElement("img");
+          prev.className = "thumb";
+          target.parentElement.appendChild(prev);
+        }
+        prev.src = r.path;
+        toast("Foto enviada! Agora clique em Salvar.");
       } catch (e) { toast(e.message, true); }
     };
     fr.readAsDataURL(file);
