@@ -118,7 +118,7 @@ server {
     server_name $DOMINIO www.$DOMINIO;
 
     # o painel envia foto em base64 no JSON; o padrão de 1 MB devolveria 413
-    client_max_body_size 25m;
+    client_max_body_size 150m;
 
     access_log /var/log/nginx/$DOMINIO.access.log;
     error_log  /var/log/nginx/$DOMINIO.error.log;

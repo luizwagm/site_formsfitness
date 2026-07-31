@@ -509,6 +509,29 @@ function pngEmPe() {
     /* Sem link, nem a moldura aparece — a seção fica como está hoje. */
     certo("sem link, a seção não ganha moldura vazia", !/class="video-estrutura"/.test(home.corpo));
 
+    /* Envio de vídeo do computador. O arquivo vai em BINÁRIO e é gravado
+       enquanto chega — em base64 dentro de JSON, um vídeo de 80 MB viraria
+       ~107 MB de texto na memória do servidor. */
+    certo("existe o endereço de envio de vídeo", srv.includes('/api/upload-video'));
+    certo("o vídeo é gravado em fluxo, não na memória", /createWriteStream/.test(srv) && /req\.pipe\(saida\)/.test(srv));
+    /* O content-length é cabeçalho, e cabeçalho é texto de quem envia. Contar
+       os bytes que realmente chegam é o que impede encher o disco. */
+    certo("o tamanho é contado de verdade, não só declarado", /bytes > VIDEO_MAX/.test(srv));
+    certo("só formatos de vídeo são aceitos", /video\/mp4.*\.mp4/.test(srv) && /Formato não aceito/.test(srv));
+    certo("o tipo é servido certo (toca, não baixa)", /"\.mp4": "video\/mp4"/.test(srv));
+    certo("arquivo local vira <video>, link vira iframe",
+      /\\\/assets\\\/video\\\//.test(srv) && srv.includes("youtube-nocookie"));
+    certo("o painel tem o botão de enviar vídeo", adm.includes("pickVideo") && adm.includes("upload-video"));
+    /* Sem barra de progresso, um envio de 80 MB parece travado e a pessoa
+       clica de novo — o que dispara um segundo envio. */
+    certo("o envio mostra progresso", /xhr\.upload\.onprogress/.test(adm));
+    certo("o tamanho é conferido antes de subir", /file\.size > MAX/.test(adm));
+
+    const gi = fs.readFileSync(path.join(__dirname, ".gitignore"), "utf8");
+    certo("os vídeos ficam fora do git", /assets\/video\//.test(gi));
+    const dep = fs.readFileSync(path.join(__dirname, "deploy.sh"), "utf8");
+    certo("o deploy protege a pasta de vídeo", dep.includes("assets/video"));
+
     /* Troca de imagem: a miniatura tem de mudar na hora, e a lista recarregar
        depois de salvar. Foi o que fez parecer que a imagem não substituía. */
     certo("a miniatura é trocada logo após o envio", /prev\.src = r\.path/.test(adm));

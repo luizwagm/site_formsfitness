@@ -74,6 +74,15 @@
     #login{position:fixed;inset:0;background:var(--blue);display:grid;place-items:center;z-index:50}
     #login .card{width:min(360px,90vw);text-align:center;padding:2rem}
     .imgrow{display:flex;gap:.6rem;align-items:center}
+    /* Barra de progresso do envio de vídeo. Um arquivo de 80 MB leva dezenas
+       de segundos; sem retorno visual, a tela parece travada e a pessoa
+       clica de novo — o que dispara um segundo envio. */
+    .barra{margin-top:.6rem;display:flex;align-items:center;gap:.6rem}
+    .barra>i{flex:1;height:8px;border-radius:99px;background:var(--line);position:relative;overflow:hidden}
+    .barra>i::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--pct,0%);
+      background:linear-gradient(90deg,var(--blue2),var(--lime));transition:width .2s ease}
+    .barra>span{font-size:.8rem;font-weight:700;color:var(--muted);min-width:5.5rem;text-align:right}
+    #video-previa video{margin-top:.7rem;width:100%;max-height:260px;border-radius:10px;background:#000}
     @media(max-width:820px){
       .app{grid-template-columns:1fr}
       /* No celular a barra deixa de ser coluna fixa e vira faixa no topo, que
@@ -283,8 +292,16 @@
         <label>Rótulo</label><input id="s_sec_estr_rotulo">
         <label>Título</label><div id="ed_sec_estr_titulo"></div>
         <label>Descrição</label><div id="ed_sec_estr_sub"></div>
-        <label>Vídeo <span class="hint">cole o link do YouTube ou do Vimeo</span></label><input id="s_estrutura_video" placeholder="https://www.youtube.com/watch?v=...">
-        <p class="hint">Aparece abaixo das fotos. Deixe vazio para não mostrar vídeo nenhum. Funciona com link normal, com o curto (youtu.be), com Shorts e com Vimeo — o sistema converte sozinho.</p>
+        <label>Vídeo da estrutura</label>
+        <div class="imgrow">
+          <input id="s_estrutura_video" style="flex:1" placeholder="Envie um arquivo ou cole um link do YouTube/Vimeo">
+          <button class="btn btn-ghost btn-sm" onclick="pickVideo(this)">Enviar vídeo</button>
+        </div>
+        <div id="video-barra" class="barra" hidden><i></i><span></span></div>
+        <div id="video-previa"></div>
+        <p class="hint">Aparece abaixo das fotos. Deixe vazio para não mostrar vídeo nenhum.<br>
+          <b>Arquivo do computador:</b> MP4 ou WEBM, até 120 MB — fica hospedado aqui mesmo.<br>
+          <b>Ou um link:</b> YouTube (normal, curto ou Shorts) e Vimeo — o sistema converte sozinho. Para vídeo longo, prefira o link: não pesa no seu servidor.</p>
       </div>
 
       <div class="card">
@@ -757,6 +774,14 @@ async function loadAll() {
   /* Os editores primeiro: eles CRIAM os inputs "s_<chave>" que o laço de
      baixo vai preencher. Na ordem inversa, o laço não acharia o campo. */
   montarEditores();
+  /* Mostra o vídeo que já está salvo, para se saber o que está no ar sem
+     precisar abrir o site noutra aba. */
+  {
+    const v = DATA.settings.estrutura_video || "";
+    const previa = document.getElementById("video-previa");
+    if (previa) previa.innerHTML = /^\/assets\/video\//.test(v)
+      ? '<video src="' + v + '" controls preload="metadata"></video>' : "";
+  }
   for (const k of CAMPOS_SIMPLES) {
     const el = campoDe(k);
     if (el) el.value = DATA.settings[k] ?? "";
@@ -857,6 +882,59 @@ async function delRow(t, id) {
   DATA = await api("/api/content");
   renderTable(t);
   toast("Excluído. Lembre de publicar!");
+}
+
+/* Envia o vídeo do computador.
+
+   Usa XMLHttpRequest, e não fetch, por um motivo concreto: só o XHR informa o
+   PROGRESSO do envio. Num arquivo de dezenas de MB isso é a diferença entre
+   uma tela que responde e uma que parece travada.
+
+   O arquivo vai como corpo BINÁRIO puro — sem base64, sem FormData. É o
+   formato que o /api/upload-video grava direto em disco, sem carregar tudo na
+   memória do servidor. */
+function pickVideo(btn) {
+  const campo = document.getElementById("s_estrutura_video");
+  const barra = document.getElementById("video-barra");
+  const previa = document.getElementById("video-previa");
+  const fi = document.createElement("input");
+  fi.type = "file";
+  fi.accept = "video/mp4,video/webm,video/ogg,video/quicktime";
+  fi.onchange = () => {
+    const file = fi.files[0];
+    if (!file) return;
+    const MAX = 120 * 1024 * 1024;
+    /* Confere ANTES de subir: mandar 200 MB para ouvir "não cabe" no fim
+       gasta a paciência e a franquia de quem está enviando. */
+    if (file.size > MAX) {
+      toast(`O vídeo tem ${Math.round(file.size / 1048576)} MB. O limite é 120 MB — para maiores, suba no YouTube e cole o link.`, true);
+      return;
+    }
+
+    barra.hidden = false;
+    const trilho = barra.querySelector("i"), rotulo = barra.querySelector("span");
+    const pintar = (pct) => { trilho.style.setProperty("--pct", pct + "%"); rotulo.textContent = pct + "%"; };
+    pintar(0);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload-video");
+    xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
+    /* O nome vai no cabeçalho porque o corpo inteiro é o arquivo. Codificado,
+       senão um acento no nome quebra o cabeçalho HTTP. */
+    xhr.setRequestHeader("X-Nome-Arquivo", encodeURIComponent(file.name));
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) pintar(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      barra.hidden = true;
+      let r = {}; try { r = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status !== 200) return toast(r.error || "Não consegui enviar o vídeo.", true);
+      campo.value = r.path;
+      previa.innerHTML = '<video src="' + r.path + '" controls preload="metadata"></video>';
+      toast("Vídeo enviado! Agora clique em Salvar textos.");
+    };
+    xhr.onerror = () => { barra.hidden = true; toast("A conexão caiu durante o envio.", true); };
+    xhr.send(file);
+  };
+  fi.click();
 }
 
 function pickImg(btn) {

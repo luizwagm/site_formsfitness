@@ -134,6 +134,7 @@ for extra in data/site.db-wal data/site.db-shm data/limites.json; do
   [ -f "$extra" ] && mv "$extra" "$COFRE/$(basename "$extra")"
 done
 [ -d assets/img/uploads ] && cp -r assets/img/uploads "$COFRE/uploads"
+[ -d assets/video ] && cp -r assets/video "$COFRE/video"
 verde "     guardados em $COFRE"
 
 # ------------------------------------------------------------- 5. pull
@@ -179,6 +180,7 @@ done
 # -n = não sobrescreve: fotos que vieram no repositório não apagam as que o
 # cliente enviou pelo painel.
 [ -d "$COFRE/uploads" ] && cp -rn "$COFRE/uploads/." assets/img/uploads/ 2>/dev/null
+[ -d "$COFRE/video" ] && mkdir -p assets/video && cp -rn "$COFRE/video/." assets/video/ 2>/dev/null
 
 # O dono precisa ser o usuário DO SERVIÇO, não um palpite: com o dono errado o
 # SQLite responde "attempt to write a readonly database" e o painel não salva
@@ -187,9 +189,9 @@ DONO=$(systemctl show "$SERVICO" -p User --value 2>/dev/null)
 [ -z "$DONO" ] && DONO="root"
 GRUPO=$(systemctl show "$SERVICO" -p Group --value 2>/dev/null)
 [ -z "$GRUPO" ] && GRUPO="$DONO"
-chown -R "$DONO:$GRUPO" data assets/img/uploads backups 2>/dev/null
+chown -R "$DONO:$GRUPO" data assets/img/uploads assets/video backups 2>/dev/null
 # a PASTA precisa ser gravável: o SQLite cria o -wal ao lado do banco
-chmod 755 data assets/img/uploads backups 2>/dev/null
+chmod 755 data assets/img/uploads assets/video backups 2>/dev/null
 [ -f data/site.db ] && chmod 644 data/site.db
 verde "     de volta no lugar (dono: $DONO:$GRUPO)"
 

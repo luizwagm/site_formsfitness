@@ -18,13 +18,20 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.10.0";
+const APP_VERSION = "1.11.0";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
 fs.mkdirSync(path.join(ROOT, "data"), { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(path.join(ROOT, "blog"), { recursive: true });
+/* Vídeo em pasta separada das fotos: são arquivos de outra ordem de tamanho,
+   e separá-los deixa claro o que pesa no disco e no backup. */
+const VIDEO_DIR = path.join(ROOT, "assets", "video");
+fs.mkdirSync(VIDEO_DIR, { recursive: true });
+/* Teto do arquivo. 120 MB dá folga para um vídeo curto em 1080p; acima disso
+   o certo é hospedar no YouTube e colar o link, que o painel também aceita. */
+const VIDEO_MAX = Number(process.env.VIDEO_MAX_MB || 120) * 1024 * 1024;
 
 /* Freio contra adivinhação de senha. Vive em arquivo para sobreviver ao
    reinício — o servidor reinicia sozinho de madrugada, e uma contagem só na
@@ -607,6 +614,15 @@ function publish() {
   const embutirVideo = (url) => {
     const u = String(url || "").trim();
     if (!u) return "";
+    /* Arquivo enviado pelo painel: toca no próprio site, sem terceiro nenhum.
+       `preload="metadata"` baixa só o cabeçalho até alguém dar play — com
+       "auto", o vídeo inteiro entraria no carregamento da home. */
+    if (/^\/assets\/video\/[A-Za-z0-9._-]+$/.test(u)) {
+      return `<figure class="video-estrutura">
+          <video src="${esc(u)}" controls preload="metadata" playsinline
+                 title="Vídeo da estrutura — Forms Fitness"></video>
+        </figure>`;
+    }
     const limpo = (x) => String(x || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
     let src = "";
     const yt = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/.exec(u);
@@ -857,7 +873,10 @@ function gerarPaginaManutencao(S) {
 
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".json": "application/json",
   ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
-  ".webmanifest": "application/manifest+json", ".xml": "application/xml", ".txt": "text/plain" };
+  ".webmanifest": "application/manifest+json", ".xml": "application/xml", ".txt": "text/plain",
+  /* Sem estes, o navegador recebe o vídeo como "application/octet-stream" e
+     baixa o arquivo em vez de tocar. */
+  ".mp4": "video/mp4", ".webm": "video/webm", ".ogv": "video/ogg" };
 const json = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json; charset=utf-8" }); res.end(JSON.stringify(obj)); };
 const readBody = (req) => new Promise((ok, bad) => {
   let d = "", n = 0;
@@ -1025,6 +1044,52 @@ http.createServer(async (req, res) => {
           return json(res, 200, { ok: true });
         }
       }
+      /* ========================= ENVIO DE VÍDEO =========================
+         Recebe o arquivo em BINÁRIO e grava enquanto chega. O nome original
+         vem por cabeçalho, porque o corpo inteiro é o vídeo.
+
+         O tipo é decidido pelo Content-Type E confirmado pela extensão que
+         gravamos — nunca pelo nome que o navegador mandou. Assim ninguém
+         renomeia um .html para .mp4 e consegue servi-lo do nosso domínio. */
+      if (p === "/api/upload-video" && req.method === "POST") {
+        const tipos = { "video/mp4": ".mp4", "video/webm": ".webm", "video/ogg": ".ogv", "video/quicktime": ".mp4" };
+        const ext = tipos[String(req.headers["content-type"] || "").split(";")[0].trim()];
+        if (!ext) return json(res, 400, { error: "Formato não aceito. Envie MP4 ou WEBM." });
+
+        const declarado = Number(req.headers["content-length"] || 0);
+        if (declarado > VIDEO_MAX)
+          return json(res, 413, { error: `O vídeo tem ${Math.round(declarado / 1048576)} MB. O limite é ${Math.round(VIDEO_MAX / 1048576)} MB — para vídeos maiores, suba no YouTube e cole o link.` });
+
+        const bruto = decodeURIComponent(String(req.headers["x-nome-arquivo"] || "video"));
+        const base = slug(path.parse(bruto).name).slice(0, 40) || "video";
+        const arquivo = `${Date.now().toString(36)}-${base}${ext}`;
+        const destino = path.join(VIDEO_DIR, arquivo);
+
+        await new Promise((pronto, falhou) => {
+          const saida = fs.createWriteStream(destino);
+          let bytes = 0, abortou = false;
+          req.on("data", (c) => {
+            bytes += c.length;
+            /* O content-length pode mentir: quem controla o cabeçalho controla
+               o número. Contar de verdade é o que impede encher o disco. */
+            if (bytes > VIDEO_MAX && !abortou) {
+              abortou = true;
+              saida.destroy(); req.destroy();
+              try { fs.unlinkSync(destino); } catch {}
+              falhou(new Error("vídeo acima do limite"));
+            }
+          });
+          req.on("error", falhou);
+          saida.on("error", falhou);
+          saida.on("finish", () => { if (!abortou) pronto(); });
+          req.pipe(saida);
+        }).catch((e) => { throw e; });
+
+        const kb = Math.round(fs.statSync(destino).size / 1024);
+        console.log(`  · vídeo recebido: ${arquivo} (${kb} KB)`);
+        return json(res, 200, { ok: true, path: `/assets/video/${arquivo}`, bytes: kb * 1024 });
+      }
+
       if (p === "/api/upload" && req.method === "POST") {
         const { name, dataUrl } = await readBody(req);
         /* SVG fica DE FORA de propósito: é XML e pode carregar <script> dentro.

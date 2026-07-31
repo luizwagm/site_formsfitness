@@ -10,6 +10,9 @@ backups/
 # As fotos que o cliente envia pelo painel. São conteúdo, não código, e
 # engordariam o repositório sem necessidade.
 assets/img/uploads/
+# Vídeos enviados pelo painel. Dezenas de MB cada — no repositório, cada troca
+# de vídeo viraria um commit gigante que ninguém consegue mais remover.
+assets/video/
 
 node_modules/
 *.log

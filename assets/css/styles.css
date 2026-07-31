@@ -928,3 +928,8 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
   box-shadow: var(--shadow); background: var(--blue-ink);
 }
 .video-estrutura iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
+
+/* O <video> enviado pelo painel usa a mesma moldura do iframe. `height:auto`
+   com `aspect-ratio` cobre o caso de o arquivo não ser 16/9 — vídeo de
+   celular costuma ser vertical, e forçar 16/9 deixaria tarja dos dois lados. */
+.video-estrutura video { display: block; width: 100%; height: auto; max-height: 70vh; background: #000; }
