@@ -81,17 +81,67 @@ diagnosticar_banco() {
 
 restaurar_e_sair() {
   vermelho "$1"
-  if [ -f "$COFRE/site.db" ]; then
-    mkdir -p data && cp "$COFRE/site.db" data/site.db
-    amarelo "Banco devolvido do cofre temporário."
-  elif [ -f "${BACKUP:-}" ]; then
-    mkdir -p data && cp "$BACKUP" data/site.db
-    amarelo "Banco restaurado do backup: $BACKUP"
+
+  # SEMPRE guarda o banco que está no disco AGORA, antes de escrever por cima.
+  # Sem isto, uma restauração equivocada é irreversível — e foi assim que um
+  # deploy chegou a devolver um backup ANTIGO por cima de dados novos.
+  if [ -f data/site.db ]; then
+    SOCORRO="$BACKUP_DIR/site.antes-de-restaurar.$(date +%Y-%m-%d_%H%M%S).db"
+    mkdir -p "$BACKUP_DIR" && cp data/site.db "$SOCORRO" 2>/dev/null \
+      && amarelo "O banco que estava no disco foi guardado em: $SOCORRO"
   fi
+
+  if [ -f "$COFRE/site.db" ]; then
+    # O cofre é o banco de produção tirado do caminho neste mesmo deploy:
+    # é sempre a cópia mais fiel, e por isso vem primeiro.
+    mkdir -p data && cp "$COFRE/site.db" data/site.db
+    amarelo "Banco devolvido do cofre temporário (a cópia deste deploy)."
+  elif [ -f "${BACKUP:-}" ]; then
+    # O cofre já foi esvaziado (passo 6). Aqui só resta o backup — e ele pode
+    # ser mais VELHO do que o banco atual. Restaurar às cegas apagaria tudo
+    # que entrou depois, então só faz isso se o backup for mais novo.
+    if [ -f data/site.db ] && [ data/site.db -nt "$BACKUP" ]; then
+      vermelho "NÃO restaurei: o banco no disco é MAIS NOVO que o backup."
+      amarelo  "  banco : $(date -r data/site.db '+%d/%m/%Y %H:%M')"
+      amarelo  "  backup: $(date -r "$BACKUP" '+%d/%m/%Y %H:%M')"
+      amarelo  "  Voltar o backup apagaria o que foi cadastrado depois dele."
+      amarelo  "  Se ainda assim quiser: sudo ./restaurar.sh site \"$BACKUP\""
+    else
+      mkdir -p data && cp "$BACKUP" data/site.db
+      amarelo "Banco restaurado do backup: $BACKUP"
+    fi
+  fi
+
   systemctl start "$SERVICO" 2>/dev/null
   rm -rf "$COFRE"
   exit 1
 }
+
+# ------------------------------------------------- 0. o banco corre risco?
+# ISTO É UMA TRAVA, e existe por um estrago real: o data/site.db estava sendo
+# versionado. Com o banco no repositório, cada `git pull` escreve por cima do
+# banco de PRODUÇÃO a cópia que veio da máquina de quem desenvolve — e o site
+# volta ao conteúdo de exemplo, mesmo já tendo sido alimentado.
+#
+# Não dá para "contornar com cuidado": enquanto o arquivo for rastreado, o
+# risco volta a cada atualização. Por isso o deploy PARA aqui e diz como
+# resolver, em vez de seguir e torcer.
+if git ls-files --error-unmatch data/site.db >/dev/null 2>&1; then
+  vermelho "PAREI: o banco data/site.db está VERSIONADO no git."
+  echo
+  amarelo "  Enquanto ele estiver assim, todo git pull sobrescreve o banco de"
+  amarelo "  produção com a cópia do repositório — o site volta ao conteúdo de"
+  amarelo "  exemplo e o que foi cadastrado se perde."
+  echo
+  amarelo "  Resolva na SUA MÁQUINA (não aqui), e envie:"
+  echo    "    git rm -r --cached data"
+  echo    "    git commit -m \"chore: tira o banco do versionamento\""
+  echo    "    git push"
+  echo
+  amarelo "  Depois rode este deploy de novo. Os arquivos continuam no disco —"
+  amarelo "  o --cached só para de rastreá-los."
+  exit 1
+fi
 
 # ----------------------------------------------------------- 1. backup
 azul "1/7  Backup do banco"
