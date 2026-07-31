@@ -482,6 +482,8 @@ function pngEmPe() {
   {
     const adm = fs.readFileSync(path.join(__dirname, "admin", "index.html"), "utf8");
     const srv = fs.readFileSync(path.join(__dirname, "server.js"), "utf8");
+    const css = fs.readFileSync(path.join(__dirname, "assets", "css", "styles.css"), "utf8");
+    const js = fs.readFileSync(path.join(__dirname, "assets", "js", "main.js"), "utf8");
     const home = await pedir("GET", "/");
 
     /* Cabeçalhos de Modalidades e Estrutura saem do painel. */
@@ -522,6 +524,19 @@ function pngEmPe() {
     certo("arquivo local vira <video>, link vira iframe",
       /\\\/assets\\\/video\\\//.test(srv) && srv.includes("youtube-nocookie"));
     certo("o painel tem o botão de enviar vídeo", adm.includes("pickVideo") && adm.includes("upload-video"));
+
+    /* O vídeo fica numa COLUNA ao lado das fotos, não numa faixa embaixo. */
+    const idx = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+    certo("existe a galeria de duas colunas", /class="estrutura-galeria"/.test(idx));
+    certo("o vídeo vem ANTES do mosaico no HTML",
+      idx.indexOf("ESTRUTURA_VIDEO") < idx.indexOf('class="mosaico"'));
+    certo("o bloco largo antigo do vídeo não voltou", !/video-estrutura/.test(css));
+    certo("a coluna do vídeo acompanha a altura do mosaico",
+      /\.estrutura-galeria \{[^}]*align-items: stretch/s.test(css));
+    /* Vídeo deitado num cartão em pé seria cortado nas laterais — é lá que
+       aparece o espaço. O main.js mede e troca para "conter". */
+    certo("vídeo deitado é contido, não cortado",
+      /e-deitado/.test(css) && /videoWidth > v\.videoHeight/.test(js));
     /* Sem barra de progresso, um envio de 80 MB parece travado e a pessoa
        clica de novo — o que dispara um segundo envio. */
     certo("o envio mostra progresso", /xhr\.upload\.onprogress/.test(adm));

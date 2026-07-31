@@ -918,18 +918,59 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
 .post-card__media img { height: 500px; aspect-ratio: auto; }
 @media (max-width: 640px) { .post-card__media img { height: 300px; } }
 
-/* ------------------------- Vídeo da Estrutura -------------------------- */
-/* `aspect-ratio` no lugar de altura fixa: o iframe do YouTube é 16/9, e uma
-   altura em pixels deixaria tarja preta em cima e embaixo em telas estreitas.
-   Só aparece quando o cliente informa um link — sem link, o publish devolve
-   vazio e nem a moldura existe. */
-.video-estrutura {
-  margin: 1.4rem 0 0; border-radius: var(--radius); overflow: hidden;
-  box-shadow: var(--shadow); background: var(--blue-ink);
-}
-.video-estrutura iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
 
-/* O <video> enviado pelo painel usa a mesma moldura do iframe. `height:auto`
-   com `aspect-ratio` cobre o caso de o arquivo não ser 16/9 — vídeo de
-   celular costuma ser vertical, e forçar 16/9 deixaria tarja dos dois lados. */
-.video-estrutura video { display: block; width: 100%; height: auto; max-height: 70vh; background: #000; }
+
+/* ==========================================================================
+   ESTRUTURA — vídeo em pé numa coluna, fotos ao lado
+
+   Antes o vídeo era uma faixa larga DEPOIS do mosaico. Agora ele ocupa uma
+   coluna própria, em formato retrato, e as fotos se organizam ao lado — que é
+   como se olha para um espaço: o vídeo mostra o movimento, as fotos mostram os
+   detalhes, lado a lado em vez de um empurrando o outro para baixo.
+
+   `grid-template-columns` com `minmax` e não largura fixa: em tela de 1000px a
+   coluna encolhe até 260px em vez de espremer o mosaico a nada.
+   ========================================================================== */
+.estrutura-galeria {
+  display: grid;
+  grid-template-columns: minmax(240px, 330px) 1fr;
+  gap: 1rem;
+  /* `stretch` e não `start`: assim a coluna do vídeo acompanha a altura do
+     mosaico ao lado. Com `start`, o cartão parava na altura da sua própria
+     proporção e sobrava um vão de ~220px embaixo dele — o bloco ficava
+     visivelmente torto. */
+  align-items: stretch;
+}
+/* Sem vídeo publicado, o marcador não gera elemento nenhum — e a regra abaixo
+   faz o mosaico ocupar a largura toda, sem coluna vazia sobrando. */
+.estrutura-galeria > .mosaico:only-child { grid-column: 1 / -1; }
+
+.video-coluna {
+  margin: 0; position: relative; overflow: hidden;
+  border-radius: var(--radius); box-shadow: var(--shadow); background: #000;
+  /* Sem proporção fixa: a altura vem da GRADE, para bater com o mosaico.
+     O `min-height` evita o outro extremo — com poucas fotos, o mosaico fica
+     baixo e o cartão viraria uma tarja achatada. */
+  height: 100%;
+  min-height: 420px;
+}
+.video-coluna video,
+.video-coluna iframe {
+  display: block; width: 100%; height: 100%; border: 0;
+  /* `cover` preenche o cartão sem barra preta — o certo para vídeo em pé.
+     Vídeo DEITADO seria cortado nas laterais, então o main.js mede a proporção
+     ao carregar e troca para `contain` quando é o caso (.e-deitado). */
+  object-fit: cover;
+}
+.video-coluna.e-deitado video { object-fit: contain; }
+/* O iframe do YouTube não aceita object-fit: o player decide sozinho como se
+   encaixar. Para link externo, a coluna volta ao formato do player. */
+.video-coluna--externo { aspect-ratio: 9 / 16; }
+.video-coluna--externo.e-deitado { aspect-ratio: 16 / 9; align-self: start; }
+
+@media (max-width: 900px) {
+  /* Empilha: o vídeo em cima, com altura contida para não tomar a tela toda,
+     e as fotos abaixo. Duas colunas em 700px deixariam ambas ilegíveis. */
+  .estrutura-galeria { grid-template-columns: 1fr; }
+  .video-coluna { max-height: 70vh; margin-inline: auto; width: min(100%, 340px); }
+}

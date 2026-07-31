@@ -395,7 +395,19 @@ Piscina tratada, raias completas, vestiários e ambiente climatizado para treina
         </header>
         <!-- Mosaico irregular: a primeira foto ocupa o dobro, e as demais
              se encaixam em volta. Uma grade uniforme é o que a clínica usa. -->
-        <div class="mosaico">
+        <!-- Galeria em duas colunas: o VÍDEO ocupa uma coluna inteira, em
+             pé, e as FOTOS se organizam ao lado, no mosaico de sempre.
+
+             A coluna do vídeo é a primeira do HTML de propósito: quem navega
+             por teclado ou leitor de tela chega nele antes da enxurrada de
+             fotos, que é a ordem que faz sentido para quem quer conhecer o
+             espaço. Sem vídeo, o CSS fecha a coluna e o mosaico ocupa tudo. -->
+        <div class="estrutura-galeria">
+          <!--#ESTRUTURA_VIDEO-->
+        
+<!--/ESTRUTURA_VIDEO-->
+
+          <div class="mosaico">
           <!--#PORTFOLIO-->
           <figure class="foto foto--grande" data-reveal><img src="https://images.unsplash.com/photo-1519315901367-f34ff9154487?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Piscina semiolímpica — Forms Fitness" loading="eager"><figcaption class="foto__legenda">Piscina semiolímpica<small>Raias completas · água tratada</small></figcaption></figure>
           <figure class="foto" data-reveal data-reveal-delay="1"><img src="https://images.unsplash.com/photo-1530549387789-4c1017266635?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Aulas em raia — Forms Fitness" loading="lazy"><figcaption class="foto__legenda">Aulas em raia<small>Técnica dos 4 nados</small></figcaption></figure>
@@ -404,14 +416,8 @@ Piscina tratada, raias completas, vestiários e ambiente climatizado para treina
           <figure class="foto" data-reveal data-reveal-delay="1"><img src="https://images.unsplash.com/photo-1519311965067-36d3e5f33d39?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Vista da piscina — Forms Fitness" loading="lazy"><figcaption class="foto__legenda">Vista da piscina<small>Estrutura pensada para o aluno</small></figcaption></figure>
           <figure class="foto" data-reveal data-reveal-delay="2"><img src="https://images.unsplash.com/photo-1438029071396-1e831a7fa6d8?auto=format&amp;fit=crop&amp;w=700&amp;q=70" alt="Nado livre — Forms Fitness" loading="lazy"><figcaption class="foto__legenda">Nado livre<small>Horários para treinar no seu ritmo</small></figcaption></figure>
 <!--/PORTFOLIO-->
+          </div>
         </div>
-
-        <!-- Vídeo da estrutura. Só aparece quando o cliente informa um link no
-             painel — sem link, o publish deixa o bloco vazio e a seção segue
-             como está hoje, sem buraco. -->
-        <!--#ESTRUTURA_VIDEO-->
-        
-<!--/ESTRUTURA_VIDEO-->
       </div>
     </section>
 

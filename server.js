@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.11.1";
+const APP_VERSION = "1.12.0";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -618,10 +618,10 @@ function publish() {
        `preload="metadata"` baixa só o cabeçalho até alguém dar play — com
        "auto", o vídeo inteiro entraria no carregamento da home. */
     if (/^\/assets\/video\/[A-Za-z0-9._-]+$/.test(u)) {
-      return `<figure class="video-estrutura">
-          <video src="${esc(u)}" controls preload="metadata" playsinline
-                 title="Vídeo da estrutura — Forms Fitness"></video>
-        </figure>`;
+      return `<figure class="video-coluna" data-reveal>
+            <video src="${esc(u)}" controls preload="metadata" playsinline
+                   title="Vídeo da estrutura — Forms Fitness"></video>
+          </figure>`;
     }
     const limpo = (x) => String(x || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
     let src = "";
@@ -630,11 +630,11 @@ function publish() {
     if (yt) src = `https://www.youtube-nocookie.com/embed/${limpo(yt[1])}`;   // -nocookie: não rastreia antes do aceite
     else if (vm) src = `https://player.vimeo.com/video/${limpo(vm[1])}`;
     if (!src) return "";
-    return `<figure class="video-estrutura">
-          <iframe src="${esc(src)}" title="Vídeo da estrutura — Forms Fitness" loading="lazy"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-        </figure>`;
+    return `<figure class="video-coluna video-coluna--externo" data-reveal>
+            <iframe src="${esc(src)}" title="Vídeo da estrutura — Forms Fitness" loading="lazy"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+          </figure>`;
   };
   const videoEstrutura = embutirVideo(S.estrutura_video);
 
