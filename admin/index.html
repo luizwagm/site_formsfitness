@@ -881,7 +881,10 @@ async function saveTexts() {
 const TDEFS = {
   portfolio: [["title","Título","input"],["subtitle","Legenda","input"],["image","Imagem (URL)","image"]],
   services: [["title","Título","input"],["text","Descrição","textarea"]],
-  testimonials: [["text","Depoimento","textarea"],["name","Nome","input"],["role","Modalidade / cidade","input"],["initials","Iniciais","input"]],
+  /* O depoimento é "linha", não "textarea": no site ele fica ENTRE as aspas
+     curvas do cartão, e um parágrafo ali jogaria as aspas para uma linha só
+     delas. Negrito, itálico e link valem; parágrafo e lista, não. */
+  testimonials: [["text","Depoimento","linha"],["name","Nome","input"],["role","Modalidade / cidade","input"],["initials","Iniciais","input"]],
   posts: [["title","Título da matéria","titulo"],["slug","URL amigável","slug"],["date","Data (AAAA-MM-DD)","input"],["excerpt","Resumo (card e Google)","resumo"],["image","Imagem de capa (URL)","image"],["content","Conteúdo","bigtext"]],
 };
 function renderTable(t) {
@@ -901,6 +904,7 @@ function renderTable(t) {
           <input ${dados} value="${escA(r[f])}" oninput="this.dataset.tocado='1'">
           <p class="hint">Vem sozinha do título, tudo minúsculo e separado por hífen. Só é preenchida quando está vazia — trocar a URL de uma matéria já publicada quebraria o link e o que o Google indexou.</p>`;
         if (kind === "textarea") return `<label>${lab}</label>${editorRico(dados, r[f])}`;
+        if (kind === "linha") return `<label>${lab}</label>${editorRico(dados, r[f], false, true)}`;
         if (kind === "image") return `<label>${lab}</label>
           <div class="imgrow">
             <input data-t="${t}" data-id="${r.id}" data-f="${f}" value="${escA(r[f])}" style="flex:1">

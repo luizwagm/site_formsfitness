@@ -647,6 +647,47 @@ function pngEmPe() {
        --------------------------------------------------------------------- */
     for (const nome of ["Rosangela Nascimento", "Fernanda Alves", "Lucia Fatma"])
       certo(`a semente traz a avaliação de ${nome}`, srv.includes(nome));
+
+    {
+      /* O DEPOIMENTO ACEITA FORMATAÇÃO.
+
+         O campo sempre foi declarado como rico (passa pelo filtro ao salvar),
+         mas o cartão o imprimia com `esc()` — então a tag chegava na tela como
+         TEXTO: o visitante lia "<p><b>Eu e meu filho…". E ele fica ENTRE as
+         aspas curvas do cartão, então bloco ali joga as aspas para uma linha
+         só delas: por isso sai achatado em quebra de linha. */
+      const feito = await pedir("POST", "/api/testimonials", { cookie: COOKIE, corpo: {
+        text: '<p><b>Eu e meu filho</b> somos alunos. O <i>pessoal</i> é gente fina e a <a href="/matricula/">piscina</a> é ótima.</p>',
+        name: "ZZ Teste de HTML", role: "Pai de aluno", initials: "ZZ", sort: 99 } });
+      await pedir("POST", "/api/publish", { cookie: COOKIE, corpo: {} });
+      const pag = (await pedir("GET", "/")).corpo;
+      const cartao = [...pag.matchAll(/<blockquote class="quote__text">([\s\S]*?)<\/blockquote>/g)]
+        .map((m) => m[1].trim()).find((c) => /Eu e meu filho/.test(c)) || "";
+
+      certo("o depoimento foi criado", feito.status === 200 && cartao !== "", `status ${feito.status}`);
+      certo("o negrito do depoimento vira negrito", /<b>Eu e meu filho<\/b>/.test(cartao), cartao);
+      certo("o itálico do depoimento funciona", /<i>pessoal<\/i>/.test(cartao));
+      certo("o link do depoimento funciona", /<a href="\/matricula\/">piscina<\/a>/.test(cartao));
+      certo("a tag não aparece como texto na tela", !/&lt;/.test(cartao), cartao);
+      certo("bloco não separa as aspas do texto",
+        !/<p\b/i.test(cartao) && /^“<b>/.test(cartao) && /ótima\.”$/.test(cartao), cartao);
+
+      /* Aceitar formatação não é aceitar qualquer coisa. */
+      await pedir("POST", "/api/testimonials", { cookie: COOKIE, corpo: {
+        text: "Bom <script>alert(1)</script> demais", name: "ZZ Teste de script", role: "x", initials: "ZZ", sort: 98 } });
+      await pedir("POST", "/api/publish", { cookie: COOKIE, corpo: {} });
+      const pag2 = (await pedir("GET", "/")).corpo;
+      certo("script no depoimento continua barrado",
+        !/<script>alert/.test(pag2) && /Bom\s+demais/.test(pag2.replace(/\s+/g, " ")));
+
+      for (const t of (await pedir("GET", "/api/content", { cookie: COOKIE })).json.testimonials)
+        if (/^ZZ /.test(t.name || "")) await pedir("DELETE", `/api/testimonials/${t.id}`, { cookie: COOKIE });
+      await pedir("POST", "/api/publish", { cookie: COOKIE, corpo: {} });
+      certo("o teste não deixou depoimento para trás", !/ZZ Teste de/.test((await pedir("GET", "/")).corpo));
+    }
+
+    certo("o painel edita o depoimento em modo linha",
+      /testimonials: \[\["text","Depoimento","linha"\]/.test(adm) && /kind === "linha"[\s\S]{0,90}editorRico\(dados, r\[f\], false, true\)/.test(adm));
     certo("os depoimentos de exemplo saíram da semente",
       !/Patrícia M\.|Dona Socorro|Aprovado no TAF · Caruaru/.test(srv));
     {

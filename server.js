@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.13.3";
+const APP_VERSION = "1.13.4";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -430,6 +430,21 @@ function blocoTexto(valor) {
   return s.split(/\n{2,}/).map((par) => `<p>${esc(par.trim()).replace(/\n/g, "<br>")}</p>`).join("\n        ");
 }
 
+/* Irmão do `blocoTexto` para campo de UMA LINHA — o depoimento, que entra
+   entre as aspas curvas do cartão. Aceita a mesma formatação (negrito,
+   itálico, link), mas achata parágrafo e lista em quebra de linha: um <p> ali
+   empurraria as aspas para uma linha só delas.
+
+   Texto puro antigo continua sendo ESCAPADO, como sempre foi — é texto, não
+   marcação. Só quem tem tag é tratado como HTML, e ainda assim passa pelo
+   filtro. */
+function linhaTexto(valor) {
+  const s = String(valor || "").trim();
+  if (!s) return "";
+  if (/<[a-z]/i.test(s)) return linhaUnica(htmlLimpo(s));
+  return esc(s).replace(/\n+/g, "<br>");
+}
+
 /* ==========================================================================
    TAMANHO REAL DA IMAGEM
 
@@ -603,7 +618,7 @@ function publish() {
 
   const depsHtml = deps.map((t, i) => `<figure class="card quote" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}>
             <div class="quote__stars" aria-label="5 de 5">★★★★★</div>
-            <blockquote class="quote__text">“${esc(t.text)}”</blockquote>
+            <blockquote class="quote__text">“${linhaTexto(t.text)}”</blockquote>
             <figcaption class="quote__author"><span class="avatar">${esc(t.initials)}</span><span><span class="quote__name">${esc(t.name)}</span><br><span class="quote__role">${esc(t.role)}</span></span></figcaption>
           </figure>`).join("\n          ");
 
