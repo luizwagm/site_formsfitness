@@ -288,6 +288,16 @@
       </div>
 
       <div class="card">
+        <h3>Seção "Preparação TAF"</h3>
+        <label>Rótulo</label><input id="s_sec_taf_rotulo">
+        <label>Título</label><div id="ed_sec_taf_titulo"></div>
+        <label>Texto</label><div id="ed_sec_taf_lead"></div>
+        <label>Itens da lista <span class="hint">um por linha</span></label><textarea id="s_taf_itens"></textarea>
+        <label>Texto do botão</label><input id="s_sec_taf_botao">
+        <p class="hint">O botão abre o WhatsApp com o número cadastrado em <b>Contato</b>.</p>
+      </div>
+
+      <div class="card">
         <h3>Seção "Estrutura"</h3>
         <label>Rótulo</label><input id="s_sec_estr_rotulo">
         <label>Título</label><div id="ed_sec_estr_titulo"></div>
@@ -735,14 +745,16 @@ async function salvarTextoManutencao() {
 /* Campos de texto simples (input/textarea comum). */
 const CAMPOS_SIMPLES = ["hero_badge","hero_title","hero_lead","about_title","about_lead","footer_tagline","footer_dias",
   "whatsapp","whatsapp_display","contact_email","instagram","cnpj","endereco","maps_url",
-  "sec_serv_rotulo","sec_serv_titulo","sec_serv_sub","sec_estr_rotulo","sec_estr_titulo","sec_estr_sub","estrutura_video"];
+  "sec_serv_rotulo","sec_serv_titulo","sec_serv_sub","sec_estr_rotulo","sec_estr_titulo","sec_estr_sub","estrutura_video",
+  "sec_taf_rotulo","sec_taf_titulo","sec_taf_lead","sec_taf_botao"];
 
 /* Quais deles ganham o EDITOR RICO, em vez de uma caixa de texto crua. São os
    que viram HTML na página — título com <em>, descrição com negrito ou link.
    Ficam de fora: selo, rótulo, link do vídeo, WhatsApp, CNPJ e afins, onde
    formatação não faz sentido e só atrapalharia. */
 const COM_EDITOR = ["hero_title","hero_lead","about_title","about_lead","footer_tagline","footer_dias",
-  "sec_serv_titulo","sec_serv_sub","sec_estr_titulo","sec_estr_sub"];
+  "sec_serv_titulo","sec_serv_sub","sec_estr_titulo","sec_estr_sub",
+  "sec_taf_titulo","sec_taf_lead"];
 
 /* Monta os editores no lugar dos <div id="ed_*"> e devolve um input oculto
    com o id "s_<chave>" — que é o que o resto da tela já procura para ler e
@@ -788,6 +800,7 @@ async function loadAll() {
   }
   $("#s_stats").value = JSON.parse(DATA.settings.stats || "[]").map((s) => `${s.num} | ${s.label}`).join("\n");
   $("#s_about_bullets").value = JSON.parse(DATA.settings.about_bullets || "[]").join("\n");
+  $("#s_taf_itens").value = JSON.parse(DATA.settings.taf_itens || "[]").join("\n");
   /* "team" saiu da lista junto com a tela: renderTable procura o elemento
      "#<tabela>-list", e com a seção removida ele viraria null — o erro
      derrubaria o loadAll inteiro, deixando o painel em branco. */
@@ -813,6 +826,9 @@ async function saveTexts() {
     const [num, ...r] = l.split("|"); return { num: num.trim(), label: r.join("|").trim() };
   }));
   body.about_bullets = JSON.stringify($("#s_about_bullets").value.split("\n").map((s) => s.trim()).filter(Boolean));
+  /* `filter(Boolean)` derruba linha em branco: quem escreve costuma deixar uma
+     sobrando no fim, e ela viraria um marcador solto na lista do site. */
+  body.taf_itens = JSON.stringify($("#s_taf_itens").value.split("\n").map((s) => s.trim()).filter(Boolean));
   await api("/api/settings", "PUT", body);
   toast("Salvo! Lembre de publicar.");
 }

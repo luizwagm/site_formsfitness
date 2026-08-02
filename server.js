@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.12.1";
+const APP_VERSION = "1.13.0";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -215,6 +215,16 @@ function seed() {
     sec_estr_titulo: "Um espaço feito para <em>evoluir</em>",
     sec_estr_sub: "Piscina tratada, raias completas, vestiários e ambiente climatizado para treinar o ano inteiro.",
     estrutura_video: "",
+    sec_taf_rotulo: "Preparação TAF",
+    sec_taf_titulo: "Vai encarar o TAF? Treine com <em>quem mais aprova</em>.",
+    sec_taf_lead: "PM, Bombeiros, Forças Armadas: cada edital tem sua prova — e nós temos o treino certo para ela. Técnica para economizar energia, ritmo de prova e simulados reais.",
+    sec_taf_botao: "Começar minha preparação",
+    taf_itens: JSON.stringify([
+      "Simulado no formato do seu edital",
+      "Correção técnica dos 4 nados",
+      "Planilha de evolução semanal",
+      "Centenas de aprovados em 33 anos",
+    ]),
     footer_dias: "Seg. a sáb. · horários de turma<br>consulte a grade pelo WhatsApp",
   };
   for (const [k, v] of Object.entries(PADROES)) if (getS(k) === undefined) setS(k, v);
@@ -553,6 +563,17 @@ function publish() {
 
   const bullets = JSON.parse(S.about_bullets || "[]").map((b) => `<li>${CHECK} ${esc(b)}</li>`).join("\n            ");
 
+  /* Itens do TAF. Sem `CHECK` porque a lista do TAF já traz o próprio marcador
+     pelo CSS (`.taf__list li::before`) — repetir o ícone daria dois.
+
+     O `filter` derruba item vazio AQUI também, e não só no painel: o painel é
+     uma tela, e tela pode ser contornada. Quem garante que a página nunca
+     mostre um marcador solto é quem gera a página. */
+  const tafItens = JSON.parse(S.taf_itens || "[]")
+    .map((t) => String(t || "").trim())
+    .filter(Boolean)
+    .map((t) => `<li>${esc(t)}</li>`).join("\n            ");
+
   const depsHtml = deps.map((t, i) => `<figure class="card quote" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}>
             <div class="quote__stars" aria-label="5 de 5">★★★★★</div>
             <blockquote class="quote__text">“${esc(t.text)}”</blockquote>
@@ -642,6 +663,10 @@ function publish() {
   html = setMarker(html, "SEC_SERV_TITULO", S.sec_serv_titulo);
   html = setMarker(html, "SEC_SERV_SUB", S.sec_serv_sub);
   html = setMarker(html, "SERVICES", "          " + servicesHtml);
+  html = setMarker(html, "SEC_TAF_ROTULO", S.sec_taf_rotulo);
+  html = setMarker(html, "SEC_TAF_TITULO", S.sec_taf_titulo);
+  html = setMarker(html, "SEC_TAF_LEAD", S.sec_taf_lead);
+  html = setMarker(html, "SEC_TAF_BOTAO", S.sec_taf_botao);
   html = setMarker(html, "SEC_ESTR_ROTULO", S.sec_estr_rotulo);
   html = setMarker(html, "SEC_ESTR_TITULO", S.sec_estr_titulo);
   html = setMarker(html, "SEC_ESTR_SUB", S.sec_estr_sub);
@@ -650,6 +675,7 @@ function publish() {
   html = setMarker(html, "ABOUT_TITLE", S.about_title);
   html = setMarker(html, "ABOUT_LEAD", S.about_lead);
   html = setMarker(html, "ABOUT_BULLETS", "            " + bullets);
+  html = setMarker(html, "TAF_ITENS", "            " + tafItens);
   html = setMarker(html, "PORTFOLIO", "          " + worksHtml);
   html = setMarker(html, "TESTIMONIALS", "          " + depsHtml);
   html = setMarker(html, "BLOG", "          " + blogHome);
@@ -891,7 +917,8 @@ const KEYS = ["hero_badge", "hero_title", "hero_lead", "stats", "about_title", "
   "endereco", "maps_url",
   "sec_serv_rotulo", "sec_serv_titulo", "sec_serv_sub",
   "sec_estr_rotulo", "sec_estr_titulo", "sec_estr_sub",
-  "estrutura_video", "footer_dias"];
+  "estrutura_video", "footer_dias",
+  "sec_taf_rotulo", "sec_taf_titulo", "sec_taf_lead", "sec_taf_botao", "taf_itens"];
 
 /* ------------------------------ Servidor ---------------------------------- */
 http.createServer(async (req, res) => {

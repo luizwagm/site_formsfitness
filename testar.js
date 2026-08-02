@@ -531,6 +531,23 @@ function pngEmPe() {
     certo("o vídeo vem ANTES do mosaico no HTML",
       idx.indexOf("ESTRUTURA_VIDEO") < idx.indexOf('class="mosaico"'));
     certo("o bloco largo antigo do vídeo não voltou", !/video-estrutura/.test(css));
+    /* Seção "Preparação TAF": rótulo, título, descrição, itens e botão saem
+       do painel. Os itens são UM POR LINHA na tela — pedir JSON ou HTML ao
+       cliente seria empurrar para ele um problema que é nosso. */
+    for (const k of ["SEC_TAF_ROTULO", "SEC_TAF_TITULO", "SEC_TAF_LEAD", "SEC_TAF_BOTAO", "TAF_ITENS"])
+      certo(`o marcador ${k} é publicado`, srv.includes(`"${k}"`) && home.corpo.includes(k));
+    certo("os campos do TAF existem no painel",
+      ["s_sec_taf_rotulo", "ed_sec_taf_titulo", "ed_sec_taf_lead", "s_taf_itens", "s_sec_taf_botao"].every((id) => adm.includes(id)));
+    certo("título e descrição do TAF usam o editor formatado",
+      /COM_EDITOR[\s\S]{0,320}sec_taf_titulo/.test(adm) && /COM_EDITOR[\s\S]{0,320}sec_taf_lead/.test(adm));
+    certo("os campos do TAF são gravados ao salvar",
+      /CAMPOS_SIMPLES[\s\S]{0,400}sec_taf_rotulo/.test(adm) && /body\.taf_itens/.test(adm));
+    /* Linha em branco não pode virar marcador solto na lista. A limpeza fica
+       nos DOIS lados: o painel é uma tela, e tela pode ser contornada. */
+    certo("item vazio é descartado no painel", /taf_itens[\s\S]{0,200}filter\(Boolean\)/.test(adm));
+    certo("item vazio também é descartado ao publicar",
+      /tafItens[\s\S]{0,260}filter\(Boolean\)/.test(srv));
+
     /* O vídeo mantém a PRÓPRIA proporção na coluna: largura cheia, altura em
        `auto`. Esticá-lo até a altura do mosaico obrigaria a cortar para
        preencher, e o arquivo apareceria pela metade. */
