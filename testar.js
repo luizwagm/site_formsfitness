@@ -193,10 +193,16 @@ function pngEmPe() {
        O IP desta máquina já acertou a senha acima, então continua entrando
        (é justamente a proteção contra o ataque virar tranca no dono) — e é
        isso que permite a suíte rodar de novo em seguida. */
+    /* Endereços NOVOS a cada execução. Com IPs fixos, os baldes por IP iam se
+       enchendo de uma rodada para a outra e, por volta da quinta, quem barrava
+       era o balde do IP — não o da conta, que é o que este teste mede. A suíte
+       precisa poder rodar quantas vezes for preciso na mesma hora. */
+    const sorteia = () => Math.floor(Math.random() * 256);
+    const faixa = `10.${sorteia()}.${sorteia()}`;
     let gastas = 0, barrouCom = null;
     for (let i = 0; i < 40; i++) {
       const r = await pedir("POST", "/api/login",
-        { corpo: { password: "zz-distrib-" + i }, headers: { "x-real-ip": `203.0.113.${100 + i}` } });
+        { corpo: { password: "zz-distrib-" + i }, headers: { "x-real-ip": `${faixa}.${100 + i}` } });
       if (r.status === 401) { gastas++; continue; }
       if (r.status === 429) { barrouCom = r.json?.error || ""; break; }
     }
@@ -204,23 +210,41 @@ function pngEmPe() {
     certo("a mensagem explica que foi a conta", /conta/i.test(barrouCom || ""), barrouCom);
 
     /* Com a conta bloqueada, nem a senha certa entra de um endereço novo —
-       senão o bloqueio não bloquearia nada. */
-    eq("senha certa de IP desconhecido é barrada enquanto a conta está travada",
-      (await pedir("POST", "/api/login", { corpo: { password: SENHA }, headers: { "x-real-ip": "198.51.100.200" } })).status, 429);
+       senão o bloqueio não bloquearia nada.
 
-    /* E o dono, do endereço de sempre, não fica trancado do lado de fora. */
-    certo("o dono, do IP que já usou antes, continua entrando",
-      (await pedir("POST", "/api/login", { corpo: { password: SENHA } })).status === 200);
+       Endereço novo a cada execução, e não um fixo: se um dia este teste
+       falhar, a senha certa PASSA, e o IP fixo viraria "conhecido" por 30
+       dias. IP conhecido é isento do balde da conta — o teste nunca mais
+       passaria, e a falha de uma rodada viraria falha permanente. */
+    eq("senha certa de IP desconhecido é barrada enquanto a conta está travada",
+      (await pedir("POST", "/api/login", { corpo: { password: SENHA }, headers: { "x-real-ip": `${faixa}.240` } })).status, 429);
 
     /* A contagem tem de sobreviver ao reinício: o servidor reinicia sozinho
        de madrugada, e uma trava só na memória devolveria o orçamento
-       inteiro ao atacante todo dia. */
+       inteiro ao atacante todo dia.
+
+       Confere AQUI, antes de o dono entrar: o acerto zera o balde da conta de
+       propósito, e o teste passaria a olhar um arquivo já limpo. Antes ele
+       ficava depois do acerto e passava por sorte — lendo o arquivo de uma
+       execução ANTERIOR, porque a gravação é adiada em 2s. Por isso a espera
+       e a conferência da data do arquivo: sem elas o teste aprova sozinho. */
     const limites = path.join(__dirname, "data", "limites.json");
+    const marco = Date.now();
+    await new Promise((r) => setTimeout(r, 2600));   // a gravação é adiada em 2s
     certo("a contagem é gravada em disco (sobrevive ao reinício)", fs.existsSync(limites));
     if (fs.existsSync(limites)) {
+      certo("o arquivo é desta execução, não sobrou de antes",
+        fs.statSync(limites).mtimeMs >= marco, new Date(fs.statSync(limites).mtimeMs).toISOString());
       const d = JSON.parse(fs.readFileSync(limites, "utf8"));
-      certo("o arquivo guarda os baldes por conta", Object.keys(d.falhas || {}).some((k) => k.includes("|conta|")));
+      certo("o arquivo guarda os baldes por conta", Object.keys(d.falhas || {}).some((k) => k.includes("|conta|")),
+        Object.keys(d.falhas || {}).join(", "));
     }
+
+    /* E o dono, do endereço de sempre, não fica trancado do lado de fora.
+       Fica por último porque LIBERA a conta — é o que permite a suíte rodar
+       de novo em seguida. */
+    certo("o dono, do IP que já usou antes, continua entrando",
+      (await pedir("POST", "/api/login", { corpo: { password: SENHA } })).status === 200);
   }
 
   /* ====================================================================
@@ -371,11 +395,16 @@ function pngEmPe() {
   {
     const NAV = { "user-agent": "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120 Safari/537.36" };
     const antes = (await pedir("GET", "/api/stats", { cookie: COOKIE })).json;
-    const ip = "203.0.113." + (150 + (process.pid % 50));
-    await pedir("GET", "/", { headers: { ...NAV, "x-real-ip": ip } });
-    await pedir("GET", "/", { headers: { ...NAV, "x-real-ip": ip } });          // mesma visita
-    await pedir("GET", "/", { headers: { "user-agent": "Googlebot/2.1" } });     // robô
-    await pedir("GET", "/assets/css/styles.css", { headers: { ...NAV, "x-real-ip": "203.0.113.240" } });
+    /* Visitante NOVO a cada execução. O contador ignora o mesmo IP dentro da
+       janela — que é o comportamento certo —, então um endereço fixo contava 1
+       na primeira rodada e 0 em todas as seguintes. O antigo vinha do PID, que
+       repete. Sorteio dá endereço inédito sempre. */
+    const octeto = () => Math.floor(Math.random() * 256);
+    const visitante = `10.${octeto()}.${octeto()}.${octeto()}`;
+    await pedir("GET", "/", { headers: { ...NAV, "x-real-ip": visitante } });
+    await pedir("GET", "/", { headers: { ...NAV, "x-real-ip": visitante } });    // mesma visita
+    await pedir("GET", "/", { headers: { "user-agent": "Googlebot/2.1", "x-real-ip": `10.${octeto()}.${octeto()}.${octeto()}` } });  // robô
+    await pedir("GET", "/assets/css/styles.css", { headers: { ...NAV, "x-real-ip": `10.${octeto()}.${octeto()}.${octeto()}` } });
     const dep = (await pedir("GET", "/api/stats", { cookie: COOKIE })).json;
 
     eq("um visitante novo conta uma vez", dep.total - antes.total, 1);
@@ -606,6 +635,27 @@ function pngEmPe() {
       await pedir("POST", "/api/publish", { cookie: COOKIE, corpo: {} });
       const fim = (await pedir("GET", "/")).corpo;
       certo("o teste devolveu o conteúdo do cliente", !/garanta sua vaga<\/a>/.test(fim) && !/Uma linha/.test(fim));
+    }
+
+    /* ---------------------------------------------------------------------
+       DEPOIMENTOS SÃO AVALIAÇÕES REAIS
+
+       Os três textos vieram do Google, palavra por palavra. Precisam estar na
+       SEMENTE, não só no banco daqui: o deploy não leva o banco, e o banco de
+       produção nasce do server.js. Se voltarem os nomes de exemplo, é sinal de
+       que a semente foi sobrescrita e o site subiria com depoimento inventado.
+       --------------------------------------------------------------------- */
+    for (const nome of ["Rosangela Nascimento", "Fernanda Alves", "Lucia Fatma"])
+      certo(`a semente traz a avaliação de ${nome}`, srv.includes(nome));
+    certo("os depoimentos de exemplo saíram da semente",
+      !/Patrícia M\.|Dona Socorro|Aprovado no TAF · Caruaru/.test(srv));
+    {
+      const deps = (await pedir("GET", "/api/content", { cookie: COOKIE })).json.testimonials;
+      certo("a home publica as três avaliações", deps.length === 3, `${deps.length} no banco`);
+      certo("nenhum depoimento de exemplo ficou no banco",
+        !deps.some((d) => /Patrícia M\.|Carlos E\.|Dona Socorro/.test(d.name || "")));
+      certo("os textos do Google saem inteiros na página",
+        deps.every((d) => home.corpo.includes(d.text.slice(0, 40))));
     }
 
     /* O vídeo mantém a PRÓPRIA proporção na coluna: largura cheia, altura em

@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.13.1";
+const APP_VERSION = "1.13.2";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -270,9 +270,12 @@ function seed() {
    ["Nado livre", "Horários para treinar no seu ritmo", "https://images.unsplash.com/photo-1438029071396-1e831a7fa6d8?auto=format&fit=crop&w=700&q=70"]]
     .forEach((w, i) => db.prepare("INSERT INTO portfolio(title,subtitle,image,sort) VALUES(?,?,?,?)").run(w[0], w[1], w[2], i));
 
-  [["Meu filho aprendeu a nadar em 3 meses e hoje compete pela equipe. A evolução dele é impressionante.", "Patrícia M.", "Mãe de aluno · Natação infantil", "PM"],
-   ["Passei no TAF da PM-PE na primeira tentativa. O treino da Forms é focado exatamente no que a prova cobra.", "Carlos E.", "Aprovado no TAF · Caruaru", "CE"],
-   ["A hidroginástica mudou minha disposição e minhas dores no joelho sumiram. Turma animada demais!", "Dona Socorro", "Hidroginástica · 68 anos", "DS"]]
+  /* Avaliações REAIS do Google, copiadas palavra por palavra. Ficam na semente
+     porque o deploy não leva o banco: o banco de produção nasce daqui. Trocar
+     este texto é reescrever o que um cliente escreveu — mexa só pelo painel. */
+  [["Um espaço amplo, água sempre tratada, professores atenciosos e uma boa localização. Falo porque sou aluna veterana a mais de 2 décadas. Amoooo!", "Rosangela Nascimento", "Avaliação no Google", "RN"],
+   ["Lugar lindo, limpo, aconchegante e um time de originais super competente. Recomendo de olhos fechados", "Fernanda Alves", "Avaliação no Google", "FA"],
+   ["Lugar de descontração, amizade, respeito e o melhor proporciona saúde física e mental, professores dedicados", "Lucia Fatma", "Avaliação no Google", "LF"]]
     .forEach((d, i) => db.prepare("INSERT INTO testimonials(text,name,role,initials,sort) VALUES(?,?,?,?,?)").run(d[0], d[1], d[2], d[3], i));
 
   [["Prof. Ricardo Forms", "Fundador · Natação e TAF", "33 anos formando nadadores e aprovados. Especialista em preparação física para concursos e técnica de nado.", "https://images.unsplash.com/photo-1594381898411-846e7d193883?auto=format&fit=crop&w=600&q=75"],
