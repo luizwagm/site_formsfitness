@@ -533,6 +533,56 @@ function pngEmPe() {
     /* Modalidade aceita HTML. */
     certo("a modalidade passa por blocoTexto (aceita HTML)", /raia__texto">\$\{blocoTexto\(s\.text\)\}/.test(srv));
 
+    /* ---------------------------------------------------------------------
+       ORDEM DAS MODALIDADES
+
+       Quem manda é a coluna `sort`, e o NÚMERO DA RAIA (01, 02, …) sai da
+       posição na lista — então mudar a ordem renumera as raias da página
+       junto. Se um dia alguém trocar o `ORDER BY` por id, o painel continuaria
+       mostrando uma ordem e o site outra, sem erro nenhum para acusar.
+       --------------------------------------------------------------------- */
+    certo("o site ordena as modalidades pela coluna sort",
+      /FROM services ORDER BY sort,\s*id/.test(srv));
+    certo("o número da raia vem da posição, não do id",
+      /raia__n"[^>]*>\$\{String\(i \+ 1\)/.test(srv));
+    certo("o painel tem os botões de subir e descer",
+      /function moverRow/.test(adm) && /linhaDeOrdem/.test(adm) && /COM_ORDEM/.test(adm));
+    certo("mover renumera a lista inteira, não só o par",
+      /nova\.map\(\(r, k\)[\s\S]{0,140}sort: k/.test(adm));
+    certo("modalidade nova entra no fim da lista", /sort: fim/.test(adm) && /Math\.max\(-1/.test(adm));
+    certo("mover avisa antes de descartar edição não salva",
+      /temEdicaoPendente/.test(adm) && /confirm\("Há alteração não salva/.test(adm));
+
+    {
+      /* A prova: reordena pela API e olha a página publicada. */
+      const antes = (await pedir("GET", "/api/content", { cookie: COOKIE })).json.services;
+      certo("há modalidades suficientes para testar a ordem", antes.length >= 2, `${antes.length}`);
+      if (antes.length >= 2) {
+        /* Inverte a lista inteira — se a ordem fosse ignorada, a página sairia igual. */
+        const invertida = antes.slice().reverse();
+        for (let k = 0; k < invertida.length; k++)
+          await pedir("PUT", `/api/services/${invertida[k].id}`, { cookie: COOKIE, corpo: { sort: k } });
+        await pedir("POST", "/api/publish", { cookie: COOKIE, corpo: {} });
+
+        const pag = (await pedir("GET", "/")).corpo;
+        const naPagina = [...pag.matchAll(/<div class="raia__n"[^>]*>(\d+)<\/div>[\s\S]*?<h3 class="raia__titulo">([^<]*)<\/h3>/g)]
+          .map((m) => ({ n: m[1], titulo: m[2] }));
+        certo("a página saiu na ordem nova",
+          naPagina.map((x) => x.titulo).join("|") === invertida.map((s) => s.title).join("|"),
+          naPagina.map((x) => x.titulo).join(" | "));
+        certo("as raias foram renumeradas 01, 02, 03…",
+          naPagina.every((x, k) => x.n === String(k + 1).padStart(2, "0")),
+          naPagina.map((x) => x.n).join(" "));
+
+        /* Devolve a ordem do cliente. */
+        for (const s of antes) await pedir("PUT", `/api/services/${s.id}`, { cookie: COOKIE, corpo: { sort: s.sort } });
+        await pedir("POST", "/api/publish", { cookie: COOKIE, corpo: {} });
+        const fim = [...(await pedir("GET", "/")).corpo.matchAll(/<h3 class="raia__titulo">([^<]*)<\/h3>/g)].map((m) => m[1]);
+        certo("a ordem original do cliente voltou",
+          fim.join("|") === antes.map((s) => s.title).join("|"), fim.join(" | "));
+      }
+    }
+
     /* Vídeo: converte o link e não deixa injetar. */
     certo("existe o conversor de link de vídeo", /function embutirVideo|const embutirVideo/.test(srv));
     certo("o id do vídeo é filtrado antes de virar HTML", /replace\(\/\[\^A-Za-z0-9_-\]\/g/.test(srv));

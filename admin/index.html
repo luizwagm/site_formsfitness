@@ -74,6 +74,14 @@
     #login{position:fixed;inset:0;background:var(--blue);display:grid;place-items:center;z-index:50}
     #login .card{width:min(360px,90vw);text-align:center;padding:2rem}
     .imgrow{display:flex;gap:.6rem;align-items:center}
+    /* Linha de ordem das modalidades. O número repete o da raia no site, para
+       quem edita ver a posição sem precisar abrir a página. */
+    .ordem{display:flex;gap:.5rem;align-items:center;margin:-.2rem 0 .9rem;
+      padding-bottom:.8rem;border-bottom:1px dashed var(--line)}
+    .ordem__n{font-weight:800;font-size:1.05rem;color:var(--blue);
+      background:rgba(11,78,162,.08);border-radius:8px;padding:.2rem .55rem;letter-spacing:.5px}
+    .ordem__dica{font-size:.75rem;color:var(--dim)}
+    .ordem .btn[disabled]{opacity:.35;cursor:not-allowed}
     /* Barra de progresso do envio de vídeo. Um arquivo de 80 MB leva dezenas
        de segundos; sem retorno visual, a tela parece travada e a pessoa
        clica de novo — o que dispara um segundo envio. */
@@ -887,9 +895,60 @@ const TDEFS = {
   testimonials: [["text","Depoimento","linha"],["name","Nome","input"],["role","Modalidade / cidade","input"],["initials","Iniciais","input"]],
   posts: [["title","Título da matéria","titulo"],["slug","URL amigável","slug"],["date","Data (AAAA-MM-DD)","input"],["excerpt","Resumo (card e Google)","resumo"],["image","Imagem de capa (URL)","image"],["content","Conteúdo","bigtext"]],
 };
+/* Listas em que a ORDEM é escolhida à mão. A do site sai daqui: a home lê
+   `ORDER BY sort,id`, e o número da raia (01, 02, …) vem da POSIÇÃO — então
+   mover aqui renumera as raias na página também.
+
+   Por ora só as modalidades, que foi o pedido. As fotos da Estrutura têm a
+   mesma coluna `sort` e entrariam só acrescentando "portfolio" a este conjunto. */
+const COM_ORDEM = new Set(["services"]);
+
+function linhaDeOrdem(t, r, i, total) {
+  const n = String(i + 1).padStart(2, "0");
+  return `<div class="ordem">
+        <span class="ordem__n" title="Posição na página">${n}</span>
+        <button class="btn btn-ghost btn-sm" onclick="moverRow('${t}',${r.id},-1)"
+                ${i === 0 ? "disabled" : ""} title="Subir uma posição" aria-label="Subir">↑</button>
+        <button class="btn btn-ghost btn-sm" onclick="moverRow('${t}',${r.id},1)"
+                ${i === total - 1 ? "disabled" : ""} title="Descer uma posição" aria-label="Descer">↓</button>
+        <span class="ordem__dica">é a raia ${n} no site</span>
+      </div>`;
+}
+
+/* O botão de mover REDESENHA a lista com o que está no banco. Se houver texto
+   digitado e não salvo, ele se perderia calado — por isso o aviso antes. */
+function temEdicaoPendente(t) {
+  return DATA[t].some((r) => TDEFS[t].some(([f]) => {
+    const el = document.querySelector(`[data-t="${t}"][data-id="${r.id}"][data-f="${f}"]`);
+    return el && el.value !== String(r[f] ?? "");
+  }));
+}
+
+async function moverRow(t, id, passo) {
+  const lista = DATA[t];
+  const i = lista.findIndex((r) => String(r.id) === String(id));
+  const j = i + passo;
+  if (i < 0 || j < 0 || j >= lista.length) return;
+  if (temEdicaoPendente(t) &&
+      !confirm("Há alteração não salva nesta lista. Mover vai descartá-la. Continuar?")) return;
+
+  /* Renumera a lista INTEIRA na ordem nova, em vez de trocar só o par. Trocar
+     o par não bastaria: se todos estivessem com a mesma ordem — e o padrão da
+     coluna é 0 —, a troca não mudaria nada e o botão pareceria quebrado. */
+  const nova = lista.slice();
+  [nova[i], nova[j]] = [nova[j], nova[i]];
+  await Promise.all(nova.map((r, k) =>
+    Number(r.sort) === k ? null : api(`/api/${t}/${r.id}`, "PUT", { sort: k })));
+
+  DATA = await api("/api/content");
+  renderTable(t);
+  toast("Ordem alterada. Lembre de publicar!");
+}
+
 function renderTable(t) {
-  $("#" + t + "-list").innerHTML = DATA[t].map((r) => `
+  $("#" + t + "-list").innerHTML = DATA[t].map((r, i) => `
     <div class="card">
+      ${COM_ORDEM.has(t) ? linhaDeOrdem(t, r, i, DATA[t].length) : ""}
       ${TDEFS[t].map(([f, lab, kind]) => {
         const dados = `data-t="${t}" data-id="${r.id}" data-f="${f}"`;
         if (kind === "bigtext") return `<label>${lab}</label>${editorRico(dados, r[f], true)}`;
@@ -933,8 +992,11 @@ async function saveRow(t, id) {
   toast("Salvo! Lembre de publicar.");
 }
 async function addRow(t) {
+  /* Entra no FIM da lista. Sem isto o item nascia com `sort` 0 — o padrão da
+     coluna — e aparecia lá em cima, na frente de quem já estava. */
+  const fim = Math.max(-1, ...(DATA[t] || []).map((r) => Number(r.sort) || 0)) + 1;
   const blank = { portfolio: { title: "Nova foto", subtitle: "", image: "" },
-    services: { title: "Nova modalidade", text: "" },
+    services: { title: "Nova modalidade", text: "", sort: fim },
     testimonials: { text: "", name: "", role: "", initials: "" },
     posts: { title: "Nova matéria", excerpt: "", content: "", image: "", date: new Date().toISOString().slice(0, 10) } }[t];
   await api("/api/" + t, "POST", blank);
