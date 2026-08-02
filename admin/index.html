@@ -422,16 +422,26 @@ const ED_BOTOES = [
 let edSeq = 0;
 /* `attrs` são os data-* que identificam o campo (data-k ou data-t/data-id/data-f).
    Vão para o input oculto, que é quem o salvar lê. */
-function editorRico(attrs, valor, alto) {
+/* Botões que criam BLOCO. Num campo de uma linha eles não têm serventia: o
+   bloco que sai daqui vai parar dentro do <h2> ou do <p> da seção no site e
+   quebra o parágrafo de fora. Some com eles em vez de deixar a armadilha. */
+const ED_BLOCO = new Set(["formatBlock:h2", "formatBlock:h3", "formatBlock:p",
+  "insertUnorderedList", "insertOrderedList", "formatBlock:blockquote"]);
+
+function editorRico(attrs, valor, alto, linha) {
   const id = "ed" + (++edSeq);
-  const barra = ED_BOTOES.map(([cmd, rot, titulo, estilo]) =>
-    cmd === "|" ? '<span class="ed-sep"></span>'
-      : `<button type="button" class="ed-bt" id="${id}-bt${cmd}" title="${escA(titulo)}" aria-label="${escA(titulo)}"
+  const barra = ED_BOTOES.filter(([cmd]) => !(linha && ED_BLOCO.has(cmd)))
+    /* Tirar botões deixa separadores encostados ou sobrando na ponta. */
+    .filter(([cmd], i, a) => cmd !== "|" || (i > 0 && i < a.length - 1 && a[i - 1][0] !== "|"))
+    .map(([cmd, rot, titulo, estilo]) =>
+      cmd === "|" ? '<span class="ed-sep"></span>'
+        : `<button type="button" class="ed-bt" id="${id}-bt${cmd}" title="${escA(titulo)}" aria-label="${escA(titulo)}"
            onmousedown="event.preventDefault()" onclick="edCmd('${id}','${cmd}')" style="${estilo}">${rot}</button>`).join("");
   return `<div class="ed-caixa">
     <div class="ed-barra" role="toolbar" aria-label="Formatação">${barra}</div>
-    <div class="ed-area${alto ? " alto" : ""}" id="${id}-ed" contenteditable="true" role="textbox" aria-multiline="true"
-         oninput="edSync('${id}')" onblur="edSync('${id}')" onpaste="edColar(event)">${paraHTML(valor)}</div>
+    <div class="ed-area${alto ? " alto" : ""}" id="${id}-ed" contenteditable="true" role="textbox" aria-multiline="${linha ? "false" : "true"}"
+         ${linha ? 'data-linha="1"' : ""}
+         oninput="edSync('${id}')" onblur="edSync('${id}')" onpaste="edColar(event)">${paraHTML(valor, linha)}</div>
     <textarea class="ed-fonte${alto ? " alto" : ""}" id="${id}-html" spellcheck="false"
               oninput="edSync('${id}')" onblur="edSync('${id}')"></textarea>
     <input type="hidden" id="${id}" ${attrs} value="${escA(valor || "")}">
@@ -441,11 +451,39 @@ function editorRico(attrs, valor, alto) {
 /* O conteúdo antigo é texto puro com parágrafos separados por linha em branco.
    Jogá-lo cru no contenteditable transformaria tudo num parágrafo só — a
    quebra de linha não é marcação. Converte na ABERTURA; ao salvar já sai HTML. */
-function paraHTML(v) {
+function paraHTML(v, linha) {
   const s = String(v || "").trim();
   if (!s) return "";
+  if (linha) return soLinha(s);
   if (/<(p|br|ul|ol|li|h2|h3|h4|blockquote|div|strong|b|em|i|a)\b/i.test(s)) return s;
   return s.split(/\n{2,}/).map((par) => `<p>${escA(par.trim()).replace(/\n/g, "<br>")}</p>`).join("");
+}
+
+/* Achata a marcação de bloco em marcação de linha. Um título ou uma chamada de
+   seção entra dentro do <h2>/<p> do site: parágrafo dentro de parágrafo o
+   navegador desmonta. Desmancha os blocos de fora para dentro — o conteúdo
+   sobe e cada bloco vira uma quebra — e negrito, itálico e link seguem
+   intactos. */
+function soLinha(html) {
+  const s = String(html || "").trim();
+  if (!s) return "";
+  const cx = document.createElement("div");
+  cx.innerHTML = /<[a-z!/]/i.test(s) ? s : escA(s).replace(/\n/g, "<br>");
+  let bloco;
+  while ((bloco = cx.querySelector("p,div,h1,h2,h3,h4,h5,h6,ul,ol,li,blockquote,section,article"))) {
+    const pai = bloco.parentNode;
+    /* Quebra dos DOIS lados: um bloco começa uma linha e termina outra. Só de
+       um lado, um bloco no meio do texto (o que o Enter cria) gruda no que
+       vinha antes. As quebras repetidas somem no acerto final. */
+    pai.insertBefore(document.createElement("br"), bloco);
+    while (bloco.firstChild) pai.insertBefore(bloco.firstChild, bloco);
+    pai.insertBefore(document.createElement("br"), bloco);
+    pai.removeChild(bloco);
+  }
+  return cx.innerHTML
+    .replace(/(?:\s*<br\s*\/?>\s*)+/gi, "<br>")
+    .replace(/^(?:<br\s*\/?>)+|(?:<br\s*\/?>)+$/gi, "")
+    .trim();
 }
 
 function edCmd(id, cmd) {
@@ -507,15 +545,17 @@ function edSync(id) {
      escrevendo. Salvar a área escondida jogaria fora o que acabou de ser
      digitado. */
   const fonte = document.getElementById(id + "-html");
+  const linha = area.dataset.linha === "1";
   if (fonte && fonte.style.display === "block") {
-    campo.value = fonte.value.trim();
+    campo.value = linha ? soLinha(fonte.value) : fonte.value.trim();
     campo.dispatchEvent(new Event("change", { bubbles: true }));
     return;
   }
   /* Apagar tudo raramente deixa a caixa realmente vazia: o navegador guarda um
      "<br>" solto e, se o texto estava numa lista, guarda a lista inteira. A
      regra é o que se ENXERGA: sem texto visível, o campo está vazio. */
-  campo.value = area.textContent.trim() === "" ? "" : area.innerHTML.trim();
+  campo.value = area.textContent.trim() === "" ? ""
+    : (linha ? soLinha(area.innerHTML) : area.innerHTML.trim());
   campo.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
@@ -756,6 +796,11 @@ const COM_EDITOR = ["hero_title","hero_lead","about_title","about_lead","footer_
   "sec_serv_titulo","sec_serv_sub","sec_estr_titulo","sec_estr_sub",
   "sec_taf_titulo","sec_taf_lead"];
 
+/* Todos eles são de UMA LINHA: no site cada um mora dentro de um <h1>, <h2> ou
+   <p>. Por isso o editor aqui trabalha em modo linha — negrito, itálico e link
+   valem; parágrafo e lista, não, porque quebrariam a tag de fora. */
+const EDITOR_DE_LINHA = new Set(COM_EDITOR);
+
 /* Monta os editores no lugar dos <div id="ed_*"> e devolve um input oculto
    com o id "s_<chave>" — que é o que o resto da tela já procura para ler e
    gravar. Assim o salvar não muda em nada. */
@@ -775,7 +820,7 @@ function montarEditores() {
     /* Sem mexer no id: o editorRico dá o dele ("edN") e o edSync depende
        disso para escrever o texto formatado no campo. Quem precisa do valor
        chega nele pelo CONTÊINER, com campoDe(). */
-    caixa.innerHTML = editorRico("", DATA.settings[k] || "");
+    caixa.innerHTML = editorRico("", DATA.settings[k] || "", false, EDITOR_DE_LINHA.has(k));
     caixa.dataset.pronto = "1";
   }
 }

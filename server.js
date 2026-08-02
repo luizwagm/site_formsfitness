@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.13.0";
+const APP_VERSION = "1.13.1";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -508,11 +508,35 @@ const ICONS = [
 ];
 const CHECK = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 
+/* Marcadores que ficam DENTRO de um <h1>, <h2> ou <p> no molde. Bloco dentro
+   de parágrafo é HTML inválido: ao topar com o <p> de dentro o navegador FECHA
+   o de fora, e o texto sai do estilo da seção — some o tamanho, a cor, o
+   espaçamento. Como o editor do painel devolve o texto embrulhado em <p>, todo
+   texto de seção caía nisso. Aqui o <p> vira quebra de linha e o resto da
+   marcação (negrito, itálico, link) passa inteiro. */
+const MARCADORES_DE_LINHA = new Set([
+  "HERO_TITLE", "HERO_LEAD", "ABOUT_TITLE", "ABOUT_LEAD",
+  "SEC_SERV_TITULO", "SEC_SERV_SUB", "SEC_ESTR_TITULO", "SEC_ESTR_SUB",
+  "SEC_TAF_TITULO", "SEC_TAF_LEAD", "FOOTER_TAGLINE", "FOOTER_DIAS",
+]);
+const BLOCOS = "p|div|h[1-6]|li|ul|ol|blockquote|section|article|header|footer";
+function linhaUnica(valor) {
+  return String(valor == null ? "" : valor)
+    /* Quebra dos DOIS lados: um bloco começa uma linha e termina outra. Só na
+       tag de fechar, um bloco no meio do texto gruda no que vinha antes. As
+       quebras repetidas somem na linha seguinte. */
+    .replace(new RegExp(`</?(?:${BLOCOS})\\b[^>]*>`, "gi"), "<br>")
+    .replace(/(?:\s*<br\s*\/?>\s*)+/gi, "<br>")
+    .replace(/^(?:<br\s*\/?>)+|(?:<br\s*\/?>)+$/gi, "")
+    .trim();
+}
+
 function setMarker(html, key, content) {
   const re = new RegExp(`(<!--#${key}-->)[\\s\\S]*?(<!--\\/${key}-->)`);
   if (!re.test(html)) throw new Error(`Marcador ${key} não encontrado`);
+  const texto = MARCADORES_DE_LINHA.has(key) ? linhaUnica(content) : content;
   // replacement em função: evita que "$" no conteúdo seja interpretado ($$, $1…)
-  return html.replace(re, (_m, open, close) => `${open}\n${content}\n${close}`);
+  return html.replace(re, (_m, open, close) => `${open}\n${texto}\n${close}`);
 }
 const fill = (tpl, map) => Object.entries(map).reduce((h, [k, v]) => h.split(`{{${k}}}`).join(v), tpl);
 const postCard = (p) => `<article class="post-card" data-reveal>

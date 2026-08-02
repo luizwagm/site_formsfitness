@@ -548,6 +548,66 @@ function pngEmPe() {
     certo("item vazio também é descartado ao publicar",
       /tafItens[\s\S]{0,260}filter\(Boolean\)/.test(srv));
 
+    /* ---------------------------------------------------------------------
+       TEXTO DE SEÇÃO ACEITA HTML — SEM DESMONTAR A TAG DE FORA
+
+       Título e descrição entram DENTRO de um <h2> ou de um <p> do molde. O
+       editor do painel devolve o texto embrulhado em <p>, e parágrafo dentro
+       de parágrafo é inválido: o navegador FECHA o de fora ao topar com o de
+       dentro, e o texto escapa do estilo da seção. Era isso que fazia o HTML
+       "não pegar" na Preparação TAF.
+
+       A limpeza fica nos DOIS lados. O painel é uma tela — e tela se contorna
+       mandando o dado direto na API —, então quem garante é o servidor.
+       --------------------------------------------------------------------- */
+    certo("o servidor sabe quais textos são de uma linha só",
+      /MARCADORES_DE_LINHA[\s\S]{0,420}SEC_TAF_LEAD/.test(srv));
+    certo("todo texto de seção está na lista de uma linha",
+      ["HERO_TITLE", "HERO_LEAD", "ABOUT_TITLE", "ABOUT_LEAD", "SEC_SERV_TITULO", "SEC_SERV_SUB",
+       "SEC_ESTR_TITULO", "SEC_ESTR_SUB", "SEC_TAF_TITULO", "SEC_TAF_LEAD", "FOOTER_TAGLINE", "FOOTER_DIAS"]
+        .every((k) => new RegExp(`MARCADORES_DE_LINHA[\\s\\S]{0,420}${k}\\b`).test(srv)));
+    certo("o achatamento acontece ao publicar, não só na tela",
+      /setMarker[\s\S]{0,260}MARCADORES_DE_LINHA[\s\S]{0,120}linhaUnica/.test(srv));
+    certo("o painel achata bloco em linha", /function soLinha/.test(adm));
+    certo("os campos de uma linha não oferecem botão de bloco",
+      /ED_BLOCO[\s\S]{0,200}insertUnorderedList/.test(adm) && /filter\(\(\[cmd\]\) => !\(linha && ED_BLOCO/.test(adm));
+    certo("todos os campos com editor entram em modo linha",
+      /EDITOR_DE_LINHA = new Set\(COM_EDITOR\)/.test(adm) && /EDITOR_DE_LINHA\.has\(k\)/.test(adm));
+
+    {
+      /* A prova de verdade: grava o que o editor produz e olha a página. */
+      const guardar = (await pedir("GET", "/api/content", { cookie: COOKIE })).json.settings;
+      await pedir("PUT", "/api/settings", { cookie: COOKIE, corpo: {
+        sec_taf_lead: '<p>Treine com <b>quem mais aprova</b>.</p><p>E <a href="/matricula/">garanta sua vaga</a>.</p>',
+        sec_taf_titulo: "<p>Título com <em>ênfase</em></p>",
+        hero_lead: "Uma linha<div>outra linha</div>",
+      } });
+      await pedir("POST", "/api/publish", { cookie: COOKIE, corpo: {} });
+      const pag = (await pedir("GET", "/")).corpo;
+      const dentroDe = (re) => (re.exec(pag) || [, ""])[1].replace(/<!--[^>]*-->/g, "").trim();
+      const lead = dentroDe(/<p class="taf__lead">([\s\S]*?)<\/p>/);
+      const titulo = dentroDe(/<h2 class="taf__title">([\s\S]*?)<\/h2>/);
+      const heroLead = dentroDe(/<p class="hero__texto">([\s\S]*?)<\/p>/);
+
+      certo("nada de bloco dentro do <p> da seção", !/<(p|div|ul|ol|li|h[1-6])\b/i.test(lead), lead);
+      certo("nada de bloco dentro do <h2> da seção", !/<(p|div|ul|ol|li|h[1-6])\b/i.test(titulo), titulo);
+      certo("o negrito escrito pelo cliente sai na página", /<b>quem mais aprova<\/b>/.test(lead), lead);
+      certo("o link escrito pelo cliente sai na página",
+        /<a href="\/matricula\/">garanta sua vaga<\/a>/.test(lead), lead);
+      certo("o <em> do título sobrevive", /<em>ênfase<\/em>/.test(titulo), titulo);
+      /* Achatar não pode COLAR as linhas: cada bloco vira uma quebra. */
+      certo("dois parágrafos viram uma quebra de linha", /\.<br>E /.test(lead), lead);
+      certo("bloco no meio do texto não gruda no que vinha antes",
+        /Uma linha<br>outra linha/.test(heroLead), heroLead);
+
+      const volta = {};
+      for (const k of ["sec_taf_lead", "sec_taf_titulo", "hero_lead"]) volta[k] = guardar[k];
+      await pedir("PUT", "/api/settings", { cookie: COOKIE, corpo: volta });
+      await pedir("POST", "/api/publish", { cookie: COOKIE, corpo: {} });
+      const fim = (await pedir("GET", "/")).corpo;
+      certo("o teste devolveu o conteúdo do cliente", !/garanta sua vaga<\/a>/.test(fim) && !/Uma linha/.test(fim));
+    }
+
     /* O vídeo mantém a PRÓPRIA proporção na coluna: largura cheia, altura em
        `auto`. Esticá-lo até a altura do mosaico obrigaria a cortar para
        preencher, e o arquivo apareceria pela metade. */
