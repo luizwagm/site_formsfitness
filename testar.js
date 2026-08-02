@@ -724,6 +724,35 @@ function pngEmPe() {
     certo("a estrutura é mosaico, não grade uniforme",
       /class="mosaico"/.test(home.corpo) && /foto--grande/.test(home.corpo));
     certo("o markup antigo do hero não voltou", !/hero__grid|class="masonry"/.test(home.corpo));
+
+    /* -------------------------------------------------------------------
+       MENU LEGÍVEL EM TODA TELA
+
+       O cabeçalho é transparente até a página rolar, e os links do topo são
+       CLAROS para lerem sobre o hero azul. Só que hero azul existe numa
+       página só: nas telas internas o fundo embaixo do menu é quase branco, e
+       o link claro sumia — o menu ficava invisível até a pessoa rolar.
+
+       Quem autoriza o link claro é a marca no <body>. Sem ela, vale a cor
+       escura do estilo base. Estes testes garantem que a marca continue
+       existindo em UMA página só. */
+    certo("a home marca que tem hero escuro", /<body class="[^"]*tem-hero-escuro/.test(home.corpo));
+    /* Não basta procurar a regra certa: o defeito volta se ALGUÉM deixar uma
+       cópia SEM a marca. Então a conta é sobre TODAS as ocorrências — cada uma
+       precisa vir precedida de `.tem-hero-escuro `. */
+    const folha = fs.readFileSync(path.join(__dirname, "assets", "css", "styles.css"), "utf8");
+    const soltas = [...folha.matchAll(/(.{0,18})\.site-header:not\(\.is-scrolled\) \.(?:nav a|search-toggle|nav-toggle)/g)]
+      .filter((m) => !m[1].endsWith(".tem-hero-escuro "));
+    certo("nenhuma regra de menu claro escapa da marca do hero",
+      soltas.length === 0, soltas.map((m) => m[0].trim()).join(" | "));
+    certo("a regra do menu claro existe mesmo",
+      /\.tem-hero-escuro \.site-header:not\(\.is-scrolled\) \.nav a/.test(folha));
+    for (const [rota, nome] of [["/blog/", "feed"], ["/matricula/", "matrícula"],
+                                ["/privacidade/", "privacidade"], ["/busca/?q=natacao", "busca"]]) {
+      const p = await pedir("GET", rota);
+      certo(`a tela de ${nome} NÃO pede o menu claro`,
+        p.status === 200 && !/<body class="[^"]*tem-hero-escuro/.test(p.corpo), `status ${p.status}`);
+    }
   }
 
   /* ====================================================================

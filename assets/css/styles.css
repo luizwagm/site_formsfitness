@@ -857,30 +857,38 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
    claro) os links em cinza-escuro liam bem; sobre o hero novo, que é azul
    profundo, eles praticamente sumiram.
 
-   A regra vale só ENQUANTO NÃO rolou: assim que o cabeçalho ganha o fundo
-   claro (`.is-scrolled`), os links voltam ao tom escuro — que é o que lê
-   bem ali. Uma cor fixa não serviria para os dois estados. */
-.site-header:not(.is-scrolled) .nav a:not(.btn) { color: rgba(255, 255, 255, .88); }
-.site-header:not(.is-scrolled) .nav a:not(.btn):hover,
-.site-header:not(.is-scrolled) .nav a:not(.btn)[aria-current="page"] { color: #fff; }
+   A regra tem DUAS condições, e as duas importam:
+
+   1. Enquanto não rolou. Assim que o cabeçalho ganha o fundo claro
+      (`.is-scrolled`), os links voltam ao tom escuro — que é o que lê bem ali.
+   2. Só na página que TEM o hero escuro (`body.tem-hero-escuro`). As telas
+      internas — feed, matéria, matrícula, busca, privacidade — abrem com fundo
+      claro embaixo do menu: ali o link branco ficava branco no branco e o menu
+      simplesmente sumia até a pessoa rolar a página.
+
+   Uma cor fixa não serviria, e a condição do `.is-scrolled` sozinha também
+   não: ela só sabe se rolou, não sabe o que tem embaixo. */
+.tem-hero-escuro .site-header:not(.is-scrolled) .nav a:not(.btn) { color: rgba(255, 255, 255, .88); }
+.tem-hero-escuro .site-header:not(.is-scrolled) .nav a:not(.btn):hover,
+.tem-hero-escuro .site-header:not(.is-scrolled) .nav a:not(.btn)[aria-current="page"] { color: #fff; }
 /* O traço de sublinhado também precisa aparecer sobre o azul. */
-.site-header:not(.is-scrolled) .nav a:not(.btn)::after {
+.tem-hero-escuro .site-header:not(.is-scrolled) .nav a:not(.btn)::after {
   background: linear-gradient(90deg, var(--lime), #fff);
 }
 /* A lupa e as barras do menu do celular seguem o mesmo raciocínio. */
-.site-header:not(.is-scrolled) .search-toggle {
+.tem-hero-escuro .site-header:not(.is-scrolled) .search-toggle {
   background: rgba(255, 255, 255, .14); color: #fff; border-color: rgba(255, 255, 255, .3);
 }
-.site-header:not(.is-scrolled) .search-toggle:hover { background: rgba(255, 255, 255, .26); }
-.site-header:not(.is-scrolled) .nav-toggle span { background: #fff; }
+.tem-hero-escuro .site-header:not(.is-scrolled) .search-toggle:hover { background: rgba(255, 255, 255, .26); }
+.tem-hero-escuro .site-header:not(.is-scrolled) .nav-toggle span { background: #fff; }
 
 /* No celular o menu abre como painel BRANCO por cima da página. Os links
    dentro dele voltam ao escuro, senão ficariam brancos sobre branco. */
 @media (max-width: 980px) {
-  .site-header:not(.is-scrolled) .nav a:not(.btn) { color: var(--ink-soft); }
-  .site-header:not(.is-scrolled) .nav a:not(.btn):hover,
-  .site-header:not(.is-scrolled) .nav a:not(.btn)[aria-current="page"] { color: var(--blue); }
-  .site-header:not(.is-scrolled) .nav a:not(.btn)::after { background: linear-gradient(90deg, var(--cyan), var(--lime)); }
+  .tem-hero-escuro .site-header:not(.is-scrolled) .nav a:not(.btn) { color: var(--ink-soft); }
+  .tem-hero-escuro .site-header:not(.is-scrolled) .nav a:not(.btn):hover,
+  .tem-hero-escuro .site-header:not(.is-scrolled) .nav a:not(.btn)[aria-current="page"] { color: var(--blue); }
+  .tem-hero-escuro .site-header:not(.is-scrolled) .nav a:not(.btn)::after { background: linear-gradient(90deg, var(--cyan), var(--lime)); }
 }
 
 /* --- 2. CONTATO: CARDS EM COLUNA -------------------------------------
