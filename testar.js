@@ -747,6 +747,21 @@ function pngEmPe() {
         !deps.some((d) => /Patrícia M\.|Carlos E\.|Dona Socorro/.test(d.name || "")));
       certo("os textos do Google saem inteiros na página",
         deps.every((d) => home.corpo.includes(d.text.slice(0, 40))));
+
+      /* SELO DA ORIGEM E DA NOTA — o padrão que o BemEstar já usa.
+         Dizer de onde veio a avaliação é o que separa depoimento de frase
+         escrita pela própria empresa. A nota foi confirmada pelo cliente em
+         03/08/2026; o Google bloqueia leitura automática da página, então ela
+         não é lida daqui. */
+      certo("todo depoimento declara a origem", deps.every((d) => /Avaliação no Google/.test(d.role || "")),
+        deps.map((d) => d.role).join(" | "));
+      certo("todo depoimento traz a nota", deps.every((d) => /★ 5,0/.test(d.role || "")));
+      certo("o selo também está na semente, não só no banco",
+        (srv.match(/Avaliação no Google ★ 5,0/g) || []).length === 3);
+      /* Os nomes são de pessoas REAIS que avaliaram — decisão do cliente em
+         03/08/2026, contra a alternativa de anonimizar como no BemEstar. */
+      certo("os nomes reais das avaliadoras estão publicados",
+        ["Rosangela Nascimento", "Fernanda Alves", "Lucia Fatma"].every((n) => home.corpo.includes(n)));
     }
 
     /* O vídeo mantém a PRÓPRIA proporção na coluna: largura cheia, altura em
@@ -815,6 +830,47 @@ function pngEmPe() {
     certo("a estrutura é mosaico, não grade uniforme",
       /class="mosaico"/.test(home.corpo) && /foto--grande/.test(home.corpo));
     certo("o markup antigo do hero não voltou", !/hero__grid|class="masonry"/.test(home.corpo));
+
+    /* -------------------------------------------------------------------
+       ALTURA DA FOTO NA LISTA DO FEED
+
+       500px, e a MESMA altura no celular. Isto nunca teve teste — e foi
+       justamente por isso que uma queda para 300px abaixo de 640px ficou no
+       CSS sem ninguém ver: no desktop estava certo, e o defeito só aparecia
+       numa largura que ninguém abria para conferir.
+
+       O segundo teste é o que importa de verdade: não basta a regra certa
+       existir, nenhuma regra de mídia pode derrubá-la depois. */
+    const folhaFeed = fs.readFileSync(path.join(__dirname, "assets", "css", "styles.css"), "utf8");
+    certo("a foto da lista do feed tem 500px",
+      /\.post-card__media img \{[^}]*height: 500px/.test(folhaFeed));
+    certo("o recorte mantém a fileira alinhada",
+      /\.post-card__media img \{[^}]*object-fit: cover/.test(folhaFeed));
+    {
+      /* Recorta cada bloco @media CONTANDO CHAVES, não por regex.
+         A primeira versão deste teste procurava o fecho como "\n}" — e a
+         regra que ele deveria pegar é de UMA LINHA só
+         (`@media (max-width: 640px) { .post-card__media img { height: 300px } }`).
+         Resultado: o teste passava com o defeito no arquivo. Guarda que não
+         pega o caso pelo qual foi escrita é pior que nenhuma, porque dá
+         confiança falsa. */
+      const blocosDeMedia = [];
+      for (let i = folhaFeed.indexOf("@media"); i !== -1; i = folhaFeed.indexOf("@media", i + 6)) {
+        const abre = folhaFeed.indexOf("{", i);
+        if (abre === -1) break;
+        let nivel = 0, fim = abre;
+        for (; fim < folhaFeed.length; fim++) {
+          if (folhaFeed[fim] === "{") nivel++;
+          else if (folhaFeed[fim] === "}" && --nivel === 0) break;
+        }
+        blocosDeMedia.push({ condicao: folhaFeed.slice(i + 6, abre).trim(), corpo: folhaFeed.slice(abre, fim) });
+      }
+      const mediasQueMexem = blocosDeMedia
+        .filter((b) => /post-card__media[^}]*height:/.test(b.corpo))
+        .map((b) => b.condicao);
+      certo("nenhuma regra de mídia derruba essa altura no celular",
+        mediasQueMexem.length === 0, mediasQueMexem.join(" | "));
+    }
 
     /* -------------------------------------------------------------------
        MENU LEGÍVEL EM TODA TELA

@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.14.0";
+const APP_VERSION = "1.14.1";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -272,10 +272,14 @@ function seed() {
 
   /* Avaliações REAIS do Google, copiadas palavra por palavra. Ficam na semente
      porque o deploy não leva o banco: o banco de produção nasce daqui. Trocar
-     este texto é reescrever o que um cliente escreveu — mexa só pelo painel. */
-  [["Um espaço amplo, água sempre tratada, professores atenciosos e uma boa localização. Falo porque sou aluna veterana a mais de 2 décadas. Amoooo!", "Rosangela Nascimento", "Avaliação no Google", "RN"],
-   ["Lugar lindo, limpo, aconchegante e um time de originais super competente. Recomendo de olhos fechados", "Fernanda Alves", "Avaliação no Google", "FA"],
-   ["Lugar de descontração, amizade, respeito e o melhor proporciona saúde física e mental, professores dedicados", "Lucia Fatma", "Avaliação no Google", "LF"]]
+     este texto é reescrever o que um cliente escreveu — mexa só pelo painel.
+
+     O "★ 5,0" é a NOTA de cada avaliação, confirmada pelo cliente em 03/08/2026.
+     O Google bloqueia leitura automática da página de avaliações, então esse
+     número não foi lido daqui — se um dia mudar, muda pelo painel. */
+  [["Um espaço amplo, água sempre tratada, professores atenciosos e uma boa localização. Falo porque sou aluna veterana a mais de 2 décadas. Amoooo!", "Rosangela Nascimento", "Avaliação no Google ★ 5,0", "RN"],
+   ["Lugar lindo, limpo, aconchegante e um time de originais super competente. Recomendo de olhos fechados", "Fernanda Alves", "Avaliação no Google ★ 5,0", "FA"],
+   ["Lugar de descontração, amizade, respeito e o melhor proporciona saúde física e mental, professores dedicados", "Lucia Fatma", "Avaliação no Google ★ 5,0", "LF"]]
     .forEach((d, i) => db.prepare("INSERT INTO testimonials(text,name,role,initials,sort) VALUES(?,?,?,?,?)").run(d[0], d[1], d[2], d[3], i));
 
   [["Prof. Ricardo Forms", "Fundador · Natação e TAF", "33 anos formando nadadores e aprovados. Especialista em preparação física para concursos e técnica de nado.", "https://images.unsplash.com/photo-1594381898411-846e7d193883?auto=format&fit=crop&w=600&q=75"],

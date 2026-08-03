@@ -918,13 +918,16 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
 .wa-fab__label { display: none; }
 .wa-fab__icon { width: 30px; height: 30px; }
 
-/* --- 4. BLOG: ALTURA FIXA NA LISTA -----------------------------------
+/* --- 4. FEED: ALTURA FIXA NA LISTA -----------------------------------
    500px, como pedido. `object-fit: cover` recorta o excedente e mantém a
    fileira alinhada — sem isso, uma foto em pé esticaria o cartão dela e a
-   grade viraria um serrote. No celular cai para 300px: 500px numa tela de
-   375px de largura seria uma parede antes do título. */
+   grade viraria um serrote.
+
+   A MESMA altura no celular. Havia uma queda para 300px aqui, na ideia de que
+   500px numa tela de 375px seria uma parede antes do título; na prática ficou
+   o contrário — com o cartão sozinho na largura toda, a foto pequena tirava o
+   peso da lista. Uma altura só para os dois tamanhos. */
 .post-card__media img { height: 500px; aspect-ratio: auto; }
-@media (max-width: 640px) { .post-card__media img { height: 300px; } }
 
 
 
