@@ -331,6 +331,37 @@
 
     <section class="panel" id="p-testimonials">
       <div class="topbar"><h1>Depoimentos</h1><button class="btn btn-ghost" onclick="addRow('testimonials')">+ Novo depoimento</button></div>
+
+      <!-- Selo do Google: fica ACIMA dos cartões no site e leva à página de
+           avaliações. Nota e total são afirmações sobre a reputação da
+           academia — por isso ficam vazios até alguém preencher, e o selo
+           mostra só a origem enquanto isso. -->
+      <div class="card mb">
+        <h3 style="margin-bottom:.2rem">Selo de avaliação do Google</h3>
+        <p class="hint">Aparece acima dos depoimentos, com a marca do Google e as estrelas.
+        É o que deixa o visitante clicar e conferir as avaliações na fonte.</p>
+
+        <label for="s_google_url">Link das avaliações no Google</label>
+        <input id="s_google_url" placeholder="https://www.google.com/search?q=Forms+Fitness+Caruaru">
+        <p class="hint">Sem link, o selo não aparece. Use o endereço da ficha da academia no Google
+        ou a busca pelo nome.</p>
+
+        <div class="row">
+          <div>
+            <label for="s_google_nota">Nota</label>
+            <input id="s_google_nota" placeholder="5,0">
+          </div>
+          <div>
+            <label for="s_google_total">Quantas avaliações</label>
+            <input id="s_google_total" placeholder="111">
+          </div>
+        </div>
+        <p class="hint">Deixe em branco se não souber: o selo passa a dizer só
+        “Ver as avaliações no Google”, sem número inventado.</p>
+
+        <div class="right mt"><button class="btn btn-navy btn-sm" onclick="salvarTextos()">Salvar o selo</button></div>
+      </div>
+
       <div id="testimonials-list"></div>
     </section>
 
@@ -793,6 +824,7 @@ async function salvarTextoManutencao() {
 /* Campos de texto simples (input/textarea comum). */
 const CAMPOS_SIMPLES = ["hero_badge","hero_title","hero_lead","about_title","about_lead","footer_tagline","footer_dias",
   "whatsapp","whatsapp_display","contact_email","instagram","cnpj","endereco","maps_url",
+  "google_url","google_nota","google_total",
   "sec_serv_rotulo","sec_serv_titulo","sec_serv_sub","sec_estr_rotulo","sec_estr_titulo","sec_estr_sub","estrutura_video",
   "sec_taf_rotulo","sec_taf_titulo","sec_taf_lead","sec_taf_botao"];
 

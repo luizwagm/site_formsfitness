@@ -994,3 +994,22 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
   .estrutura-galeria { grid-template-columns: 1fr; }
   .video-coluna { margin-inline: auto; width: min(100%, 340px); }
 }
+
+/* --- 5. SELO DE AVALIAÇÃO DO GOOGLE ---------------------------------
+   Pílula acima dos depoimentos, com a marca do Google, as estrelas e a nota.
+   Leva à página de avaliações: é o que permite a quem duvida ir conferir.
+
+   As estrelas ficam no AMARELO DO GOOGLE, e não na cor do site, de propósito
+   — é um selo de terceiro, e pintá-lo com a paleta da academia faria parecer
+   coisa da própria casa, que é justamente o contrário do que ele serve. */
+.selo-google {
+  display: inline-flex; align-items: center; gap: .55rem;
+  margin-top: 1.1rem; padding: .5rem 1.1rem;
+  background: #fff; border: 1px solid var(--line); border-radius: 999px;
+  text-decoration: none; box-shadow: var(--shadow-soft);
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+.selo-google:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.selo-google__estrelas { color: #FBBC05; letter-spacing: .05em; font-size: .95rem; }
+.selo-google__num { font-size: .88rem; color: var(--ink-soft); }
+.selo-google__num b { color: var(--ink); font-weight: 700; }

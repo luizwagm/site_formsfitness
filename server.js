@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.14.1";
+const APP_VERSION = "1.15.0";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -205,6 +205,19 @@ function seed() {
   /* Vazio = o cartão monta a busca pelo próprio endereço. Preencher só é
      preciso para apontar à ficha do negócio no Maps (com foto e avaliações). */
   if (getS("maps_url") === undefined) setS("maps_url", "");
+
+  /* SELO DE AVALIAÇÃO DO GOOGLE — o mesmo padrão do BemEstar.
+     Dizer de onde vêm os depoimentos, e deixar clicar para conferir, é o que
+     separa avaliação de frase escrita pela própria empresa.
+
+     Nota e total NASCEM VAZIOS de propósito: são números que só o cliente
+     sabe, e chutar aqui seria publicar uma afirmação sobre reputação que
+     ninguém apurou. Sem eles, o selo mostra só a origem e o link — sem
+     inventar número nenhum. */
+  if (getS("google_url") === undefined)
+    setS("google_url", "https://www.google.com/search?q=Forms+Fitness+Caruaru");
+  if (getS("google_nota") === undefined) setS("google_nota", "");
+  if (getS("google_total") === undefined) setS("google_total", "");
   /* Cabeçalhos de seção e rodapé, agora editáveis. Mesma razão das de cima:
      um seed com guarda não alcança banco que já existe. */
   const PADROES = {
@@ -553,6 +566,45 @@ function linhaUnica(valor) {
     .trim();
 }
 
+/* ==========================================================================
+   SELO DE AVALIAÇÃO DO GOOGLE
+
+   Fica acima dos depoimentos e leva à página de avaliações. O ganho não é
+   enfeite: depoimento sem origem é frase que qualquer empresa escreve sobre
+   si mesma. Com o selo, quem duvida clica e confere.
+
+   NOTA E TOTAL SÓ APARECEM SE ESTIVEREM PREENCHIDOS. São afirmações sobre a
+   reputação do negócio — se ninguém informou, o selo mostra a origem e o
+   convite para ver, sem inventar número. Sem link, não há selo nenhum.
+   ========================================================================== */
+const G_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">' +
+  '<path fill="#4285F4" d="M22.5 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-2 3.2-4.9 3.2-7.9Z"/>' +
+  '<path fill="#34A853" d="M12 23c2.9 0 5.4-1 7.2-2.6l-3.6-2.7c-1 .7-2.2 1-3.6 1-2.8 0-5.1-1.9-6-4.4H2.3v2.8A11 11 0 0 0 12 23Z"/>' +
+  '<path fill="#FBBC05" d="M6 14.3a6.6 6.6 0 0 1 0-4.2V7.3H2.3a11 11 0 0 0 0 9.8L6 14.3Z"/>' +
+  '<path fill="#EA4335" d="M12 5.4c1.6 0 3 .5 4.1 1.6l3.1-3.1A11 11 0 0 0 2.3 7.3L6 10.1c.9-2.6 3.2-4.7 6-4.7Z"/></svg>';
+
+function seloGoogle(S) {
+  const url = String(S.google_url || "").trim();
+  if (!/^https?:\/\//.test(url)) return "";
+  const nota = String(S.google_nota || "").trim();
+  const total = String(S.google_total || "").replace(/\D/g, "");
+
+  const numero = nota && total ? `<b>${esc(nota)}</b> · ${esc(total)} avaliações no Google`
+    : nota ? `<b>${esc(nota)}</b> no Google`
+    : "Ver as avaliações no Google";
+
+  /* O aria-label repete o conteúdo em frase: quem usa leitor de tela ouviria
+     "cinco estrelas cinco vírgula zero cento e onze" sem contexto nenhum. */
+  const paraLeitor = nota && total ? `Nota ${nota} com ${total} avaliações no Google`
+    : nota ? `Nota ${nota} no Google` : "Ver as avaliações no Google";
+
+  return `<a class="selo-google" href="${esc(url)}" target="_blank" rel="noopener" aria-label="${esc(paraLeitor)}">
+            ${G_SVG}
+            <span class="selo-google__estrelas" aria-hidden="true">★★★★★</span>
+            <span class="selo-google__num">${numero}</span>
+          </a>`;
+}
+
 function setMarker(html, key, content) {
   const re = new RegExp(`(<!--#${key}-->)[\\s\\S]*?(<!--\\/${key}-->)`);
   if (!re.test(html)) throw new Error(`Marcador ${key} não encontrado`);
@@ -724,6 +776,7 @@ function publish() {
   html = setMarker(html, "TAF_ITENS", "            " + tafItens);
   html = setMarker(html, "PORTFOLIO", "          " + worksHtml);
   html = setMarker(html, "TESTIMONIALS", "          " + depsHtml);
+  html = setMarker(html, "SELO_GOOGLE", "          " + seloGoogle(S));
   html = setMarker(html, "BLOG", "          " + blogHome);
   html = setMarker(html, "CONTACT_INFO", "            " + contactInfo);
 
@@ -964,7 +1017,12 @@ const KEYS = ["hero_badge", "hero_title", "hero_lead", "stats", "about_title", "
   "sec_serv_rotulo", "sec_serv_titulo", "sec_serv_sub",
   "sec_estr_rotulo", "sec_estr_titulo", "sec_estr_sub",
   "estrutura_video", "footer_dias",
-  "sec_taf_rotulo", "sec_taf_titulo", "sec_taf_lead", "sec_taf_botao", "taf_itens"];
+  "sec_taf_rotulo", "sec_taf_titulo", "sec_taf_lead", "sec_taf_botao", "taf_itens",
+  /* Selo do Google. Esta lista é de PERMISSÃO: chave que não está aqui é
+     descartada em silêncio pelo PUT — o campo aparece no painel, a pessoa
+     salva, o aviso diz "salvo" e nada muda. Acrescentar campo no painel sem
+     acrescentar aqui é o jeito mais fácil de criar um botão que mente. */
+  "google_url", "google_nota", "google_total"];
 
 /* ------------------------------ Servidor ---------------------------------- */
 http.createServer(async (req, res) => {

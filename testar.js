@@ -764,6 +764,74 @@ function pngEmPe() {
         ["Rosangela Nascimento", "Fernanda Alves", "Lucia Fatma"].every((n) => home.corpo.includes(n)));
     }
 
+    /* ---------------------------------------------------------------------
+       SELO DE AVALIAÇÃO DO GOOGLE
+
+       Acima dos depoimentos, com a marca do Google e link para a fonte. O
+       ganho não é enfeite: depoimento sem origem é frase que qualquer empresa
+       escreve sobre si mesma; com o selo, quem duvida clica e confere.
+       --------------------------------------------------------------------- */
+    {
+      const antes = (await pedir("GET", "/api/content", { cookie: COOKIE })).json.settings;
+      const guardar = { google_url: antes.google_url, google_nota: antes.google_nota, google_total: antes.google_total };
+
+      const publicarE = async (corpo) => {
+        await pedir("PUT", "/api/settings", { cookie: COOKIE, corpo });
+        await pedir("POST", "/api/publish", { cookie: COOKIE, corpo: {} });
+        const h = (await pedir("GET", "/")).corpo;
+        return { html: h, selo: (/<a class="selo-google"[\s\S]*?<\/a>/.exec(h) || [""])[0] };
+      };
+
+      /* As três chaves precisam estar na lista de PERMISSÃO do servidor. Sem
+         isso o campo aparece no painel, a pessoa salva, o aviso diz "salvo" e
+         nada muda — um botão que mente. */
+      const srvTxt = srv;
+      certo("as chaves do selo passam pelo salvar",
+        /"google_url", "google_nota", "google_total"/.test(srvTxt));
+
+      let r = await publicarE({ google_url: "https://www.google.com/search?q=Forms+Fitness+Caruaru",
+        google_nota: "5,0", google_total: "111" });
+      certo("com nota e total, o selo mostra os dois", /<b>5,0<\/b> · 111 avaliações no Google/.test(r.selo), r.selo.slice(0, 160));
+      certo("o selo leva à página de avaliações",
+        /href="https:\/\/www\.google\.com\/search\?q=Forms\+Fitness\+Caruaru"/.test(r.selo));
+      certo("abre em aba nova, sem passar a sessão adiante",
+        /target="_blank"/.test(r.selo) && /rel="noopener"/.test(r.selo));
+      certo("traz a marca do Google, não só texto", /fill="#4285F4"/.test(r.selo));
+      /* O leitor de tela ouviria "estrela estrela estrela cinco vírgula zero
+         cento e onze" sem contexto — por isso a frase pronta no aria-label. */
+      certo("tem descrição em frase para leitor de tela",
+        /aria-label="Nota 5,0 com 111 avaliações no Google"/.test(r.selo));
+      certo("as estrelas do selo são escondidas do leitor (já estão na frase)",
+        /class="selo-google__estrelas" aria-hidden="true"/.test(r.selo));
+
+      /* Nota e total são afirmações sobre a reputação do negócio. Sem eles, o
+         selo diz a origem — e não inventa número. */
+      r = await publicarE({ google_nota: "", google_total: "" });
+      /* Olha SÓ o texto que aparece na tela. A primeira versão procurava
+         dígito na âncora inteira — e o desenho do logotipo do Google é um
+         SVG cheio de coordenadas, então o teste acusava "número inventado"
+         por causa do próprio ícone. */
+      const numeroNaTela = (/selo-google__num">([\s\S]*?)<\/span>/.exec(r.selo) || [, ""])[1].trim();
+      certo("sem nota nem total, não inventa número",
+        numeroNaTela === "Ver as avaliações no Google", numeroNaTela);
+
+      r = await publicarE({ google_url: "" });
+      certo("sem link, o selo simplesmente não aparece", r.selo === "");
+
+      await pedir("PUT", "/api/settings", { cookie: COOKIE, corpo: guardar });
+      await pedir("POST", "/api/publish", { cookie: COOKIE, corpo: {} });
+      certo("as configurações do selo voltaram ao que estavam",
+        (await pedir("GET", "/api/content", { cookie: COOKIE })).json.settings.google_url === guardar.google_url);
+    }
+
+    {
+      const adm = fs.readFileSync(path.join(__dirname, "admin", "index.html"), "utf8");
+      certo("o painel tem os campos do selo",
+        ["s_google_url", "s_google_nota", "s_google_total"].every((id) => adm.includes(id)));
+      certo("e eles são gravados ao salvar",
+        /CAMPOS_SIMPLES[\s\S]{0,700}"google_url","google_nota","google_total"/.test(adm));
+    }
+
     /* O vídeo mantém a PRÓPRIA proporção na coluna: largura cheia, altura em
        `auto`. Esticá-lo até a altura do mosaico obrigaria a cortar para
        preencher, e o arquivo apareceria pela metade. */
