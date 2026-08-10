@@ -911,6 +911,30 @@ if (process.argv.includes("--backup")) {
   const feitos = rodarBackup(BACKUP_CFG, "manual");
   process.exit(feitos.length ? 0 : 1);
 }
+/* `node server.js --publicar` regenera as páginas a partir do banco, SEM subir
+   o servidor.
+
+   Ele existia só como botão do painel, e isso bastava enquanto o deploy era
+   manual. Com a entrega automática deixou de bastar: o deploy precisa
+   DESCARTAR as páginas geradas antes do `git pull` (senão o `--ff-only` recusa
+   mexer em arquivo modificado) e refazê-las depois. Sem um gatilho de linha de
+   comando, o descarte não teria volta — o site cairia para o texto do último
+   commit e as edições feitas no painel sumiriam da tela, ainda que
+   continuassem no banco.
+
+   Sai com 1 se falhar, para o deploy conseguir avisar em vez de seguir achando
+   que publicou. */
+if (process.argv.includes("--publicar")) {
+  try {
+    publish();
+    console.log("páginas republicadas a partir do banco");
+    process.exit(0);
+  } catch (e) {
+    console.error("falhou ao publicar:", e.message);
+    process.exit(1);
+  }
+}
+
 /* `--backup-status` lista a situação em JSON — usado pelo verificar.sh. */
 if (process.argv.includes("--backup-status")) {
   const { statusBackup } = require("./backup");
