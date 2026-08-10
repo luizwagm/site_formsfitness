@@ -24,8 +24,28 @@ ExecStart=/usr/bin/node server.js
 # errado o SQLite responde "attempt to write a readonly database" e o painel
 # não salva nada — sem erro visível na tela. O deploy.sh lê este campo com
 # `systemctl show -p User` justamente para acertar o chown sozinho.
-User=root
-Group=root
+# RODA COMO `deploy`, NÃO COMO ROOT — e a mudança tem dois motivos.
+#
+# 1. Segurança. Este é um servidor HTTP exposto à internet pelo nginx. Rodando
+#    como root, qualquer falha nele — no upload de foto, no tratamento de um
+#    caminho — vira acesso de root ao servidor inteiro, com os outros dez sites,
+#    o Postgres e os certificados do lado. O app escuta em 5186 (porta alta),
+#    liga só em 127.0.0.1 e escreve só dentro da própria pasta: não há nada
+#    aqui que precise de raiz.
+#
+# 2. A entrega automática. Rodando como root, o app cria banco, fotos e páginas
+#    geradas com dono root — e o deploy, que roda como `deploy`, não consegue
+#    tocar em nada. Foi exatamente o que aconteceu em 10/08/2026: backup
+#    recusado, banco impossível de mover, e `git pull` falhando com
+#    "insufficient permission for adding an object to repository database".
+#
+# Ao trocar, os arquivos existentes precisam mudar de dono junto:
+#     sudo systemctl stop forms
+#     sudo chown -R deploy:deploy /var/www/projetos/Forms-Fitness
+#     sudo cp nginx/forms.service /etc/systemd/system/ && sudo systemctl daemon-reload
+#     sudo systemctl start forms
+User=deploy
+Group=deploy
 
 # Escuta só no localhost: quem fala com a internet é o nginx, que termina o
 # HTTPS e acrescenta o X-Real-IP. Sem HOST, o server.js já usa 127.0.0.1.
