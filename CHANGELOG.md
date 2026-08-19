@@ -5,6 +5,29 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.18.0 — 2026-08-19 · os links legais saem da barra e viram coluna do rodapé
+
+A barra inferior acumulava quatro assuntos espremidos numa linha: ©/CNPJ,
+Privacidade, Preferências de cookies, Área da equipe e o crédito. Na **home**,
+os três links viraram a coluna **"Institucional"** — quarta coluna do grid do
+rodapé, ao lado de Atendimento — e a barra ficou só com o © e o crédito.
+
+- Privacidade e Área da equipe estão escritos no template; o **Preferências de
+  cookies continua nascendo no JavaScript** (`linksRodape`), porque ele é um
+  botão que só faz sentido com script (reabre o banner de consentimento — LGPD).
+  Na coluna, ele entra antes do link da equipe: os assuntos do visitante ficam
+  juntos e o atalho interno fecha a lista.
+- As **páginas internas** têm rodapé reduzido, sem colunas — nelas tudo segue
+  na barra, como antes. O `linksRodape` cobre os dois mundos sozinho.
+- O botão de cookies na coluna é estilizado como os links vizinhos (bloco,
+  sem borda, hover ciano) — botão por natureza, item de lista para quem lê.
+
+De quebra: o banco de desenvolvimento ainda tinha o WhatsApp de fábrica nos
+dois campos, então toda conferência local mostrava `5587000000000` (derivação
+do display placeholder) e parecia que a 1.17.1 não tinha pegado. Gravado o
+número público real da academia no admin local — o mesmo que já está em
+produção — e o botão flutuante local passou a abrir `wa.me/5587996048212`.
+
 ## 1.17.1 — 2026-08-19 · o botão do WhatsApp abria conversa com número que não existe
 
 O painel tem dois campos para o WhatsApp: o número **cru** (que vira o link

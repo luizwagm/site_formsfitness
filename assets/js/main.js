@@ -194,10 +194,19 @@ function montarBanner() {
    editar cada template. A LGPD exige que REVER a escolha seja tão fácil quanto
    fazê-la — por isso o "Preferências de cookies" fica sempre à mão. */
 function linksRodape() {
-  const alvo = $(".footer__bottom p") || $(".footer__bottom");
+  /* Na HOME os links legais moram na coluna "Institucional" do rodapé — o
+     template já traz Privacidade e Área da equipe escritos, e aqui só nasce o
+     "Preferências de cookies": ele É um botão de JavaScript (reabre o banner),
+     e botão que não faz nada sem script não deve existir sem script.
+
+     As páginas INTERNAS têm rodapé reduzido, sem colunas — nelas tudo segue
+     na barra, como sempre foi. A LGPD pede que rever a escolha de cookies
+     seja tão fácil quanto fazê-la, então o botão existe nos dois mundos. */
+  const coluna = $(".footer__legal");
+  const alvo = coluna || $(".footer__bottom p") || $(".footer__bottom");
   if (!alvo || $(".cookie-prefs")) return;
 
-  if (!alvo.querySelector('a[href="/privacidade/"]') && location.pathname !== "/privacidade/") {
+  if (!coluna && !alvo.querySelector('a[href="/privacidade/"]') && location.pathname !== "/privacidade/") {
     const p = document.createElement("a");
     p.href = "/privacidade/";
     p.textContent = "Privacidade";
@@ -212,7 +221,12 @@ function linksRodape() {
     document.cookie = `${CONSENT_COOKIE}=; Max-Age=0; Path=/`;
     montarBanner();
   });
-  alvo.append(" · ", a);
+  /* Na coluna, o botão entra ANTES do link da equipe: os assuntos do
+     visitante (privacidade, cookies) ficam juntos e o atalho interno fecha a
+     lista. Na barra, o separador de sempre. */
+  const equipe = coluna ? coluna.querySelector(".footer-admin") : null;
+  if (equipe) alvo.insertBefore(a, equipe);
+  else alvo.append(" · ", a);
 }
 
 /* Lupa no topo → abre o campo → leva para /busca/?q= */

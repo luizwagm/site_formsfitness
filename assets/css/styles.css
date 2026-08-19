@@ -475,7 +475,7 @@ p { margin: 0 0 1rem; }
 }
 .footer__wave { position: absolute; left: 0; right: 0; top: -1px; width: 100%; height: clamp(28px, 5vw, 70px); color: var(--bg); transform: rotate(180deg); display: block; }
 .section--soft + .footer .footer__wave, #contato + .footer .footer__wave { color: var(--bg); }
-.footer__grid { display: grid; grid-template-columns: 1.3fr .8fr .9fr; gap: clamp(1.8rem, 5vw, 3.5rem); padding: clamp(3.4rem, 8vh, 4.6rem) 0 2rem; }
+.footer__grid { display: grid; grid-template-columns: 1.3fr .8fr .9fr .7fr; gap: clamp(1.8rem, 5vw, 3.5rem); padding: clamp(3.4rem, 8vh, 4.6rem) 0 2rem; }
 /* O rodapé tem fundo escuro e o logotipo foi desenhado para fundo claro.
    Como o arquivo não pode ser alterado, quem se adapta é o fundo: uma pastilha
    clara atrás dele. Pintar o desenho por cima (filtro, inversão) mudaria as
@@ -487,11 +487,19 @@ p { margin: 0 0 1rem; }
   color: var(--lime); margin: 0 0 .9rem;
 }
 .footer__nav, .footer__contact { display: flex; flex-direction: column; }
-.footer__nav a, .footer__contact a {
+.footer__nav a, .footer__contact a, .footer__legal a {
   text-decoration: none; padding: .28rem 0; font-size: .92rem; color: rgba(255, 255, 255, .8);
   transition: color .25s ease, transform .25s ease; width: fit-content;
 }
-.footer__nav a:hover, .footer__contact a:hover { color: var(--cyan); transform: translateX(4px); }
+.footer__nav a:hover, .footer__contact a:hover, .footer__legal a:hover { color: var(--cyan); transform: translateX(4px); }
+/* O botão de cookies vestido como os links da coluna — é um botão porque é
+   JavaScript puro, mas para quem lê é um item igual aos vizinhos. */
+.footer__legal .cookie-prefs { display: block; text-align: left; background: none; border: 0; padding: 0;
+  margin: 0 0 .55rem; font: inherit; color: inherit; opacity: 1; cursor: pointer;
+  transition: color .25s ease, transform .25s ease; }
+.footer__legal .cookie-prefs:hover { color: var(--cyan); transform: translateX(4px); }
+/* Na coluna, o link da equipe perde o jeito de barra (margin e opacidade). */
+.footer__legal .footer-admin { margin-right: 0; opacity: 1; font-size: inherit; }
 .footer__note { margin: .8rem 0 0; font-size: .82rem; color: rgba(255, 255, 255, .5); }
 .footer__bottom {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .8rem;
