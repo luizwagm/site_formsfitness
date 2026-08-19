@@ -5,6 +5,22 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.17.1 — 2026-08-19 · o botão do WhatsApp abria conversa com número que não existe
+
+O painel tem dois campos para o WhatsApp: o número **cru** (que vira o link
+`wa.me`) e o de **exibição** (que aparece escrito no site). Em produção o
+cliente atualizou o de exibição e o cru ficou com o valor de fábrica — e o
+botão flutuante, que nasce do `config.js` gerado a partir do campo cru, abria
+conversa com `5500000000000`. Nenhum erro em tela nenhuma.
+
+Agora o publish inteiro decide o número numa função só (`numeroZap`): o campo
+cru vale quando foi de fato preenchido; de fábrica ou vazio, o número é
+**derivado do campo de exibição** — dígitos, com o 55 na frente quando faltar.
+Aplicada nos cinco pontos que usavam o campo cru direto: o telefone do
+JSON-LD, os `wa.me` das páginas e dos moldes do blog, o `config.js` do botão
+flutuante e a página de matrícula. Provado reproduzindo o cenário de produção
+num banco de ensaio: cru de fábrica + exibição real → tudo saiu com o real.
+
 ## 1.17.0 — 2026-08-19 · acesso da equipe no rodapé + o pacote SEO do Sentinela
 
 ### Área da equipe

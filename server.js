@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.17.0";
+const APP_VERSION = "1.17.1";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -624,6 +624,31 @@ function seloGoogle(S) {
           </a>`;
 }
 
+/* ==========================================================================
+   O NÚMERO DO WHATSAPP, DECIDIDO NUM LUGAR SÓ
+
+   O painel tem dois campos: o número CRU ("só números, com 55", que vira o
+   wa.me) e o de EXIBIÇÃO ("(87) 90000-0000", que aparece escrito no site).
+   Dois campos para o mesmo fato divergem — e divergiram em produção: o
+   cliente atualizou o de exibição, o cru ficou com o valor de fábrica, e o
+   botão flutuante (que sai do config.js, gerado do campo cru) abriu conversa
+   com um número que não existe. Nenhum erro em tela nenhuma.
+
+   Daqui em diante o publish INTEIRO usa esta função: o cru vale quando foi
+   de fato preenchido; de fábrica ou vazio, o número é DERIVADO do campo de
+   exibição — dígitos, com o 55 na frente quando faltar. Os dois campos
+   continuam existindo; o que acaba é a possibilidade de o site usar um
+   número que nenhum dos dois mostra.
+   ========================================================================== */
+const ZAP_DE_FABRICA = "5500000000000";
+function numeroZap(S) {
+  const cru = String(S.whatsapp || "").replace(/\D/g, "");
+  if (cru && cru !== ZAP_DE_FABRICA) return cru;
+  const visto = String(S.whatsapp_display || "").replace(/\D/g, "");
+  if (visto.length >= 10) return visto.startsWith("55") && visto.length >= 12 ? visto : "55" + visto;
+  return cru || ZAP_DE_FABRICA;
+}
+
 function setMarker(html, key, content) {
   const re = new RegExp(`(<!--#${key}-->)[\\s\\S]*?(<!--\\/${key}-->)`);
   if (!re.test(html)) throw new Error(`Marcador ${key} não encontrado`);
@@ -734,7 +759,7 @@ function publish() {
     { "@type": "ExerciseGym", "@id": `${SITE}/#academia`, name: "Forms Fitness Academia Aquática",
       image: `${SITE}/assets/img/og-image.png`, url: `${SITE}/`,
       description: "Academia aquática em Caruaru-PE: natação infantil e adulta, hidroginástica e preparação TAF. 33 anos formando nadadores.",
-      telephone: "+" + S.whatsapp,
+      telephone: "+" + numeroZap(S),
       address: { "@type": "PostalAddress", addressLocality: "Caruaru", addressRegion: "PE", addressCountry: "BR" },
       areaServed: "Caruaru e região", priceRange: "$$",
       foundingDate: "1993",
@@ -834,7 +859,7 @@ function publish() {
   html = setMarker(html, "FOOTER_TAGLINE", S.footer_tagline);
   html = setMarker(html, "CNPJ", S.cnpj);
   // atualiza QUALQUER wa.me/<numero> restante (footer etc.)
-  html = html.replace(/wa\.me\/\d+/g, `wa.me/${S.whatsapp}`);
+  html = html.replace(/wa\.me\/\d+/g, `wa.me/${numeroZap(S)}`);
   fs.writeFileSync(idx, html);
 
   /* ------------------------------- Blog ---------------------------------- */
@@ -913,7 +938,7 @@ function publish() {
     if (!fs.existsSync(tpl)) continue;
     fs.mkdirSync(path.join(ROOT, pagina), { recursive: true });
     fs.writeFileSync(path.join(ROOT, pagina, "index.html"),
-      fs.readFileSync(tpl, "utf8").replace(/wa\.me\/\d+(?![?\d])/g, `wa.me/${S.whatsapp}`));
+      fs.readFileSync(tpl, "utf8").replace(/wa\.me\/\d+(?![?\d])/g, `wa.me/${numeroZap(S)}`));
   }
 
   /* ------------------------------ Sitemap --------------------------------- */
@@ -933,7 +958,7 @@ function publish() {
   // config.js
   const cfgPath = path.join(ROOT, "assets/js/config.js");
   let cfg = fs.readFileSync(cfgPath, "utf8");
-  cfg = cfg.replace(/WHATSAPP_NUMBER = "[^"]*"/, `WHATSAPP_NUMBER = "${S.whatsapp}"`)
+  cfg = cfg.replace(/WHATSAPP_NUMBER = "[^"]*"/, `WHATSAPP_NUMBER = "${numeroZap(S)}"`)
            .replace(/CONTACT_EMAIL = "[^"]*"/, `CONTACT_EMAIL = "${S.contact_email}"`);
   fs.writeFileSync(cfgPath, cfg);
   return { services: services.length, works: works.length, posts: posts.length };
@@ -1011,7 +1036,7 @@ const emManutencao = () => getS("manutencao") === "1";
 function gerarPaginaManutencao(S) {
   const titulo = S.manutencao_titulo || "Estamos atualizando o site";
   const texto = S.manutencao_texto || "Volte em instantes.";
-  const zap = String(S.whatsapp || "").replace(/\D/g, "");
+  const zap = numeroZap(S);
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
