@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.15.0";
+const APP_VERSION = "1.17.0";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -526,6 +526,25 @@ function medirImagem(url) {
 }
 
 /* Os atributos prontos para entrar no <img>, ou vazio se não dá para saber. */
+/* ==========================================================================
+   IMAGEM EM WEBP QUANDO O SERVIDOR DELA SABE ENTREGAR
+
+   As fotos do site vêm em maioria do Unsplash, e o CDN deles converte na hora
+   por parâmetro. `auto=format` já negocia WebP com navegadores que o aceitam,
+   mas rastreadores (e o próprio Sentinela) pedem sem o cabeçalho Accept e
+   recebem JPEG — `fm=webp` torna a resposta WebP SEMPRE. Em 2026 não existe
+   navegador relevante sem WebP, então o fallback perdido não perde ninguém.
+
+   Só mexe em URL do Unsplash: upload local e outros hosts passam intactos —
+   inventar parâmetro em CDN desconhecido é como se quebra imagem em silêncio.
+   ========================================================================== */
+function urlOtimizada(u) {
+  const url = String(u || "");
+  if (!url.includes("images.unsplash.com")) return url;
+  if (/[?&]fm=/.test(url)) return url;
+  return url + (url.includes("?") ? "&" : "?") + "fm=webp";
+}
+
 function medidasDoImg(url) {
   const d = medirImagem(url);
   return d && d.w && d.h ? ` width="${d.w}" height="${d.h}"` : "";
@@ -613,11 +632,20 @@ function setMarker(html, key, content) {
   return html.replace(re, (_m, open, close) => `${open}\n${texto}\n${close}`);
 }
 const fill = (tpl, map) => Object.entries(map).reduce((h, [k, v]) => h.split(`{{${k}}}`).join(v), tpl);
-const postCard = (p) => `<article class="post-card" data-reveal>
-            <a class="post-card__media" href="/blog/${esc(p.slug)}/" tabindex="-1" aria-hidden="true"><img src="${esc(p.image)}" alt="" loading="lazy"></a>
+/* `nivel` do título do card: 3 na home (os cards vivem sob o H2 da seção) e
+   2 no /blog/ (ali o pai é o H1 da página — h1→h3 pula um degrau, e leitor de
+   tela navega por essa escada). O visual não muda: o estilo é da CLASSE
+   `.post-card__title`, não da tag.
+
+   As dimensões: o CSS já corta em 16/10 (`aspect-ratio` + `object-fit`), mas
+   os atributos são o que deixa o navegador reservar o espaço ANTES do CSS e
+   da imagem chegarem — é o CLS. Quando a capa é upload local, a medida real
+   vem do arquivo; de fora, vale a caixa do card. */
+const postCard = (p, nivel = 3) => `<article class="post-card" data-reveal>
+            <a class="post-card__media" href="/blog/${esc(p.slug)}/" tabindex="-1" aria-hidden="true"><img src="${esc(urlOtimizada(p.image))}" alt="" loading="lazy"${medidasDoImg(p.image) || ' width="900" height="563"'}></a>
             <div class="post-card__body">
               <time class="post-card__date" datetime="${esc(p.date)}">${dateBR(p.date)}</time>
-              <h3 class="post-card__title"><a href="/blog/${esc(p.slug)}/">${esc(p.title)}</a></h3>
+              <h${nivel} class="post-card__title"><a href="/blog/${esc(p.slug)}/">${esc(p.title)}</a></h${nivel}>
               <p class="post-card__excerpt">${esc(p.excerpt)}</p>
               <a class="post-card__more" href="/blog/${esc(p.slug)}/">Ler matéria →</a>
             </div>
@@ -657,7 +685,10 @@ function publish() {
      vira uma grade uniforme — que é justamente o formato de onde estamos
      saindo. `loading` fica "eager" só na primeira: ela aparece cedo na
      rolagem e adiar o carregamento dela deixaria um buraco visível. */
-  const worksHtml = works.map((w, i) => `<figure class="foto${i === 0 ? " foto--grande" : ""}" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}><img src="${esc(w.image)}" alt="${esc(w.title)} — Forms Fitness" loading="${i === 0 ? "eager" : "lazy"}"><figcaption class="foto__legenda">${esc(w.title)}<small>${esc(w.subtitle || "")}</small></figcaption></figure>`).join("\n          ");
+  /* As células do mosaico têm tamanho próprio no CSS (object-fit: cover); os
+     atributos existem para a reserva de espaço, e 700×700 é a caixa pedida ao
+     CDN. O alt continua vindo do TÍTULO da foto — é conteúdo, não decoração. */
+  const worksHtml = works.map((w, i) => `<figure class="foto${i === 0 ? " foto--grande" : ""}" data-reveal${i % 3 ? ` data-reveal-delay="${i % 3}"` : ""}><img src="${esc(urlOtimizada(w.image))}" alt="${esc(w.title)} — Forms Fitness" loading="${i === 0 ? "eager" : "lazy"}"${medidasDoImg(w.image) || ' width="700" height="700"'}><figcaption class="foto__legenda">${esc(w.title)}<small>${esc(w.subtitle || "")}</small></figcaption></figure>`).join("\n          ");
 
   const bullets = JSON.parse(S.about_bullets || "[]").map((b) => `<li>${CHECK} ${esc(b)}</li>`).join("\n            ");
 
@@ -691,7 +722,10 @@ function publish() {
               <span><span class="contact-tile__label">Instagram</span><br><span class="contact-tile__value">@${esc(S.instagram)}</span></span>
             </a>`;
 
-  const blogHome = posts.slice(0, 3).map(postCard).join("\n          ");
+  /* Arrow explícita, NUNCA `.map(postCard)`: o map entrega o ÍNDICE como
+     segundo argumento, que cai no parâmetro `nivel` e gera <h0>, <h1>, <h2> —
+     o mesmo veneno do clássico ["1","2"].map(parseInt). Aconteceu aqui. */
+  const blogHome = posts.slice(0, 3).map((p) => postCard(p)).join("\n          ");
 
   const jsonld = { "@context": "https://schema.org", "@graph": [
     { "@type": "Organization", "@id": `${SITE}/#org`, name: "Forms Fitness Academia Aquática",
@@ -808,7 +842,7 @@ function publish() {
   const postTpl = fs.readFileSync(path.join(ROOT, "src", "post.html"), "utf8");
 
   fs.writeFileSync(path.join(ROOT, "blog", "index.html"), fill(blogTpl, {
-    POSTS_HTML: posts.map(postCard).join("\n          ") || '<p class="blog-empty">Em breve, novidades por aqui! 🏊</p>',
+    POSTS_HTML: posts.map((p) => postCard(p, 2)).join("\n          ") || '<p class="blog-empty">Em breve, novidades por aqui! 🏊</p>',
   }));
 
   const keep = new Set(posts.map((p) => p.slug));
@@ -824,14 +858,27 @@ function publish() {
       author: { "@type": "Organization", name: "Forms Fitness Academia Aquática", url: `${SITE}/` },
       publisher: { "@id": `${SITE}/#org` },
       mainEntityOfPage: `${SITE}/blog/${p.slug}/` };
+    /* A migalha de pão que a PÁGINA já mostra, agora dita ao Google no
+       formato dele: é o que troca a URL crua por "Início › Feed › matéria"
+       no resultado da busca. */
+    const bc = { "@context": "https://schema.org", "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Início", item: `${SITE}/` },
+        { "@type": "ListItem", position: 2, name: "Feed", item: `${SITE}/blog/` },
+        { "@type": "ListItem", position: 3, name: p.title },
+      ] };
     const dirP = path.join(ROOT, "blog", p.slug);
     fs.mkdirSync(dirP, { recursive: true });
     fs.writeFileSync(path.join(dirP, "index.html"), fill(postTpl, {
       TITLE: esc(p.title), EXCERPT: esc(p.excerpt), SLUG: esc(p.slug),
-      IMAGE: esc(p.image), IMAGE_DIMS: medidasDoImg(p.image),
+      IMAGE: esc(urlOtimizada(p.image)),
+      /* Sem medida real (capa remota), a reserva é 16/9 — é a proporção das
+         capas do Unsplash usadas até aqui. Reserva aproximada segura mais o
+         layout que reserva nenhuma. */
+      IMAGE_DIMS: medidasDoImg(p.image) || ' width="1200" height="675"',
       DATE_ISO: esc(p.date), DATE_BR: dateBR(p.date),
       CONTENT_HTML: paragraphs,
-      JSONLD: `<script type="application/ld+json">\n  ${JSON.stringify(pj, null, 2).replace(/\n/g, "\n  ")}\n  </script>`,
+      JSONLD: `<script type="application/ld+json">\n  ${JSON.stringify(pj, null, 2).replace(/\n/g, "\n  ")}\n  </script>\n  <script type="application/ld+json">\n  ${JSON.stringify(bc, null, 2).replace(/\n/g, "\n  ")}\n  </script>`,
     }));
   }
 

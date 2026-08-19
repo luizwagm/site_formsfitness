@@ -1013,3 +1013,8 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
 .selo-google__estrelas { color: #FBBC05; letter-spacing: .05em; font-size: .95rem; }
 .selo-google__num { font-size: .88rem; color: var(--ink-soft); }
 .selo-google__num b { color: var(--ink); font-weight: 700; }
+
+/* O acesso da equipe no rodapé — atalho, não chamada: mesmo cinza dos textos
+   do rodapé, sublinhado só no hover. Vive ao lado do dev-credit. */
+.footer-admin { color: inherit; opacity: .75; font-size: .85rem; text-decoration: none; margin-right: 14px; }
+.footer-admin:hover { opacity: 1; text-decoration: underline; }
