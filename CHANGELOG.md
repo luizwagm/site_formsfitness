@@ -5,6 +5,32 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.19.0 — 2026-08-26 · o Feed aceita vídeo
+
+A matéria do Feed pode ter **foto ou vídeo** na capa. No painel, o campo da
+capa ganhou o botão "Enviar vídeo" ao lado do "Enviar foto" (MP4/WEBM, até
+120 MB, com o progresso no próprio botão); o resto o Publicar resolve sozinho,
+pela extensão do arquivo.
+
+- **Na lista do Feed**, matéria em vídeo mostra uma **capa genérica** —
+  `assets/img/capa-video.svg`, nas cores da academia — com o selo "▶ vídeo".
+  Um `<video>` por cartão faria o navegador baixar metadados de todos ao mesmo
+  tempo; o cartão é só a porta de entrada.
+- **Dentro da matéria**, no lugar exato onde ficaria a foto, entra o player com
+  controles e `preload="metadata"`: baixa só o cabeçalho, para quem abriu a
+  matéria a fim de ler não puxar o vídeo inteiro sem querer.
+- **O `pickVideo` do painel virou um só para os dois usos** (o vídeo da
+  Estrutura e a capa da matéria). Duas cópias teriam de acompanhar o mesmo
+  contrato do `/api/upload-video`, e a que ficasse para trás falharia num
+  detalhe só no dia do envio.
+- **`og:image` passou a ser sempre absoluto.** Capa do Unsplash já vinha com
+  domínio, mas foto enviada pelo painel saía como `/assets/…` — caminho
+  relativo ali é descartado pelo WhatsApp e pelo validador. Valia para foto
+  local desde sempre; com vídeo, aconteceria em toda matéria.
+
+A rota de upload e a pasta `assets/video/` já existiam (vídeo da Estrutura),
+com o `.gitignore` e o cofre do `deploy.sh` cobrindo os arquivos.
+
 ## 1.18.0 — 2026-08-19 · os links legais saem da barra e viram coluna do rodapé
 
 A barra inferior acumulava quatro assuntos espremidos numa linha: ©/CNPJ,

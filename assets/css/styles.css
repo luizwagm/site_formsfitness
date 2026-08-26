@@ -1026,3 +1026,29 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
    do rodapé, sublinhado só no hover. Vive ao lado do dev-credit. */
 .footer-admin { color: inherit; opacity: .75; font-size: .85rem; text-decoration: none; margin-right: 14px; }
 .footer-admin:hover { opacity: 1; text-decoration: underline; }
+
+
+/* ==========================================================================
+   MATÉRIA EM VÍDEO (Feed)
+
+   Na lista, a capa é a imagem genérica e o selo diz — antes do clique — que
+   ali dentro tem vídeo. O selo é ::after do próprio link, para não pedir
+   marcação nova em cada cartão.
+   ========================================================================== */
+.post-card__media--video { position: relative; }
+.post-card__media--video::after {
+  content: "▶ vídeo";
+  position: absolute; left: .8rem; bottom: .8rem;
+  background: rgba(11, 78, 162, .88); color: #fff;
+  font-size: .74rem; font-weight: 700; letter-spacing: .04em;
+  padding: .22rem .6rem; border-radius: 999px; pointer-events: none;
+}
+/* O vídeo ocupa a mesma caixa da foto de capa. `height:auto` e NENHUM
+   object-fit: o arquivo pode ser vertical (celular) ou deitado, e cortá-lo
+   para caber numa proporção fixa esconderia justamente o exercício. */
+.post__cover--video video {
+  width: 100%; height: auto; display: block;
+  border-radius: 18px; background: #062a54;
+  aspect-ratio: auto 16 / 9;
+}
+@media (max-width: 640px) { .post__cover--video video { border-radius: 12px; } }

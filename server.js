@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.18.0";
+const APP_VERSION = "1.19.0";
 const PORT = 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
@@ -28,6 +28,17 @@ fs.mkdirSync(path.join(ROOT, "blog"), { recursive: true });
 /* Vídeo em pasta separada das fotos: são arquivos de outra ordem de tamanho,
    e separá-los deixa claro o que pesa no disco e no backup. */
 const VIDEO_DIR = path.join(ROOT, "assets", "video");
+/* ==========================================================================
+   VÍDEO NA CAPA DA MATÉRIA (Feed)
+
+   A mesma pasta do vídeo da Estrutura serve às matérias. Na LISTA a capa é uma
+   imagem genérica dizendo que é vídeo — um `<video>` por cartão faria o
+   navegador baixar metadados de todos ao mesmo tempo, e o cartão é só a porta
+   de entrada. O vídeo toca DENTRO da matéria.
+   ========================================================================== */
+const CAPA_VIDEO = "/assets/img/capa-video.svg";
+const absolutaNoSite = (u) => (/^https?:\/\//i.test(String(u||"")) ? String(u) : SITE + String(u||""));
+const ehVideo = (u) => /\.(mp4|webm|ogv)(\?|#|$)/i.test(String(u || ""));
 fs.mkdirSync(VIDEO_DIR, { recursive: true });
 /* Teto do arquivo. 120 MB dá folga para um vídeo curto em 1080p; acima disso
    o certo é hospedar no YouTube e colar o link, que o painel também aceita. */
@@ -667,7 +678,7 @@ const fill = (tpl, map) => Object.entries(map).reduce((h, [k, v]) => h.split(`{{
    da imagem chegarem — é o CLS. Quando a capa é upload local, a medida real
    vem do arquivo; de fora, vale a caixa do card. */
 const postCard = (p, nivel = 3) => `<article class="post-card" data-reveal>
-            <a class="post-card__media" href="/blog/${esc(p.slug)}/" tabindex="-1" aria-hidden="true"><img src="${esc(urlOtimizada(p.image))}" alt="" loading="lazy"${medidasDoImg(p.image) || ' width="900" height="563"'}></a>
+            <a class="post-card__media${ehVideo(p.image) ? " post-card__media--video" : ""}" href="/blog/${esc(p.slug)}/" tabindex="-1" aria-hidden="true"><img src="${esc(ehVideo(p.image) ? CAPA_VIDEO : urlOtimizada(p.image))}" alt="" loading="lazy"${ehVideo(p.image) ? ' width="900" height="563"' : (medidasDoImg(p.image) || ' width="900" height="563"')}></a>
             <div class="post-card__body">
               <time class="post-card__date" datetime="${esc(p.date)}">${dateBR(p.date)}</time>
               <h${nivel} class="post-card__title"><a href="/blog/${esc(p.slug)}/">${esc(p.title)}</a></h${nivel}>
@@ -896,7 +907,20 @@ function publish() {
     fs.mkdirSync(dirP, { recursive: true });
     fs.writeFileSync(path.join(dirP, "index.html"), fill(postTpl, {
       TITLE: esc(p.title), EXCERPT: esc(p.excerpt), SLUG: esc(p.slug),
-      IMAGE: esc(urlOtimizada(p.image)),
+      /* O compartilhamento (og:image, JSON-LD) precisa de IMAGEM: rede social
+         nenhuma aceita um .mp4 como capa de link. Matéria em vídeo entrega a
+         capa genérica, que é a mesma do cartão. */
+      /* ABSOLUTA: o og:image e o JSON-LD vão para fora do site, e caminho
+         relativo ali é descartado pelo validador e pelo WhatsApp. A capa do
+         Unsplash já vem com http e passa direto; a enviada pelo painel (e a
+         capa genérica de vídeo) começam com "/" e precisam do domínio. */
+      IMAGE: esc(absolutaNoSite(ehVideo(p.image) ? CAPA_VIDEO : urlOtimizada(p.image))),
+      /* `preload="metadata"`: baixa só o cabeçalho, para saber duração e
+         proporção. Com "auto", abrir a matéria puxaria o vídeo inteiro de quem
+         só queria ler o texto. */
+      COVER: ehVideo(p.image)
+        ? `<figure class="post__cover post__cover--video"><video src="${esc(p.image)}" controls preload="metadata" playsinline poster="${esc(CAPA_VIDEO)}"></video></figure>`
+        : `<figure class="post__cover"><img src="${esc(urlOtimizada(p.image))}" alt="${esc(p.title)}" fetchpriority="high"${medidasDoImg(p.image) || ' width="1200" height="675"'}></figure>`,
       /* Sem medida real (capa remota), a reserva é 16/9 — é a proporção das
          capas do Unsplash usadas até aqui. Reserva aproximada segura mais o
          layout que reserva nenhuma. */

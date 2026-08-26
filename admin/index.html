@@ -67,6 +67,8 @@
     .hint{font-size:.75rem;color:var(--dim)}
     .right{text-align:right}.mt{margin-top:1rem}.mb{margin-bottom:1rem}
     .thumb{width:82px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+    /* capa em video: o mesmo lugar do thumb, com o simbolo de play */
+    .thumb--video{display:grid;place-items:center;background:#e2f2fb;color:#0B4EA2;font-size:20px}
     .toast{position:fixed;bottom:1.2rem;left:50%;transform:translate(-50%,150%);background:var(--blue);color:#fff;
       padding:.8rem 1.3rem;border-radius:999px;font-weight:700;transition:transform .3s;z-index:99}
     .toast.on{transform:translate(-50%,0)}
@@ -1000,8 +1002,11 @@ function renderTable(t) {
           <div class="imgrow">
             <input data-t="${t}" data-id="${r.id}" data-f="${f}" value="${escA(r[f])}" style="flex:1">
             <button class="btn btn-ghost btn-sm" onclick="pickImg(this)">Enviar foto</button>
-            ${r[f] ? `<img class="thumb" src="${escA(r[f])}" alt="">` : ""}
-          </div>`;
+            ${t === "posts" ? `<button class="btn btn-ghost btn-sm" onclick="pickVideo(this)">Enviar vídeo</button>` : ""}
+            ${ehVideo(r[f]) ? `<span class="thumb thumb--video" title="Matéria em vídeo">▶</span>`
+              : r[f] ? `<img class="thumb" src="${escA(r[f])}" alt="">` : ""}
+          </div>
+          ${t === "posts" ? `<p class="hint">Foto <b>ou</b> vídeo (MP4/WEBM). Com vídeo, a lista do Feed mostra uma capa dizendo que é vídeo, e o vídeo toca dentro da matéria.</p>` : ""}`;
         return `<label>${lab}</label><input data-t="${t}" data-id="${r.id}" data-f="${f}" value="${escA(r[f])}">`;
       }).join("")}
       <div class="right mt">
@@ -1052,10 +1057,26 @@ async function delRow(t, id) {
    O arquivo vai como corpo BINÁRIO puro — sem base64, sem FormData. É o
    formato que o /api/upload-video grava direto em disco, sem carregar tudo na
    memória do servidor. */
+/* ==========================================================================
+   DOIS CHAMADORES, UMA FUNÇÃO
+
+   Ela nasceu para o vídeo da Estrutura (campo fixo, com barra e prévia
+   próprias na tela) e agora serve também à CAPA DA MATÉRIA, que é uma linha
+   de lista repetida — ali não há id fixo nem barra: o alvo é o campo ao lado
+   do botão, e o progresso aparece no próprio botão.
+
+   Duplicar a função seria pior: as duas cópias teriam de acompanhar o mesmo
+   contrato do `/api/upload-video`, e a que ficasse para trás falharia num
+   detalhe (o cabeçalho do nome, o teto) só no dia do envio.
+   ========================================================================== */
 function pickVideo(btn) {
-  const campo = document.getElementById("s_estrutura_video");
-  const barra = document.getElementById("video-barra");
-  const previa = document.getElementById("video-previa");
+  /* Campo da lista (capa da matéria) ou o campo fixo da Estrutura. */
+  const naLista = !!(btn.parentElement && btn.parentElement.querySelector("input[data-f]"));
+  const campo = naLista ? btn.parentElement.querySelector("input[data-f]")
+                        : document.getElementById("s_estrutura_video");
+  const barra = naLista ? null : document.getElementById("video-barra");
+  const previa = naLista ? null : document.getElementById("video-previa");
+  const rotuloBotao = btn.textContent;
   const fi = document.createElement("input");
   fi.type = "file";
   fi.accept = "video/mp4,video/webm,video/ogg,video/quicktime";
@@ -1070,9 +1091,14 @@ function pickVideo(btn) {
       return;
     }
 
-    barra.hidden = false;
-    const trilho = barra.querySelector("i"), rotulo = barra.querySelector("span");
-    const pintar = (pct) => { trilho.style.setProperty("--pct", pct + "%"); rotulo.textContent = pct + "%"; };
+    if (barra) barra.hidden = false;
+    const trilho = barra && barra.querySelector("i"), rotulo = barra && barra.querySelector("span");
+    /* Sem barra (linha de lista), o progresso vai no rótulo do botão — é o
+       único lugar da linha que já existe e a pessoa está olhando. */
+    const pintar = (pct) => {
+      if (trilho) { trilho.style.setProperty("--pct", pct + "%"); rotulo.textContent = pct + "%"; }
+      else { btn.disabled = true; btn.textContent = "Enviando " + pct + "%"; }
+    };
     pintar(0);
 
     const xhr = new XMLHttpRequest();
@@ -1083,18 +1109,25 @@ function pickVideo(btn) {
     xhr.setRequestHeader("X-Nome-Arquivo", encodeURIComponent(file.name));
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) pintar(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
-      barra.hidden = true;
+      if (barra) barra.hidden = true;
+      btn.disabled = false; btn.textContent = rotuloBotao;
       let r = {}; try { r = JSON.parse(xhr.responseText); } catch {}
       if (xhr.status !== 200) return toast(r.error || "Não consegui enviar o vídeo.", true);
       campo.value = r.path;
-      previa.innerHTML = '<video src="' + r.path + '" controls preload="metadata"></video>';
-      toast("Vídeo enviado! Agora clique em Salvar textos.");
+      if (previa) previa.innerHTML = '<video src="' + r.path + '" controls preload="metadata"></video>';
+      toast(naLista ? "Vídeo enviado! Salve o item." : "Vídeo enviado! Agora clique em Salvar textos.");
     };
-    xhr.onerror = () => { barra.hidden = true; toast("A conexão caiu durante o envio.", true); };
+    xhr.onerror = () => {
+      if (barra) barra.hidden = true;
+      btn.disabled = false; btn.textContent = rotuloBotao;
+      toast("A conexão caiu durante o envio.", true);
+    };
     xhr.send(file);
   };
   fi.click();
 }
+
+const ehVideo = (u) => /\.(mp4|webm|ogv)(\?|#|$)/i.test(String(u || ""));
 
 function pickImg(btn) {
   const target = btn.parentElement.querySelector("input[data-f]");
