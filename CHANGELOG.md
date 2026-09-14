@@ -5,6 +5,26 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.24.1 — 2026-09-14 · a entrega que parou no --publicar
+
+A entrega automática da 1.20→1.24 terminou com erro em dois pontos. O site
+ficou no ar e nenhum dado se perdeu, mas as páginas não foram refeitas.
+- **O `--publicar` falhou** porque desde a 1.20 carregar o `server.js`
+  instalava as tabelas da gestão logo no começo — e instalar é escrever no
+  banco. A entrega roda os comandos de linha como o usuário `deploy`, que no
+  servidor só LÊ o banco do serviço (que roda como root). Até a 1.19 o
+  `--publicar` só lia; na 1.20 passou a tentar escrever e morreu. Agora a
+  instalação da gestão fica DEPOIS dos comandos de linha: quem instala é o
+  serviço, ao subir. Há prova: comando de linha com banco somente-leitura e
+  sem a gestão passa, e não cria tabela nenhuma.
+- **"O CONTEÚDO MUDOU. Restaurando por segurança." foi alarme falso.** O
+  inventário do deploy contava todas as linhas de configuração como "textos",
+  e a gestão grava 8 configurações próprias ao subir (36 → 44). Agora "textos"
+  conta só as do site, e o inventário passou a contar também **alunos e
+  contratos** — são dados da academia que um deploy não pode sumir.
+- O erro do `--publicar` agora aparece na saída da entrega, em vez de ir para
+  o /dev/null.
+
 ## 1.24.0 — 2026-09-14 · tabelas maiores e paginação em todas
 
 **Tabelas maiores na tela.** O conteúdo do painel parava em 1000px de

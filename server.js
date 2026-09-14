@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.24.0";
+const APP_VERSION = "1.24.1";
 /* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
    deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
    num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento
@@ -337,13 +337,9 @@ seed();
 // migração leve: garante chaves novas em bancos já existentes
 if (!getS("cnpj")) setS("cnpj", "00.000.000/0001-00");
 
-/* ==========================================================================
-   A GESTÃO DA ACADEMIA (1.20.0)
-
-   Vive em gestao/: esquema, contas, documentos e rotas. Instala as tabelas no
-   mesmo banco — um arquivo para o backup, uma cópia para o deploy proteger.
-   ========================================================================== */
-require("./gestao/esquema").instalar({ db, getS, setS, hashSenha });
+/* A gestão da academia (gestao/) instala as tabelas dela mais abaixo, logo
+   antes de montar as rotas — DEPOIS dos comandos de linha (--publicar,
+   --backup). Ver o porquê lá. */
 
 /* ------------------------------ Sessões ---------------------------------- */
 /* A sessão guarda o INSTANTE do último uso, não só a existência do cookie.
@@ -1178,6 +1174,21 @@ const CSP_IMPRESSAO = "default-src 'none'; base-uri 'none'; form-action 'none'; 
 /* O que o site serve em disco: as páginas geradas, os assets e o painel. */
 const PASTAS_PUBLICAS = new Set(["assets", "blog", "busca", "matricula", "privacidade", "admin", ".well-known"]);
 const ARQUIVOS_PUBLICOS = new Set(["/index.html", "/robots.txt", "/sitemap.xml", "/manifest.webmanifest", "/manutencao.html"]);
+
+/* ==========================================================================
+   A GESTÃO DA ACADEMIA (1.20.0)
+
+   Vive em gestao/: esquema, contas, documentos e rotas. Instala as tabelas no
+   mesmo banco — um arquivo para o backup, uma cópia para o deploy proteger.
+
+   AQUI, e não no começo do arquivo (1.24.1): instalar é ESCREVER no banco, e
+   os comandos de linha lá em cima (--publicar, --backup, --backup-status) não
+   devem escrever. A entrega automática os roda como o usuário `deploy`, que
+   não pode gravar no banco do serviço — com a instalação no começo, o
+   `--publicar` morria na primeira atualização para a 1.20 e as páginas não
+   eram refeitas. Quem instala é o SERVIÇO, ao subir.
+   ========================================================================== */
+require("./gestao/esquema").instalar({ db, getS, setS, hashSenha });
 
 const gestao = require("./gestao/rotas").criar({
   db, getS, setS, hashSenha, confereSenha, htmlLimpo, readBody, json, ipDoCliente,

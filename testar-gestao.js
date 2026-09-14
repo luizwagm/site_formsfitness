@@ -457,6 +457,45 @@ const PUB_MENOR = (extra = {}) => ({
       mem.close();
     }
 
+    /* Comando de linha NÃO escreve no banco (1.24.1). A entrega roda
+       `--publicar` e `--backup` como o usuário `deploy`, que no servidor só
+       LÊ o banco do serviço. Com a instalação da gestão no começo do
+       server.js, a primeira atualização para a 1.20 morreu no --publicar.
+       Aqui: um banco sem a gestão, somente-leitura, e o comando tem de passar
+       sem criar tabela nenhuma. */
+    {
+      const { spawnSync } = require("node:child_process");
+      const dirRo = path.join(TMP, "somente-leitura");
+      fs.mkdirSync(dirRo, { recursive: true });
+      const arq = path.join(dirRo, "site.db");
+      let origem;
+      try { origem = new (require("better-sqlite3"))(path.join(TMP, "data", "site.db"), { readonly: true }); }
+      catch { const { DatabaseSync } = require("node:sqlite"); origem = new DatabaseSync(path.join(TMP, "data", "site.db"), { readOnly: true }); }
+      origem.exec(`VACUUM INTO '${arq.replace(/'/g, "''")}'`);
+      origem.close();
+      let antigo;
+      try { antigo = new (require("better-sqlite3"))(arq); }
+      catch { const { DatabaseSync } = require("node:sqlite"); antigo = new DatabaseSync(arq); }
+      antigo.exec("PRAGMA foreign_keys=OFF");
+      const gestaoTabelas = antigo.prepare("SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE 'g!_%' ESCAPE '!' OR name='usuarios')").all();
+      for (const t of gestaoTabelas) antigo.exec(`DROP TABLE "${t.name}"`);
+      antigo.prepare("DELETE FROM settings WHERE key LIKE 'g!_%' ESCAPE '!'").run();
+      antigo.exec("PRAGMA journal_mode=DELETE");
+      antigo.close();
+      fs.chmodSync(arq, 0o444);
+      const r = spawnSync(process.execPath, ["server.js", "--backup-status"], { cwd: __dirname, encoding: "utf8",
+        env: { ...process.env, FF_DATA: dirRo, FF_BACKUPS: path.join(TMP, "bk-ro") } });
+      let conf;
+      try { conf = new (require("better-sqlite3"))(arq, { readonly: true }); }
+      catch { const { DatabaseSync } = require("node:sqlite"); conf = new DatabaseSync(arq, { readOnly: true }); }
+      const criou = !!conf.prepare("SELECT 1 AS s FROM sqlite_master WHERE name='g_alunos'").get();
+      conf.close();
+      fs.chmodSync(arq, 0o644);
+      certo("comando de linha passa com o banco SOMENTE-LEITURA e sem a gestão (como o usuário deploy o vê)",
+        r.status === 0, `código ${r.status}: ${(r.stderr || "").split("\n").slice(0, 3).join(" | ")}`);
+      certo("…e não cria tabela nenhuma: quem instala a gestão é o serviço", !criou);
+    }
+
     console.log("\n— usuários e permissões");
     const nova = await pedir("POST", "/api/gestao/usuarios", { cookie: A, corpo: { nome: "Zz Qa Secretária", login: "zzqa.secretaria", senha: "senha-zzqa-1" } });
     certo("administrador cria usuária", nova.status === 200);

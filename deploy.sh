@@ -79,6 +79,14 @@ vermelho(){ printf "\033[1;31m%s\033[0m\n" "$1"; }
 # alterado e disparava a restauração à toa. Foi o que aconteceu quando o
 # node_modules veio do git com o binário de outra plataforma: o leitor estava
 # quebrado ANTES e funcionando DEPOIS, e nada no banco havia mudado.
+#
+# "textos" conta só os do SITE (char(103,95) é "g_": aspa simples aqui dentro
+# fecharia o node -e '…' do shell). As chaves que começam com g_ são o estado da
+# gestão da academia (sementes, migrações, dias de aula), que o próprio sistema
+# grava ao subir uma versão nova. Contá-las fez a entrega da 1.20 acusar
+# "O CONTEÚDO MUDOU" (36 → 44 textos) sem que nenhum texto tivesse mudado.
+# Alunos e contratos entram na conta: são dados da academia, e sumir com eles
+# num deploy é exatamente o que este inventário existe para pegar.
 inventario() {
   [ -f data/site.db ] || { echo "SEM BANCO"; return; }
   node -e '
@@ -86,7 +94,7 @@ inventario() {
     try {
       const db = abrirBanco("data/site.db");
       const n = (t) => { try { return db.prepare(`SELECT COUNT(*) c FROM ${t}`).get().c; } catch { return 0; } };
-      console.log(`${n("services")} modalidades · ${n("team")} equipe · ${n("posts")} matérias · ${n("portfolio")} fotos · ${n("testimonials")} depoimentos · ${n("settings")} textos · ${n("visits")} visitas`);
+      console.log(`${n("services")} modalidades · ${n("team")} equipe · ${n("posts")} matérias · ${n("portfolio")} fotos · ${n("testimonials")} depoimentos · ${n("settings WHERE substr(key,1,2) <> char(103,95)")} textos · ${n("g_alunos")} alunos · ${n("g_contratos")} contratos · ${n("visits")} visitas`);
     } catch (e) { console.log("ILEGIVEL"); }
   ' 2>/dev/null
 }
@@ -318,10 +326,13 @@ verde "     de volta no lugar (dono: $DONO:$GRUPO)"
 # de um banco ausente. Se falhar, o site segue no ar com as páginas anteriores
 # e o aviso diz o que fazer, em vez de a falha passar em silêncio.
 azul "6b/7 Refazendo as páginas a partir do banco"
-if node server.js --publicar >/dev/null 2>&1; then
+# O erro APARECE: na entrega da 1.20 ele foi para /dev/null, e "o --publicar
+# falhou" sem o motivo deixou só palpite para investigar.
+if SAIDA_PUB=$(node server.js --publicar 2>&1); then
   verde "     páginas republicadas com o conteúdo atual"
 else
   amarelo "     o --publicar falhou. O site segue no ar com as páginas anteriores."
+  printf '%s\n' "$SAIDA_PUB" | tail -n 6 | sed 's/^/       /'
   amarelo "     Entre no /admin e clique em Publicar para refazê-las."
 fi
 
