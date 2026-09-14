@@ -5,7 +5,7 @@ Site institucional com blog, o **gerenciador de conteúdo** e, desde a 1.20.0, a
 Forms Fitness Academia Aquática — Caruaru-PE, 33 anos de mercado.
 
 - **Domínio:** formsfitness.com (é `.com`, **não** `.com.br`)
-- **Porta interna:** 5186 · **Serviço:** `forms.service` · **Versão:** `1.24.1`
+- **Porta interna:** 5186 · **Serviço:** `forms.service` · **Versão:** `1.24.2`
 - **Stack:** Node ≥ 20 com `node:http`, SQLite via `better-sqlite3`. **Uma
   dependência de produção, e só.**
 
@@ -27,7 +27,7 @@ Captar matrícula e organizar a academia. Todo caminho da página termina em
 falar com a academia — botão flutuante de WhatsApp, formulário de contato, ou a
 página de matrícula, que grava a ficha como **pré-matrícula** na gestão. A
 secretaria confere, efetiva (é aí que o aluno ganha o código, a partir de
-004148) e gera o contrato.
+004149) e gera o contrato.
 
 ## Principais funcionalidades
 

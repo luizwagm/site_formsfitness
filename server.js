@@ -18,7 +18,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.24.1";
+const APP_VERSION = "1.24.2";
 /* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
    deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
    num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento

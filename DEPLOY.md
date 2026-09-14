@@ -156,7 +156,7 @@ o modelo do contrato, as condições da matrícula e a atividade Natação.
 
 A matrícula feita no site chega em **Alunos** como *pré-matrícula*, com um
 contador no menu. Ela só ganha código ao ser **efetivada** — a sequência
-continua do 004148.
+continua do 004149.
 
 ---
 

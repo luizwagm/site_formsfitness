@@ -5,6 +5,14 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.24.2 — 2026-09-14 · o código de matrícula começa em 004149
+
+Os cadastros antigos da academia vão até 4148, então a numeração do sistema
+começa em **004149** (era 004148). A regra de sempre continua: o próximo
+código é o maior entre 4148 e o maior já cadastrado, mais um — um aluno
+antigo digitado com o código dele não puxa a sequência para trás, e um código
+já em uso é recusado.
+
 ## 1.24.1 — 2026-09-14 · a entrega que parou no --publicar
 
 A entrega automática da 1.20→1.24 terminou com erro em dois pontos. O site

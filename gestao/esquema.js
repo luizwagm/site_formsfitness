@@ -16,8 +16,8 @@
 const { MODELO_CONTRATO, CONDICOES_MATRICULA } = require("./textos-iniciais");
 
 /* O código de matrícula continua a numeração do sistema anterior da academia:
-   os cadastros antigos vão até 4147. */
-const CODIGO_INICIAL = 4148;
+   os cadastros antigos vão até 4148 (ajustado na 1.24.2 — era 4147). */
+const CODIGO_INICIAL = 4149;
 
 /* Terça, quarta e sexta: os dias em que a academia funciona hoje, conforme a
    cláusula 2ª do contrato. 0 = domingo … 6 = sábado, como o Date do JS. */

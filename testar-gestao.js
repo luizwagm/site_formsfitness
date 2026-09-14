@@ -90,7 +90,7 @@ const PUB_MENOR = (extra = {}) => ({
 
     console.log("\n— atividade, turma e numeração");
     const res0 = await pedir("GET", "/api/gestao/resumo", { cookie: A });
-    certo("o primeiro código é 4148", res0.j.proximo_codigo === 4148, String(res0.j.proximo_codigo));
+    certo("o primeiro código é 4149", res0.j.proximo_codigo === 4149, String(res0.j.proximo_codigo));
     const ativs = (await pedir("GET", "/api/gestao/atividades", { cookie: A })).j.atividades;
     const natacao = ativs.find((a) => a.nome === "Natação");
     certo("Natação semeada com R$ 110,00", natacao && natacao.mensalidade === 11000);
@@ -135,14 +135,14 @@ const PUB_MENOR = (extra = {}) => ({
     const ctrPend = await pedir("POST", `/api/gestao/alunos/${pId}/contratos`, { cookie: A });
     certo("pré-matrícula NÃO gera contrato (não tem código)", ctrPend.status === 409);
     const ef = await pedir("POST", `/api/gestao/alunos/${pId}/efetivar`, { cookie: A, corpo: {} });
-    certo("efetivar dá o código 4148", ef.status === 200 && ef.j.codigo === 4148 && ef.j.codigo_fmt === "004148");
+    certo("efetivar dá o código 4149", ef.status === 200 && ef.j.codigo === 4149 && ef.j.codigo_fmt === "004149");
     const ef2 = await pedir("POST", `/api/gestao/alunos/${pId}/efetivar`, { cookie: A, corpo: {} });
     certo("efetivar duas vezes é recusado", ef2.status === 409);
     const antigo = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Aluno Antigo", codigo: "003879", nascimento: "1990-02-10", turma_id: t1.j.id, mensalidade: "110,00" } });
     certo("aluno antigo entra com o código dele (3879)", antigo.status === 200 && antigo.j.codigo === 3879);
     const novo = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Adulto Novo", nascimento: "1985-09-11", cpf: "529.982.247-25", turma_id: t1.j.id, mensalidade: "110,00" } });
-    certo("o código antigo NÃO puxa a sequência para trás: o próximo é 4149", novo.j.codigo === 4149, String(novo.j.codigo));
-    const dup = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Duplicado", codigo: "4149" } });
+    certo("o código antigo NÃO puxa a sequência para trás: o próximo é 4150", novo.j.codigo === 4150, String(novo.j.codigo));
+    const dup = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Duplicado", codigo: "4150" } });
     certo("código repetido é recusado, dizendo de quem é", dup.status === 409 && /Adulto Novo/.test(dup.j.error));
     const apagarAtivo = await pedir("DELETE", `/api/gestao/alunos/${novo.j.id}`, { cookie: A });
     certo("aluno matriculado não se apaga — inativa", apagarAtivo.status === 409);
@@ -161,7 +161,7 @@ const PUB_MENOR = (extra = {}) => ({
     certo("gera o contrato do aluno efetivado", c1.status === 200 && c1.j.id);
     const imp1 = await pedir("GET", `/admin/imprimir/contrato/${c1.j.id}`, { cookie: A });
     const h1 = imp1.texto;
-    certo("menor: quem assina é o RESPONSÁVEL", /CONTRATANTE:<\/b> Zz Qa Responsável - 004148/.test(h1));
+    certo("menor: quem assina é o RESPONSÁVEL", /CONTRATANTE:<\/b> Zz Qa Responsável - 004149/.test(h1));
     certo("menor: sai o parágrafo do aluno menor de idade", /por nome de <b>Zz Qa Criança Teste<\/b>/.test(h1));
     certo("mensalidade por extenso", /R\$ 110,00 \(CENTO E DEZ REAIS\)/.test(h1));
     certo("dias de aula vêm da configuração", /nos dias de terças, quartas e sextas/.test(h1));
@@ -170,7 +170,7 @@ const PUB_MENOR = (extra = {}) => ({
     const c2adulto = await pedir("POST", `/api/gestao/alunos/${novo.j.id}/contratos`, { cookie: A });
     const h2 = (await pedir("GET", `/admin/imprimir/contrato/${c2adulto.j.id}`, { cookie: A })).texto;
     certo("adulto: assina ele mesmo, e o parágrafo do menor NÃO sai",
-      /CONTRATANTE:<\/b> Zz Qa Adulto Novo - 004149/.test(h2) && !/menor de idade: a contratante/.test(h2));
+      /CONTRATANTE:<\/b> Zz Qa Adulto Novo - 004150/.test(h2) && !/menor de idade: a contratante/.test(h2));
 
     const modelo = (await pedir("GET", "/api/gestao/contrato/modelo", { cookie: A })).j;
     const typo = await pedir("POST", "/api/gestao/contrato/modelo", { cookie: A, corpo: { texto: modelo.texto + "<p>{{ENDERECOO}}</p>" } });
@@ -338,7 +338,7 @@ const PUB_MENOR = (extra = {}) => ({
     console.log("\n— impressos");
     const ficha = await pedir("GET", `/admin/imprimir/ficha/${pId}`, { cookie: A });
     certo("a ficha abre com o nome, o código e as condições",
-      ficha.status === 200 && /Zz Qa Criança Teste/.test(ficha.texto) && /004148/.test(ficha.texto) && /CONDIÇÕES DA MATRÍCULA/.test(ficha.texto));
+      ficha.status === 200 && /Zz Qa Criança Teste/.test(ficha.texto) && /004149/.test(ficha.texto) && /CONDIÇÕES DA MATRÍCULA/.test(ficha.texto));
     certo("a ficha tem o ajuste de uma folha", /data-uma-folha/.test(ficha.texto));
     certo("a página impressa tem CSP própria", /default-src 'none'/.test(ficha.cab.get("content-security-policy") || ""));
     const fichaSem = await pedir("GET", `/admin/imprimir/ficha/${pId}`);
@@ -545,7 +545,7 @@ const PUB_MENOR = (extra = {}) => ({
     certo("registra a pré-matrícula do site SEM o IP e SEM o nome (a privacidade promete apagar)",
       pre && pre.ip === "" && /^pré-matrícula nº \d+$/.test(pre.alvo) && !aud.itens.some((l) => /Repetido 0/.test(l.alvo)), JSON.stringify(pre));
     certo("registra a efetivação, dizendo de qual aluno (a partir daqui, com nome e código)",
-      acha((l) => l.acao === "Efetivou matrícula" && /Criança Teste \(004148\)/.test(l.alvo)));
+      acha((l) => l.acao === "Efetivou matrícula" && /Criança Teste \(004149\)/.test(l.alvo)));
     certo("registra o contrato gerado pela secretária, no nome dela",
       acha((l) => l.acao === "Gerou contrato" && /zzqa\.secretaria/.test(l.usuario)));
     certo("registra também o que foi RECUSADO (a secretária tentando se promover)",
