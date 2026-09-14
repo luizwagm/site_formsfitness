@@ -20,7 +20,9 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const BASE = { hostname: "127.0.0.1", port: 5186 };
+/* PORT permite rodar a suíte contra uma cópia do banco numa porta à parte
+   (FF_DATA=... PORT=5313 node server.js), sem tocar no servidor de sempre. */
+const BASE = { hostname: "127.0.0.1", port: Number(process.env.PORT) || 5186 };
 const SENHA = process.env.FORMS_SENHA || "forms-admin";
 
 let ok = 0, falhas = [];
@@ -91,7 +93,15 @@ function pngEmPe() {
   {
     const r = await pedir("POST", "/api/login", { corpo: { password: "obviamente-errada-zz" } });
     eq("senha errada é recusada", r.status, 401);
-    certo("a resposta não conta o que errou", !/hash|scrypt|sha|usuário/i.test(r.corpo));
+    /* Desde a 1.20.0 existe usuário, e a mensagem é "Usuário ou senha
+       incorretos" — que não diz QUAL dos dois errou. O que não pode é
+       confirmar que o usuário existe, nem vazar como a senha é guardada. */
+    certo("a resposta não conta o que errou", !/hash|scrypt|sha|não existe|inexistente|não encontrad/i.test(r.corpo), r.corpo);
+    const semConta = await pedir("POST", "/api/login", { corpo: { usuario: "zz-ninguem", password: "obviamente-errada-zz" } });
+    eq("usuário inexistente recebe a mesma resposta da senha errada", semConta.corpo, r.corpo);
+    /* Dois erros seguidos do mesmo endereço ligam a espera de 1s do
+       limitador — sem aguardar, o login certo logo abaixo seria recusado. */
+    await new Promise((ok) => setTimeout(ok, 1200));
   }
   const entrar = await pedir("POST", "/api/login", { corpo: { password: SENHA } });
   eq("senha certa entra", entrar.status, 200);
@@ -228,7 +238,7 @@ function pngEmPe() {
        ficava depois do acerto e passava por sorte — lendo o arquivo de uma
        execução ANTERIOR, porque a gravação é adiada em 2s. Por isso a espera
        e a conferência da data do arquivo: sem elas o teste aprova sozinho. */
-    const limites = path.join(__dirname, "data", "limites.json");
+    const limites = path.join(process.env.FF_DATA ? path.resolve(process.env.FF_DATA) : path.join(__dirname, "data"), "limites.json");
     const marco = Date.now();
     await new Promise((r) => setTimeout(r, 2600));   // a gravação é adiada em 2s
     certo("a contagem é gravada em disco (sobrevive ao reinício)", fs.existsSync(limites));
@@ -254,6 +264,19 @@ function pngEmPe() {
   for (const alvo of ["/data/site.db", "/server.js", "/db.js", "/package.json", "/node_modules/better-sqlite3/package.json"]) {
     const r = await pedir("GET", alvo);
     certo(`${alvo} não é servido`, r.status === 403 || r.status === 404, `status ${r.status}`);
+  }
+  /* Até a 1.20.0 a lista era de PROIBIDOS, e qualquer .js da raiz que não se
+     chamasse server ou db saía pela web — inclusive esta suíte e a da
+     gestão, com a senha inicial dentro. Desde a 1.21.0 só sai o que está num
+     lugar público; estes provam que o resto ficou para dentro. */
+  for (const alvo of ["/testar.js", "/testar-gestao.js", "/testar-limitador.js", "/backup.js", "/limitador.js",
+    "/docs/documentacao-tecnica.pdf", "/ci/sudoers-forms", "/nginx/forms.service", "/gestao/auditoria.js", "/CHANGELOG.md"]) {
+    const r = await pedir("GET", alvo);
+    certo(`${alvo} não é servido`, r.status === 404, `status ${r.status}`);
+  }
+  for (const alvo of ["/", "/assets/css/styles.css", "/blog/", "/matricula/", "/robots.txt", "/manifest.webmanifest", "/admin/gestao.js"]) {
+    const r = await pedir("GET", alvo);
+    certo(`${alvo} continua saindo`, r.status === 200, `status ${r.status}`);
   }
   for (const alvo of ["/../server.js", "/assets/../server.js", "/assets/%2e%2e/server.js"]) {
     const r = await pedir("GET", alvo);
@@ -486,16 +509,39 @@ function pngEmPe() {
     eq("a página abre", mat.status, 200);
     certo("tem os blocos do aluno e do responsável",
       /id="mat-responsavel"/.test(mat.corpo) && /id="mat-docs"/.test(mat.corpo));
-    certo("as três autorizações estão lá", (mat.corpo.match(/class="mat-check"/g) || []).length === 3);
+    /* Três de compromisso + a do tratamento de dados (LGPD, art. 14), que é
+       separada de propósito desde a 1.20.0. */
+    certo("as quatro autorizações estão lá", (mat.corpo.match(/class="mat-check"/g) || []).length === 4);
+    certo("uma delas é o consentimento dos dados", /name="aceite_dados"/.test(mat.corpo));
     certo("avisa o horário limite de 17h", /até 17h/.test(mat.corpo));
     certo("pede foto e comprovante pelo WhatsApp", /Foto do aluno/.test(mat.corpo) && /Comprovante de pagamento/.test(mat.corpo));
-    /* Documento pessoal — de criança, inclusive — não sobe para o servidor:
-       guardar isso criaria uma obrigação de proteção desnecessária. */
+    /* A foto — de criança, inclusive — não sobe por um formulário aberto na
+       internet: vai pela conversa e a secretaria anexa no painel. */
     certo("a página não sobe arquivo nenhum", !/type="file"/.test(mat.corpo));
+    /* Desde a 1.20.0 a ficha é guardada. Texto de privacidade dizendo o
+       contrário seria a primeira coisa que uma fiscalização confere. */
+    certo('a página não diz mais que "nada é guardado"', !/nada é guardado/i.test(mat.corpo));
+    certo("tem o campo-isca contra robô", /name="site_url"/.test(mat.corpo));
+    /* 1.21.0: só horário cadastrado. Texto livre não vira turma. */
+    certo("o horário é só por lista (sem campo de texto livre)", /<select id="m-turma" name="turma_id" required>/.test(mat.corpo) && !/name="horario_desejado"/.test(mat.corpo));
+    /* Sem method, um formulário cujo JS falhou envia por GET — CPF e endereço
+       na URL, e no log do nginx. */
+    certo("o formulário nunca envia por GET", /id="matricula-form"[^>]*method="post"/.test(mat.corpo));
+    /* `.field { display: grid }` vencia o `hidden` do navegador: o CPF do
+       adulto aparecia para criança e o formulário ficava na tela depois do
+       envio. Achado olhando a tela, não em teste — por isso agora é teste. */
+    const css = fs.readFileSync(path.join(__dirname, "assets", "css", "styles.css"), "utf8");
+    certo("o CSS do site respeita o atributo hidden", /\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css));
+    certo("os campos batem com o que o servidor espera",
+      ["turma_id", "sexo", "logradouro", "numero", "bairro", "cidade", "uf", "fone1", "resp_fone"]
+        .every((n) => new RegExp(`name="${n}"`).test(mat.corpo)));
+    const priv = await pedir("GET", "/privacidade/");
+    certo("a privacidade conta que a matrícula fica no sistema da academia",
+      /matrícula online fica guardada no sistema da academia/i.test(priv.corpo) && !/formulário do site não guarda nada/i.test(priv.corpo));
 
     const js = fs.readFileSync(path.join(__dirname, "assets", "js", "main.js"), "utf8");
-    certo("o formulário monta a mensagem e vai para o WhatsApp do painel",
-      /wa\.me\/\$\{WHATSAPP_NUMBER\}/.test(js) && /MATRÍCULA ONLINE/.test(js));
+    certo("o formulário envia para a gestão da academia", /fetch\("\/api\/publico\/matricula"/.test(js));
+    certo("e oferece o WhatsApp do painel para a foto e o comprovante", /wa\.me\/\$\{WHATSAPP_NUMBER\}/.test(js));
     certo("menor de idade passa a exigir responsável", /el\.required = menor/.test(js));
 
     const home = await pedir("GET", "/");

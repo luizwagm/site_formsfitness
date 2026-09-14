@@ -77,7 +77,13 @@ jobs:
       - name: Suíte do limitador de tentativas
         run: node testar-limitador.js
 
-      # A suíte grande (245 checagens) fala com o site por HTTP e NÃO sobe o
+      # A gestão da academia (1.20.0): sobe o PRÓPRIO servidor, na 5311, com
+      # banco temporário — contrato imutável, sequência de código, usuários,
+      # matrícula pública. Não depende do servidor do passo seguinte.
+      - name: Suíte da gestão da academia
+        run: node testar-gestao.js
+
+      # A suíte grande (254 checagens) fala com o site por HTTP e NÃO sobe o
       # servidor sozinha — ela espera encontrá-lo na porta 5186. Por isso ele é
       # levantado aqui.
       #

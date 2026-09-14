@@ -1,10 +1,11 @@
 # Forms Fitness — Academia Aquática
 
-Site institucional com blog e o **gerenciador de conteúdo** da Forms Fitness
-Academia Aquática — Caruaru-PE, 33 anos de mercado.
+Site institucional com blog, o **gerenciador de conteúdo** e, desde a 1.20.0, a
+**gestão da academia** (alunos, turmas, contratos, agenda e relatórios) da
+Forms Fitness Academia Aquática — Caruaru-PE, 33 anos de mercado.
 
 - **Domínio:** formsfitness.com (é `.com`, **não** `.com.br`)
-- **Porta interna:** 5186 · **Serviço:** `forms.service` · **Versão:** `1.18.0`
+- **Porta interna:** 5186 · **Serviço:** `forms.service` · **Versão:** `1.24.0`
 - **Stack:** Node ≥ 20 com `node:http`, SQLite via `better-sqlite3`. **Uma
   dependência de produção, e só.**
 
@@ -15,23 +16,41 @@ São duas áreas no mesmo processo e no mesmo arquivo de banco:
 | Área | O que é | Sessão |
 |---|---|---|
 | `/` | site público — 9 páginas estáticas, reescritas na publicação | — |
-| `/admin/` | gerenciador: textos, modalidades, fotos, blog, contato | cookie, 12 h deslizante |
+| `/admin/` | **Gestão da academia** (alunos, atividades, turmas, agenda, relatórios, contrato, configurações) e **Gestão do site** (textos, modalidades, fotos, blog, contato) | cookie, 12 h deslizante, **por usuário** |
 
-Não há área de gestão operacional: **nenhum cadastro de aluno, agenda ou
-financeiro**. O sistema é conteúdo e captação.
+Não há financeiro: mensalidade é um valor do cadastro que vai para o contrato,
+não uma cobrança.
 
 ## Objetivo
 
-Captar matrícula. Todo caminho da página termina em falar com a academia —
-botão flutuante de WhatsApp, formulário de contato, ou a página de matrícula,
-que monta a ficha e a envia formatada pela conversa.
+Captar matrícula e organizar a academia. Todo caminho da página termina em
+falar com a academia — botão flutuante de WhatsApp, formulário de contato, ou a
+página de matrícula, que grava a ficha como **pré-matrícula** na gestão. A
+secretaria confere, efetiva (é aí que o aluno ganha o código, a partir de
+004148) e gera o contrato.
 
 ## Principais funcionalidades
 
 - **31 campos de texto** e cinco listas de conteúdo, todos editáveis no painel.
 - **Blog** com página própria por matéria, endereço e resumo automáticos.
-- **Página de matrícula** que exige responsável conforme a idade e **não grava
-  nada no servidor**.
+- **Página de matrícula** que exige responsável conforme a idade, lista as
+  turmas abertas da gestão e grava a **pré-matrícula** com o consentimento
+  (LGPD, art. 14) — foto e comprovante continuam pelo WhatsApp.
+- **Gestão da academia:** cadastro de aluno com status ativo/inativo, código de
+  matrícula sequencial, **cadastro de professores** (escolhidos por select na
+  turma e, se for outro, em cada atividade do aluno), **várias atividades por
+  aluno** (cada uma com os seus dias, horário, professor e mensalidade — a
+  grade do sistema antigo), vagas
+  por turma que **avisam** quando passam do limite, tela de **Indicadores**
+  com gráficos, agenda do mês em **imagem para rede social** e em A4, ficha e contrato em uma folha cada, **histórico de
+  contratos imutável** (o banco recusa alterar ou apagar), modelo de contrato
+  editável com versões, **calendário** com três tipos de dia (feriado em
+  vermelho, dia de aula em azul, outra atividade em amarelo — a data de um
+  dia só vence a que se repete), seis relatórios e **usuários** com perfil.
+- **Auditoria do sistema** só de acréscimo (o banco recusa alterar ou apagar):
+  toda requisição que muda algo, entradas, senhas recusadas e impressões.
+  Pré-matrícula aparece só pelo número. **Sobre o sistema** mostra a versão e
+  o histórico lido deste CHANGELOG.
 - **Busca** no conteúdo do site, rodando no navegador.
 - **Envio de vídeo** pelo painel, com barra de progresso, para a seção Estrutura.
 - **Modo manutenção** em duas camadas e **backup diário** verificado.
@@ -74,6 +93,13 @@ silêncio no `PUT`. O campo aparece no painel, a pessoa salva, o aviso diz
 que já existe, o seed com guarda nunca roda, e o painel abre com um campo vazio
 que não salva.
 
+**E uma quarta, desde a 1.21.0: o servidor só entrega o que está numa lista.**
+Pastas `assets/ blog/ busca/ matricula/ privacidade/ admin/` e cinco arquivos
+da raiz (`PASTAS_PUBLICAS` e `ARQUIVOS_PUBLICOS` no `server.js`). Arquivo novo
+na raiz — o de verificação do Google, por exemplo — dá **404 até entrar na
+lista**. É de propósito: a lista antiga, de proibidos, entregava `testar.js` e
+a pasta `docs/` para qualquer um.
+
 ## Tecnologias
 
 - **Node.js ≥ 20** (CI em 22), servidor com `node:http` — sem framework.
@@ -92,9 +118,12 @@ server.js         tudo: site, publicação, painel, blog, SEO, busca, acessos
 db.js             único lugar que abre o banco; escolhe o driver
 limitador.js      freio de tentativas de senha
 backup.js         cópia diária, dentro do processo
-testar.js         suíte principal — 245 conferências
+testar.js         suíte principal — 272 conferências
+testar-gestao.js  suíte da gestão — 144 conferências, com banco temporário
+gestao/           a gestão: esquema, rotas, documentos (ficha/contrato), textos,
+                  auditoria e sobre (o CHANGELOG convertido para a tela)
 src/              moldes: blog · post · matricula · privacidade · busca
-admin/            o gerenciador
+admin/            o gerenciador (gestao.js/gestao.css = telas da gestão)
 assets/           css, js, imagens e o índice de busca
 blog/ busca/ matricula/ privacidade/    páginas GERADAS — não editar à mão
 nginx/  ci/  .github/                   vhost, entrega e pipeline
@@ -112,8 +141,13 @@ npm start       # sobe na porta 5186
 ```
 
 - Site: `http://localhost:5186/` · Painel: `http://localhost:5186/admin/`
-- A senha inicial do painel é semeada no `server.js` (procure por `admin_password_hash`).
-  **Troque no primeiro acesso** — em produção ela não deve continuar valendo.
+- O login é **usuário + senha**. O primeiro usuário, `admin`, herda a senha que
+  o painel já tinha (a inicial é semeada no `server.js` — procure por
+  `admin_password_hash`). **Troque no primeiro acesso** e crie um usuário para
+  cada pessoa da equipe em *Administrador ▸ Usuários do sistema*.
+- `PORT`, `FF_DATA` (pasta do banco) e `FF_BACKUPS` mudam porta e pastas —
+  servem para rodar uma cópia do banco sem tocar no de sempre. Sem elas, tudo
+  fica como sempre foi.
 
 O banco nasce semeado com o conteúdo de exemplo, então o site já sobe
 apresentável.
@@ -122,9 +156,13 @@ apresentável.
 
 ```bash
 node server.js        # num terminal
-node testar.js        # no outro — 245 conferências
+node testar.js        # no outro — 272 conferências
 node testar-limitador.js
+node testar-gestao.js # sobe o próprio servidor, na 5311, com banco temporário
 ```
+
+Para rodar `testar.js` contra uma cópia do banco, suba o servidor com
+`FF_DATA=<cópia> PORT=5313` e rode a suíte com as mesmas duas variáveis.
 
 A suíte fala com o servidor **de verdade** por HTTP: o que passa nela é o que o
 navegador vai encontrar. Cada bloco cobre uma falha real encontrada em auditoria
@@ -171,17 +209,21 @@ que conferir em cada um.
 Histórico de versões em [`CHANGELOG.md`](CHANGELOG.md) — criado na 1.17.0; o
 anterior vive nas mensagens do git.
 
-> Os PDFs refletem a versão **1.18.0**. Ao subir versão que mude arquitetura,
-> banco ou telas, vale regerá-los.
+> Os PDFs refletem a versão **1.18.0** — **antes da gestão da academia**. A
+> 1.20.0 muda arquitetura, banco e telas: é hora de regerá-los.
 
 ## LGPD
 
 - **Consentimento prévio de verdade:** os identificadores de GA4, GTM, Pixel,
   Clarity e Hotjar em `config.js` só carregam **depois** do aceite. Cookie de
   180 dias, com "Preferências de cookies" no rodapé para reabrir a escolha.
-- **A matrícula não grava nada** e **não aceita arquivo** — foto e comprovante
-  vão pela conversa. A academia atende crianças, e documento de menor não fica
-  no servidor. A política de privacidade diz isso com todas as letras.
+- **A matrícula grava a ficha na gestão, mas não aceita arquivo** — foto e
+  comprovante vão pela conversa, e a secretaria anexa a foto no painel. A foto
+  fica no banco e só sai por `/admin/arquivo/:id`, com login; nunca numa pasta
+  pública. O consentimento fica gravado com a data, **sem o IP**. Para aluno
+  menor, quem consente é o responsável (art. 14), com texto próprio.
+- A política de privacidade foi reescrita na 1.20.0 para dizer isso — antes ela
+  afirmava que nada era guardado.
 - **O contador de acessos guarda hash do IP com sal**, nunca o endereço.
 - O mapa incorporado do Google foi substituído por um **cartão de endereço**:
   ele trazia cerca de 900 KB e plantava cookie *antes* do consentimento.

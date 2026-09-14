@@ -18,11 +18,16 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.19.0";
-const PORT = 5186;
+const APP_VERSION = "1.24.0";
+/* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
+   deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
+   num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento
+   do cliente, e prova nenhuma deveria encostar no dado de ninguém. */
+const PORT = Number(process.env.PORT) || 5186;
 const SITE = "https://formsfitness.com";
 const UPLOAD_DIR = path.join(ROOT, "assets", "img", "uploads");
-fs.mkdirSync(path.join(ROOT, "data"), { recursive: true });
+const DADOS = process.env.FF_DATA ? path.resolve(process.env.FF_DATA) : path.join(ROOT, "data");
+fs.mkdirSync(DADOS, { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(path.join(ROOT, "blog"), { recursive: true });
 /* Vídeo em pasta separada das fotos: são arquivos de outra ordem de tamanho,
@@ -47,11 +52,11 @@ const VIDEO_MAX = Number(process.env.VIDEO_MAX_MB || 120) * 1024 * 1024;
 /* Freio contra adivinhação de senha. Vive em arquivo para sobreviver ao
    reinício — o servidor reinicia sozinho de madrugada, e uma contagem só na
    memória devolveria o orçamento inteiro ao atacante todo dia. */
-const limite = criarLimitador({ arquivo: path.join(ROOT, "data", "limites.json") });
+const limite = criarLimitador({ arquivo: path.join(DADOS, "limites.json") });
 limite.carregar();
 process.on("exit", () => limite.gravar());
 
-const db = abrirBanco(path.join(ROOT, "data", "site.db"));
+const db = abrirBanco(path.join(DADOS, "site.db"));
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, text TEXT, sort INTEGER DEFAULT 0);
@@ -332,25 +337,45 @@ seed();
 // migração leve: garante chaves novas em bancos já existentes
 if (!getS("cnpj")) setS("cnpj", "00.000.000/0001-00");
 
+/* ==========================================================================
+   A GESTÃO DA ACADEMIA (1.20.0)
+
+   Vive em gestao/: esquema, contas, documentos e rotas. Instala as tabelas no
+   mesmo banco — um arquivo para o backup, uma cópia para o deploy proteger.
+   ========================================================================== */
+require("./gestao/esquema").instalar({ db, getS, setS, hashSenha });
+
 /* ------------------------------ Sessões ---------------------------------- */
 /* A sessão guarda o INSTANTE do último uso, não só a existência do cookie.
    Sem prazo, um cookie copiado de um computador emprestado abriria o painel
    meses depois. Doze horas cobrem um dia de trabalho e o relógio reinicia a
    cada acesso — quem está usando não é interrompido. */
 const SESSAO_HORAS = 12;
+/* Desde a 1.20 a sessão guarda QUEM entrou, e não só que alguém entrou: o
+   histórico de contratos registra quem gerou cada um, e isso só é verdade se
+   cada pessoa tiver a sua conta. token → { uid, visto }. */
 const sessions = new Map();
+/* Devolve o USUÁRIO da sessão (ou null). Quem só precisa de sim/não continua
+   usando como antes — objeto é verdadeiro, null é falso. */
 const authed = (req) => {
   const m = /(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie || "");
-  if (!m) return false;
-  const visto = sessions.get(m[1]);
-  if (!visto) return false;
-  if (Date.now() - visto > SESSAO_HORAS * 3600_000) { sessions.delete(m[1]); return false; }
-  sessions.set(m[1], Date.now());
-  return true;
+  if (!m) return null;
+  const s = sessions.get(m[1]);
+  if (!s) return null;
+  if (Date.now() - s.visto > SESSAO_HORAS * 3600_000) { sessions.delete(m[1]); return null; }
+  /* O usuário é relido do banco a cada pedido: desativar alguém na tela de
+     Usuários tira o acesso na hora, e não quando a sessão dele vencer. */
+  const u = db.prepare("SELECT id, nome, login, admin, ativo FROM usuarios WHERE id=?").get(s.uid);
+  if (!u || !u.ativo) { sessions.delete(m[1]); return null; }
+  s.visto = Date.now();
+  return u;
+};
+const derrubarSessoes = (uid, exceto) => {
+  for (const [k, s] of sessions) if (s.uid === uid && k !== exceto) sessions.delete(k);
 };
 setInterval(() => {
   const limite = Date.now() - SESSAO_HORAS * 3600_000;
-  for (const [k, v] of sessions) if (v < limite) sessions.delete(k);
+  for (const [k, s] of sessions) if (s.visto < limite) sessions.delete(k);
 }, 30 * 60_000).unref();
 
 /* ==========================================================================
@@ -947,7 +972,7 @@ function publish() {
     { t: "Contato e aula experimental", u: "/#contato", tipo: "Página", d: `Fale com a Forms Fitness pelo WhatsApp ${S.whatsapp_display || ""} ou pelo e-mail ${S.contact_email || ""}.` },
     ...services.map((x) => ({ t: x.title, u: "/#modalidades", tipo: "Modalidade", d: semTags(x.text) })),
     ...posts.map((p) => ({ t: p.title, u: `/blog/${p.slug}/`, tipo: "Blog", d: semTags(p.excerpt) + " " + semTags(p.content).slice(0, 300) })),
-    { t: "Matrícula online — Garanta sua vaga", u: "/matricula/", tipo: "Matrícula", d: "Faça a matrícula pela internet: preencha os dados do aluno e do responsável e envie pelo WhatsApp. Horário limite às 17h." },
+    { t: "Matrícula online — Garanta sua vaga", u: "/matricula/", tipo: "Matrícula", d: "Faça a matrícula pela internet: escolha a turma, preencha os dados do aluno e do responsável e envie. A secretaria confirma pelo WhatsApp. Horário limite às 17h." },
     { t: "Política de Privacidade", u: "/privacidade/", tipo: "Institucional", d: "Como tratamos os seus dados pessoais: o que coletamos, por quê, com quem compartilhamos, prazos de guarda e como exercer os seus direitos pela LGPD." },
   ];
   fs.mkdirSync(path.join(ROOT, "assets", "data"), { recursive: true });
@@ -993,8 +1018,8 @@ function publish() {
    um comando errado na pasta do banco não leve as cópias junto — o backup
    guardado ao lado do original protege contra defeito, não contra engano. */
 const BACKUP_CFG = {
-  destino: path.join(ROOT, "backups"),
-  bancos: [path.join(ROOT, "data", "site.db")],
+  destino: process.env.FF_BACKUPS ? path.resolve(process.env.FF_BACKUPS) : path.join(ROOT, "backups"),
+  bancos: [path.join(DADOS, "site.db")],
   intervaloHoras: Number(process.env.BACKUP_HORAS) || 24,
   manter: Number(process.env.BACKUP_MANTER) || 30,
 };
@@ -1144,6 +1169,23 @@ const KEYS = ["hero_badge", "hero_title", "hero_lead", "stats", "about_title", "
      acrescentar aqui é o jeito mais fácil de criar um botão que mente. */
   "google_url", "google_nota", "google_total"];
 
+/* A página impressa (ficha, contrato, relatório) precisa de script inline — o
+   ajuste que faz o documento caber numa folha — e de imagem do próprio site.
+   Nada de fora: nem fonte, nem script, nem conexão. */
+const CSP_IMPRESSAO = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'; " +
+  "img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'";
+
+/* O que o site serve em disco: as páginas geradas, os assets e o painel. */
+const PASTAS_PUBLICAS = new Set(["assets", "blog", "busca", "matricula", "privacidade", "admin", ".well-known"]);
+const ARQUIVOS_PUBLICOS = new Set(["/index.html", "/robots.txt", "/sitemap.xml", "/manifest.webmanifest", "/manutencao.html"]);
+
+const gestao = require("./gestao/rotas").criar({
+  db, getS, setS, hashSenha, confereSenha, htmlLimpo, readBody, json, ipDoCliente,
+  CSP_IMPRESSAO, derrubarSessoes,
+  versao: APP_VERSION, driver: DRIVER_NOME, iniciadoEm: new Date().toISOString(), site: SITE,
+});
+const auditoria = gestao.auditoria;
+
 /* ------------------------------ Servidor ---------------------------------- */
 http.createServer(async (req, res) => {
   const p = new URL(req.url, `http://localhost:${PORT}`).pathname;
@@ -1182,23 +1224,41 @@ http.createServer(async (req, res) => {
     }
 
     if (p.startsWith("/api/")) {
+      /* O formulário de matrícula do site e a lista de turmas que ele oferece
+         são as ÚNICAS rotas de /api/ abertas ao público. Ficam antes do login
+         de propósito — e só elas. */
+      if (p.startsWith("/api/publico/") && await gestao.publico(req, res, p)) return;
+
       if (p === "/api/login" && req.method === "POST") {
         const ip = ipDoCliente(req);
-        /* O painel tem um dono só, então a "conta" é sempre a mesma — e é
-           justamente isso que faz o balde por conta valer aqui: ele soma os
-           erros de TODOS os endereços, que é como o ataque distribuído era
-           invisível para a trava por IP. */
-        const v = limite.verificar("painel", ip, "admin");
+        const { password, usuario } = await readBody(req);
+        /* Sem usuário digitado, é o "admin" — o login de sempre (e o da suíte
+           antiga) continua funcionando sem mudar nada. */
+        const login = String(usuario || "admin").trim().toLowerCase().slice(0, 40) || "admin";
+        /* O balde por CONTA soma os erros de todos os endereços contra aquele
+           usuário — é como o ataque distribuído deixa de ser invisível. */
+        const v = limite.verificar("painel", ip, login);
         if (!v.ok) { res.setHeader("Retry-After", String(v.esperar)); return json(res, 429, { error: v.mensagem }); }
-        const { password } = await readBody(req);
-        const guardado = getS("admin_password_hash");
-        const certa = guardado ? confereSenha(password, guardado) : (confereSenha(password, HASH_ISCA), false);
-        if (!certa) { limite.errou("painel", ip, "admin"); return json(res, 401, { error: "Senha incorreta" }); }
-        limite.acertou("painel", ip, "admin");
+        const conta = db.prepare("SELECT * FROM usuarios WHERE login=? AND ativo=1").get(login);
+        /* Usuário inexistente gasta o MESMO tempo que senha errada: senão o
+           relógio contaria quais logins existem. E a mensagem é a mesma. */
+        const certa = conta ? confereSenha(password, conta.senha) : (confereSenha(password, HASH_ISCA), false);
+        if (!certa) {
+          limite.errou("painel", ip, login);
+          /* Só a tentativa que CHEGOU a conferir a senha: as que o limitador
+             barrou antes (429) não entram — senão um robô insistente encheria
+             a auditoria mais depressa do que o freio o segura. */
+          auditoria.registrar({ usuario: { login }, acao: "Tentativa de entrar recusada", alvo: `usuário "${login}"`,
+            metodo: "POST", rota: p, status: 401, ip });
+          return json(res, 401, { error: "Usuário ou senha incorretos" });
+        }
+        limite.acertou("painel", ip, login);
+        auditoria.registrar({ usuario: conta, acao: "Entrou no sistema", metodo: "POST", rota: p, status: 200, ip });
         // acertou com o formato antigo: regrava em scrypt e o velho some
-        if (!guardado.startsWith("scrypt$")) setS("admin_password_hash", hashSenha(password));
+        if (!conta.senha.startsWith("scrypt$"))
+          db.prepare("UPDATE usuarios SET senha=? WHERE id=?").run(hashSenha(password), conta.id);
         const t = crypto.randomBytes(24).toString("hex");
-        sessions.set(t, Date.now());
+        sessions.set(t, { uid: conta.id, visto: Date.now() });
         const https = req.headers["x-forwarded-proto"] === "https";
         /* Max-Age: sessão sem prazo é sessão eterna — um cookie roubado valeria
            para sempre. Secure sob HTTPS impede que ele trafegue em claro. */
@@ -1206,8 +1266,16 @@ http.createServer(async (req, res) => {
           `sid=${t}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSAO_HORAS * 3600}${https ? "; Secure" : ""}`);
         return json(res, 200, { ok: true });
       }
-      if (!authed(req)) return json(res, 401, { error: "Não autenticado" });
-      if (p === "/api/me") return json(res, 200, { ok: true, version: APP_VERSION });
+      const usuario = authed(req);
+      if (!usuario) return json(res, 401, { error: "Não autenticado" });
+      /* Toda requisição que MUDA algo entra na auditoria, com o status que
+         teve — o gancho fica aqui, antes de qualquer rota, para que rota nova
+         não precise lembrar de se registrar. */
+      if (req.method !== "GET" && req.method !== "HEAD") auditoria.acompanhar(req, res, p, usuario, ipDoCliente(req));
+      if (p === "/api/me") return json(res, 200, { ok: true, version: APP_VERSION,
+        usuario: { id: usuario.id, nome: usuario.nome, login: usuario.login, admin: !!usuario.admin } });
+
+      if (p.startsWith("/api/gestao/") && await gestao.api(req, res, p, usuario)) return;
 
       /* Liga/desliga o modo manutenção e devolve o estado atual. O GET serve
          para a tela do painel abrir já preenchida. */
@@ -1234,21 +1302,24 @@ http.createServer(async (req, res) => {
            Sem freio, quem roubasse um cookie de sessão poderia testar a senha
            atual à vontade por aqui, contornando o login. */
         const ipT = ipDoCliente(req);
-        const vT = limite.verificar("troca-senha", ipT, "admin");
+        const vT = limite.verificar("troca-senha", ipT, usuario.login);
         if (!vT.ok) { res.setHeader("Retry-After", String(vT.esperar)); return json(res, 429, { error: vT.mensagem }); }
         const { current, next } = await readBody(req);
-        if (!confereSenha(current, getS("admin_password_hash"))) {
-          limite.errou("troca-senha", ipT, "admin");
+        /* Cada um troca a PRÓPRIA senha. A de outra pessoa, só o
+           administrador, pela tela de Usuários. */
+        const guardada = db.prepare("SELECT senha FROM usuarios WHERE id=?").get(usuario.id).senha;
+        if (!confereSenha(current, guardada)) {
+          limite.errou("troca-senha", ipT, usuario.login);
           return json(res, 400, { error: "Senha atual incorreta" });
         }
-        limite.acertou("troca-senha", ipT, "admin");
+        limite.acertou("troca-senha", ipT, usuario.login);
         if (!next || String(next).length < 8) return json(res, 400, { error: "A nova senha precisa de ao menos 8 caracteres." });
-        if (confereSenha(next, getS("admin_password_hash"))) return json(res, 400, { error: "A nova senha é igual à atual." });
-        setS("admin_password_hash", hashSenha(next));
-        /* Trocar a senha derruba as OUTRAS sessões: se alguém tinha um cookie
-           roubado, é agora que ele para de valer. */
+        if (confereSenha(next, guardada)) return json(res, 400, { error: "A nova senha é igual à atual." });
+        db.prepare("UPDATE usuarios SET senha=? WHERE id=?").run(hashSenha(next), usuario.id);
+        /* Trocar a senha derruba as OUTRAS sessões desta pessoa: se alguém
+           tinha um cookie roubado, é agora que ele para de valer. */
         const meu = (/sid=([a-f0-9]+)/.exec(req.headers.cookie || "") || [])[1];
-        for (const k of [...sessions.keys()]) if (k !== meu) sessions.delete(k);
+        derrubarSessoes(usuario.id, meu);
         return json(res, 200, { ok: true });
       }
       if (p === "/api/content") {
@@ -1360,6 +1431,18 @@ http.createServer(async (req, res) => {
       return json(res, 404, { error: "Rota não encontrada" });
     }
 
+    /* Ficha, contrato, relatórios e as imagens privadas (foto do aluno,
+       assinaturas): páginas de verdade, abertas em outra aba para imprimir,
+       mas só com sessão. Sem login, voltam para a tela de entrada. */
+    if (p.startsWith("/admin/imprimir/") || p.startsWith("/admin/arquivo/")) {
+      const quem = authed(req);
+      /* Impressão é dado pessoal saindo do sistema em papel: entra na
+         auditoria. A foto do aluno (/admin/arquivo) não — ela carrega sozinha
+         a cada tela aberta e viraria ruído. */
+      if (quem && p.startsWith("/admin/imprimir/")) auditoria.acompanhar(req, res, p, quem, ipDoCliente(req));
+      if (gestao.imprimir(req, res, p, quem)) return;
+    }
+
     if (p === "/admin" || p === "/admin/") {
       res.writeHead(200, { "Content-Type": MIME[".html"], "Cache-Control": "no-store",
         "X-Robots-Tag": "noindex, nofollow", "Content-Security-Policy": CSP_PAINEL });
@@ -1377,9 +1460,17 @@ http.createServer(async (req, res) => {
        pronto para quem estivesse sondando. Por isso o bloqueio é por PASTA e
        por EXTENSÃO, e não por uma lista de nomes.
        ====================================================================== */
-    const dirProibido = /^\/(data|src|backups|node_modules|\.[^/]+)(\/|$)/i;
+    const dirProibido = /^\/(data|src|backups|node_modules|gestao|\.[^/]+)(\/|$)/i;
     const extProibida = /\.(sh|bash|service|env|conf|ini|sql|db|db-wal|db-shm|pem|key|crt|backup|old|orig|swp|tmp|log|md)$/i;
-    if (dirProibido.test(p) || extProibida.test(p) || /(^|\/)(server|db)\.js$/i.test(p) ||
+    /* E, acima da lista do que é proibido, a lista do que é PERMITIDO (1.21.0).
+       A de proibidos deixava passar qualquer .js da raiz que não se chamasse
+       server ou db: testar.js, testar-gestao.js (com a senha inicial dentro),
+       backup.js, limitador.js — e as pastas docs/ (a documentação técnica, com
+       a arquitetura de segurança) e ci/ (a regra do sudo da entrega). Lista de
+       proibidos esquece o arquivo criado amanhã; lista de permitidos, não. */
+    const primeiro = p.split("/")[1] || "";
+    const lugarPublico = p === "/" || ARQUIVOS_PUBLICOS.has(p) || PASTAS_PUBLICAS.has(primeiro);
+    if (!lugarPublico || dirProibido.test(p) || extProibida.test(p) || /(^|\/)(server|db)\.js$/i.test(p) ||
         /(^|\/)\.[^/]+$/.test(p) || /(^|\/)package(-lock)?\.json$/i.test(p)) {
       res.writeHead(404, { "Content-Type": "text/plain" });
       return res.end("404");
@@ -1420,7 +1511,8 @@ http.createServer(async (req, res) => {
     console.error(`    Corrija com: sudo chown -R ${usuario}: "${ROOT}/data" "${ROOT}/assets/img/uploads"`);
   }
   // avisa sem imprimir a senha: em produção este log vai parar no journalctl
-  if (confereSenha("forms-admin", getS("admin_password_hash")))
-    console.log(`  ⚠ A senha do painel ainda é a padrão. Troque em Senha antes de publicar.`);
+  const admin = db.prepare("SELECT senha FROM usuarios WHERE login='admin'").get();
+  if (admin && confereSenha("forms-admin", admin.senha))
+    console.log(`  ⚠ A senha do usuário "admin" ainda é a padrão. Troque em Minha conta antes de publicar.`);
   console.log("");
 });

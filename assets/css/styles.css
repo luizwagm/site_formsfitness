@@ -28,6 +28,10 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+/* O `hidden` do navegador perde para qualquer `display` escrito aqui: um
+   `.field { display: grid }` bastava para mostrar o bloco de CPF para criança
+   e deixar o formulário na tela depois do envio. */
+[hidden] { display: none !important; }
 html { scroll-behavior: smooth; scroll-padding-top: 96px; }
 body {
   margin: 0;
@@ -716,12 +720,33 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
   background: #fdeef2; color: #c2185b; border: 1px solid #f6c6d4;
   border-radius: 12px; padding: .8rem 1rem; font-weight: 700; margin: 0;
 }
+.mat-erro a { color: inherit; text-decoration: underline; }
 .mat-enviar { width: 100%; justify-content: center; }
 .mat-privacidade { font-size: .86rem; color: var(--ink-soft); text-align: center; margin: 0; line-height: 1.7; }
 .mat-privacidade a { color: var(--blue); font-weight: 700; }
+.mat-check a { color: var(--blue); font-weight: 700; }
+
+/* Campo-isca: fora da tela, e não display:none — robô de formulário ignora
+   campo escondido por display:none, mas preenche o que está só deslocado. */
+.mat-isca { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+.mat-enviar[disabled] { opacity: .65; cursor: progress; }
+
+/* Depois de enviar: o formulário some e fica só o próximo passo. */
+.mat-ok {
+  text-align: center; padding: 2.4rem 1.6rem;
+  border: 1px solid var(--lime); border-radius: var(--radius);
+  background: rgba(126, 211, 33, .08); box-shadow: var(--shadow-soft);
+}
+.mat-ok:focus { outline: none; }
+.mat-ok__icone { font-size: 2.6rem; margin: 0 0 .4rem; }
+.mat-ok__titulo { font-family: var(--font-display); font-weight: 800; color: var(--blue-ink); margin: 0 0 .8rem; }
+.mat-ok p { margin: 0 0 .8rem; color: var(--ink-soft); }
+.mat-ok .btn { margin-top: .6rem; }
 
 @media (max-width: 640px) {
   .mat-bloco { padding: 1.3rem 1.1rem; }
+  .mat-ok { padding: 2rem 1.1rem; }
 }
 
 /* ==========================================================================

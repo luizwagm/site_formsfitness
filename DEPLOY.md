@@ -108,8 +108,13 @@ cd /var/www/projetos/Forms-Fitness && sudo chown -R root:root data assets/img/up
 A senha inicial é `forms-admin` e **está escrita no código, à vista de todos**.
 Troque antes de divulgar o site.
 
-Acesse `https://formsfitness.com/admin/`, entre com a senha inicial e vá em
-**Senha**. Mínimo de 8 caracteres.
+Acesse `https://formsfitness.com/admin/`, entre com o usuário `admin` e a senha
+inicial e vá em **Administrador ▸ Minha conta**. Mínimo de 8 caracteres.
+
+Depois crie **um usuário para cada pessoa** da equipe em **Administrador ▸
+Usuários do sistema** (perfil *Secretaria* para quem não administra usuários). O histórico de
+contratos registra quem gerou cada um — com todo mundo usando o `admin`, essa
+coluna não diz nada.
 
 > Enquanto for a padrão, o serviço avisa a cada boot no `journalctl`.
 
@@ -129,6 +134,29 @@ cookies — o banner já está pronto para isso.
 
 Clique em **Publicar** ao terminar: é o Publicar que grava os textos nas
 páginas e regenera o sitemap e o índice de busca.
+
+---
+
+## 8. Configurar a gestão da academia
+
+Tudo pelo painel, em **Gestão da academia**. O banco já nasce com os feriados
+nacionais, de Pernambuco e de Caruaru, os dias de aula (terça, quarta e sexta),
+o modelo do contrato, as condições da matrícula e a atividade Natação.
+
+1. **Contrato ▸ Assinaturas da contratada ▸ Enviar imagem** — a imagem com as
+   assinaturas do diretor e das testemunhas, que vai no pé de todo contrato
+   gerado. Ela **não vem no repositório** (é assinatura de gente de verdade).
+2. **Atividades** — confira a mensalidade de cada uma. É o valor sugerido ao
+   efetivar um aluno.
+3. **Turmas** — cadastre os horários e deixe marcado **"Aparece no formulário de matrícula do site"** nas que
+   aceitam matrícula online. Sem nenhuma turma assim, o formulário do site
+   pede o horário em texto livre.
+4. **Configurações** — revise os feriados municipais (o 24/06 foi cadastrado
+   como São João de Caruaru; confira com a prefeitura) e os dias de aula.
+
+A matrícula feita no site chega em **Alunos** como *pré-matrícula*, com um
+contador no menu. Ela só ganha código ao ser **efetivada** — a sequência
+continua do 004148.
 
 ---
 
@@ -154,6 +182,10 @@ cd /var/www/projetos/Forms-Fitness && sudo ./deploy.sh
 
 Ele tira o banco e as fotos do caminho do git antes do `pull` e devolve depois,
 conta o conteúdo antes e depois, e **restaura sozinho** se algo sumir.
+
+> **Na 1.20.0** o banco ganha as tabelas da gestão no primeiro boot, sozinho, e
+> o login passa a pedir usuário: quem já entrava continua com `admin` e a mesma
+> senha. Depois do deploy, siga o passo **8** acima.
 
 ### Backup
 

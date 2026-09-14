@@ -335,22 +335,36 @@ async function initSearchResults() {
 /* ==========================================================================
    MATRÍCULA ONLINE (/matricula/)
 
-   Monta a mensagem e abre o WhatsApp da academia — o número vem do painel,
-   pelo config.js, e não fica escrito aqui.
+   A ficha vai para o sistema de gestão da academia (/api/publico/matricula)
+   e entra como PRÉ-MATRÍCULA: a secretaria confere, escolhe a mensalidade e
+   efetiva — só aí o aluno ganha o código. Um formulário aberto na internet não
+   pode gastar número de matrícula nem virar aluno sozinho.
 
-   NADA É GRAVADO NO SITE. É decisão, não limitação: a ficha tem RG, CPF,
-   endereço e filiação, inclusive de criança. Guardar isso num servidor cria
-   uma obrigação de proteção que a academia não precisa assumir para um
-   formulário que termina numa conversa de WhatsApp de qualquer jeito.
+   A foto e o comprovante continuam indo pelo WhatsApp (o número vem do painel,
+   pelo config.js): o botão aparece depois do envio, com o nome do aluno.
+
+   Toda regra aqui é conforto de quem digita. Quem decide é o servidor, que
+   confere tudo de novo — este arquivo qualquer um pode editar no navegador.
    ========================================================================== */
 function initMatricula() {
   const form = $("#matricula-form");
   if (!form) return;
 
+  /* Página antiga (guardada no navegador de antes da 1.20.0) com este script
+     novo: os campos não batem. Em vez de quebrar no meio — e deixar o
+     formulário antigo enviar sozinho, por GET, com CPF e endereço na URL —
+     recarrega para pegar a página nova. */
+  if (!form.querySelector('[name="site_url"]')) {
+    form.addEventListener("submit", (e) => { e.preventDefault(); location.reload(); });
+    return;
+  }
+
   const erro = $("#mat-erro");
   const blocoResp = $("#mat-responsavel");
   const blocoDocs = $("#mat-docs");
   const nasc = $("#m-nasc");
+  const botao = form.querySelector(".mat-enviar");
+  const selTurma = $("#m-turma");
 
   /* Idade em anos completos. Comparar só o ano erraria em quem faz aniversário
      depois de hoje — e a diferença entre 17 e 18 é justamente o que decide se
@@ -366,9 +380,12 @@ function initMatricula() {
     return a;
   };
 
-  /* Menor de idade → pede responsável. Maior → pede RG e CPF. Os dois blocos
-     se revezam, e o `required` acompanha: campo escondido e obrigatório trava
-     o envio sem mostrar onde está o problema. */
+  /* Menor de idade → pede responsável. Maior → pede CPF. Os dois blocos se
+     revezam, e o `required` acompanha: campo escondido e obrigatório trava o
+     envio sem mostrar onde está o problema. O texto do consentimento também
+     muda: para criança, quem autoriza é o responsável (LGPD, art. 14). */
+  const textoDados = $("#mat-texto-dados");
+  const linkPriv = '<a href="/privacidade/" target="_blank" rel="noopener">Política de Privacidade</a>';
   function ajustarPorIdade() {
     const idade = idadeEm(nasc.value);
     const menor = idade !== null && idade < 18;
@@ -376,15 +393,43 @@ function initMatricula() {
 
     blocoResp.hidden = !menor;
     blocoDocs.hidden = !maior;
-
-    ["m-r-nome", "m-r-rg", "m-r-cpf"].forEach((id) => {
+    ["m-r-nome", "m-r-rg", "m-r-cpf", "m-r-fone"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.required = menor;
     });
+    $("#m-cpf").required = maior;
+
+    textoDados.innerHTML = menor
+      ? `Como responsável legal pelo aluno, autorizo a Forms Fitness a guardar os dados dele e os meus para a gestão da matrícula, conforme a ${linkPriv}.`
+      : `Autorizo a Forms Fitness a guardar estes dados para a gestão da matrícula, conforme a ${linkPriv}.`;
   }
   nasc.addEventListener("change", ajustarPorIdade);
   nasc.addEventListener("blur", ajustarPorIdade);
   ajustarPorIdade();
+
+  /* Os horários vêm da gestão, na hora — só os CADASTRADOS: texto livre
+     ("terça às 10h, se tiver") não vira turma, e a secretaria tinha de
+     adivinhar. Sem horário aberto (ou sem resposta do servidor), o envio
+     fica travado e a pessoa é mandada para a conversa, em vez de preencher
+     a ficha inteira para descobrir no fim que não dá. */
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  function semHorario(texto) {
+    selTurma.innerHTML = `<option value="">${esc(texto)}</option>`;
+    selTurma.disabled = true;
+    botao.disabled = true;
+    const aviso = $("#mat-sem-turma");
+    aviso.innerHTML = `${esc(texto)}. Fale com a academia pelo <a href="https://wa.me/${WHATSAPP_NUMBER}" target="_blank" rel="noopener">WhatsApp</a> para ver as vagas.`;
+    aviso.hidden = false;
+  }
+  fetch("/api/publico/turmas", { headers: { Accept: "application/json" } })
+    .then((r) => (r.ok ? r.json() : Promise.reject()))
+    .then(({ turmas, dias }) => {
+      if (!turmas || !turmas.length) return semHorario("Nenhum horário aberto para matrícula online no momento");
+      selTurma.innerHTML = '<option value="">Selecione o horário…</option>' +
+        turmas.map((t) => `<option value="${Number(t.id)}">${esc(t.rotulo)}</option>`).join("");
+      if (dias) { const p = $("#mat-dias"); p.textContent = `Aulas: ${dias}.`; p.hidden = false; }
+    })
+    .catch(() => semHorario("Não foi possível carregar os horários agora"));
 
   /* Máscaras leves: ajudam a digitar sem impedir colar nem atrapalhar quem usa
      leitor de tela. Só formatam o que já é número. */
@@ -396,83 +441,105 @@ function initMatricula() {
     .replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2");
   mascara($("#m-cpf"), cpf);
   mascara($("#m-r-cpf"), cpf);
-  const fone = (v) => soDig(v).slice(0, 11)
-    .replace(/^(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d{1,4})$/, "$1-$2");
-  mascara($("#m-whats"), fone);
-
-  const dataBR = (iso) => {
-    const [a, m, d] = String(iso || "").split("-");
-    return d ? `${d}/${m}/${a}` : (iso || "—");
+  const fone = (v) => {
+    const d = soDig(v).slice(0, 11);
+    return d.replace(/^(\d{2})(\d)/, "($1) $2").replace(d.length > 10 ? /(\d{5})(\d{1,4})$/ : /(\d{4})(\d{1,4})$/, "$1-$2");
   };
+  ["#m-whats", "#m-fone2", "#m-r-fone", "#m-r-ftrab"].forEach((s) => mascara($(s), fone));
 
-  form.addEventListener("submit", (e) => {
+  /* Dígito verificador do CPF: pega o erro de digitação aqui, com o dedo
+     ainda no campo, e não depois de a pessoa apertar enviar. */
+  const cpfOk = (v) => {
+    const d = soDig(v);
+    if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+    const dv = (n) => {
+      let s = 0;
+      for (let i = 0; i < n; i++) s += Number(d[i]) * (n + 1 - i);
+      const r = (s * 10) % 11;
+      return r === 10 ? 0 : r;
+    };
+    return dv(9) === Number(d[9]) && dv(10) === Number(d[10]);
+  };
+  ["#m-cpf", "#m-r-cpf"].forEach((s) => {
+    const el = $(s);
+    el.addEventListener("input", () => el.setCustomValidity(""));
+    el.addEventListener("blur", () => el.setCustomValidity(el.value && !cpfOk(el.value) ? "CPF inválido" : ""));
+  });
+
+  function mostrarErro(texto, alvo) {
+    erro.textContent = texto;
+    erro.hidden = false;
+    const foco = alvo || erro;
+    foco.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (alvo) setTimeout(() => alvo.focus({ preventScroll: true }), 350);
+  }
+
+  let enviando = false;
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (enviando) return;
     erro.hidden = true;
+    ["#m-cpf", "#m-r-cpf"].forEach((s) => {
+      const el = $(s);
+      el.setCustomValidity(el.value && !cpfOk(el.value) ? "CPF inválido" : "");
+    });
 
     /* `reportValidity` só aponta o primeiro campo. A mensagem própria diz
        QUANTOS faltam e leva até o primeiro — numa ficha longa, sair rolando
        atrás do campo vermelho é o que faz a pessoa desistir. */
     if (!form.checkValidity()) {
-      const faltando = [...form.querySelectorAll(":invalid")].filter((el) => !el.disabled);
+      const faltando = [...form.querySelectorAll(":invalid")].filter((el) => !el.disabled && el.tagName !== "FIELDSET");
       const primeiro = faltando[0];
-      erro.textContent = faltando.length === 1
-        ? "Falta preencher um campo obrigatório."
-        : `Faltam ${faltando.length} campos obrigatórios.`;
-      erro.hidden = false;
-      if (primeiro) {
-        primeiro.scrollIntoView({ behavior: "smooth", block: "center" });
-        setTimeout(() => primeiro.focus({ preventScroll: true }), 350);
-      }
+      const cpfRuim = faltando.find((el) => el.validationMessage === "CPF inválido");
+      mostrarErro(cpfRuim ? "O CPF não confere. Verifique os números."
+        : faltando.length === 1 ? "Falta preencher um campo obrigatório."
+        : `Faltam ${faltando.length} campos obrigatórios.`, cpfRuim || primeiro);
       return;
     }
 
     const d = Object.fromEntries(new FormData(form).entries());
-    const idade = idadeEm(d.nascimento);
-    const menor = idade !== null && idade < 18;
-    const v = (x) => (String(x || "").trim() || "—");
+    const menor = (idadeEm(d.nascimento) ?? 99) < 18;
+    /* O que não vale para a idade não viaja: CPF de adulto escondido num
+       cadastro de criança (ou o contrário) iria para o banco sem ninguém ver. */
+    const soDoOutro = menor ? ["cpf", "rg", "rg_emissor", "estado_civil"]
+      : ["resp_nome", "resp_cpf", "resp_rg", "resp_rg_emissor", "resp_nascimento", "resp_fone",
+         "resp_estado_civil", "resp_profissao", "resp_nacionalidade", "resp_end_trabalho", "resp_fone_trabalho"];
+    soDoOutro.forEach((k) => delete d[k]);
+    d.aceite_termos = Boolean(d.t1 && d.t2 && d.t3);
+    d.aceite_dados = Boolean(d.aceite_dados);
+    delete d.t1; delete d.t2; delete d.t3;
 
-    const linhas = ["*MATRÍCULA ONLINE — FORMS FITNESS* 🏊", "", "*DADOS DO ALUNO*"];
-
-    /* Numeração em sequência, e não fixa de 1 a 10. RG e CPF só entram quando
-       o aluno é maior; com números fixos, a lista de um menor saltaria de "2"
-       para "5" e pareceria que dois campos ficaram sem resposta. */
-    let i = 0;
-    const item = (rotulo, valor) => linhas.push(`${++i}. ${rotulo}: ${valor}`);
-
-    item("Nome", v(d.nome));
-    item("Nascimento", `${dataBR(d.nascimento)}${idade !== null ? ` (${idade} anos)` : ""}`);
-    if (!menor) { item("RG", v(d.rg)); item("CPF", v(d.cpf)); }
-    item("Endereço", `${v(d.endereco)} — CEP ${v(d.cep)}`);
-    item("Profissão", v(d.profissao));
-    item("Estado civil", v(d.estado_civil));
-    item("Mãe", v(d.mae));
-    item("Pai", v(d.pai));
-    item("Horário escolhido", v(d.horario));
-
-    if (menor) {
-      linhas.push(
-        "", "*RESPONSÁVEL* (aluno menor de idade)",
-        `• Nome: ${v(d.resp_nome)}`,
-        `• RG: ${v(d.resp_rg)}`,
-        `• CPF: ${v(d.resp_cpf)}`,
-        `• Profissão: ${v(d.resp_profissao)}`,
-        `• Estado civil: ${v(d.resp_estado_civil)}`,
-      );
+    enviando = true;
+    botao.disabled = true;
+    const rotulo = botao.textContent;
+    botao.textContent = "Enviando…";
+    try {
+      const r = await fetch("/api/publico/matricula", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(d),
+      });
+      const resp = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const lista = Array.isArray(resp.erros) && resp.erros.length > 1 ? " " + resp.erros.slice(1).join(" ") : "";
+        mostrarErro((resp.error || "Não foi possível enviar agora.") + lista);
+        return;
+      }
+      const ok = $("#mat-ok");
+      const msg = `Olá! Acabei de enviar pelo site a matrícula de *${d.nome.trim()}*. Segue a foto do aluno e o comprovante de pagamento.`;
+      $("#mat-ok-zap").href = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
+      form.hidden = true;
+      ok.hidden = false;
+      ok.scrollIntoView({ behavior: "smooth", block: "center" });
+      ok.focus({ preventScroll: true });
+    } catch {
+      /* Sem rede não se perde nada: o formulário continua preenchido. */
+      mostrarErro("Sem conexão com a academia agora. Seus dados continuam aqui — tente enviar de novo em instantes.");
+    } finally {
+      enviando = false;
+      botao.disabled = false;
+      botao.textContent = rotulo;
     }
-
-    linhas.push(
-      "", "*CONTATO*",
-      `📞 WhatsApp: ${v(d.whatsapp)}`,
-      `📷 Instagram: ${v(d.instagram)}`,
-      "", "*AUTORIZAÇÃO*",
-      "(X) Declaro que realizei a matrícula online e sou responsável pelas informações fornecidas.",
-      "(X) Reconheço que devo cumprir com os pagamentos e com o horário fixo escolhido, conforme contrato.",
-      "(X) Autorizo a efetivação da matrícula.",
-      "", "_Falta enviar: foto do aluno e comprovante de pagamento._",
-    );
-
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(linhas.join("\n"))}`, "_blank", "noopener");
-    toast("Abrindo o WhatsApp com a sua matrícula…");
   });
 }
 

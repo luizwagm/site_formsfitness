@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>Garanta sua vaga — Matrícula online | Forms Fitness</title>
-  <meta name="description" content="Faça sua matrícula online na Forms Fitness Academia Aquática, em Caruaru-PE. Preencha os dados e envie pelo WhatsApp em um clique.">
+  <meta name="description" content="Faça sua matrícula online na Forms Fitness Academia Aquática, em Caruaru-PE. Escolha a turma, preencha os dados do aluno e a secretaria confirma pelo WhatsApp.">
   <link rel="canonical" href="https://formsfitness.com/matricula/">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#0B4EA2">
@@ -14,7 +14,7 @@
   <meta property="og:locale" content="pt_BR">
   <meta property="og:site_name" content="Forms Fitness Academia Aquática">
   <meta property="og:title" content="Garanta sua vaga — Forms Fitness">
-  <meta property="og:description" content="Matrícula online: preencha e envie pelo WhatsApp.">
+  <meta property="og:description" content="Matrícula online na Forms Fitness: escolha a turma e envie os dados do aluno.">
   <meta property="og:url" content="https://formsfitness.com/matricula/">
   <meta property="og:image" content="https://formsfitness.com/assets/img/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Nunito+Sans:wght@300;400;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/styles.css">
+  <link rel="stylesheet" href="/assets/css/styles.css?v=1.21.0">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
     {"@type":"ListItem","position":1,"name":"Início","item":"https://formsfitness.com/"},
@@ -60,7 +60,7 @@
       <div class="container container--narrow">
         <nav class="breadcrumb" aria-label="Você está aqui"><a href="/">Início</a> <span>›</span> <b>Matrícula</b></nav>
         <h1 class="page-hero__title">Garanta sua <em>vaga</em></h1>
-        <p class="page-hero__lead">Preencha os dados abaixo. Ao final, tudo é enviado pelo WhatsApp já formatado — você só confere e aperta enviar.</p>
+        <p class="page-hero__lead">Escolha a turma e preencha os dados abaixo. A secretaria confere a matrícula e confirma com você pelo WhatsApp.</p>
       </div>
     </section>
 
@@ -74,15 +74,35 @@
           Depois desse horário, o pedido é processado no dia seguinte.
         </p>
 
-        <form id="matricula-form" class="mat-form" novalidate>
+        <form id="matricula-form" class="mat-form" method="post" action="/api/publico/matricula" novalidate>
+          <!-- Campo-isca: invisível para quem vê a página, preenchido por robô
+               de formulário. O servidor responde "ok" e não grava nada. -->
+          <div class="mat-isca" aria-hidden="true">
+            <label for="m-site">Deixe este campo em branco</label>
+            <input id="m-site" name="site_url" type="text" tabindex="-1" autocomplete="off">
+          </div>
+
+          <!-- ============================ TURMA ============================ -->
+          <fieldset class="mat-bloco">
+            <legend><span class="mat-bloco__n">1</span> Turma</legend>
+            <!-- A lista vem da gestão da academia na hora: turma aberta ou
+                 encerrada lá aparece ou some aqui sem republicar o site. Só
+                 horário CADASTRADO: texto livre não vira turma. -->
+            <div class="field">
+              <label for="m-turma">Horário da turma <span class="req">*</span></label>
+              <select id="m-turma" name="turma_id" required><option value="">Carregando horários…</option></select>
+              <p class="mat-bloco__nota" id="mat-dias" hidden></p>
+            </div>
+            <p class="mat-erro" id="mat-sem-turma" role="status" hidden></p>
+          </fieldset>
 
           <!-- ============================ ALUNO ============================ -->
           <fieldset class="mat-bloco">
-            <legend><span class="mat-bloco__n">1</span> Dados do aluno</legend>
+            <legend><span class="mat-bloco__n">2</span> Dados do aluno</legend>
 
             <div class="field">
               <label for="m-nome">Nome completo <span class="req">*</span></label>
-              <input id="m-nome" name="nome" type="text" required autocomplete="name">
+              <input id="m-nome" name="nome" type="text" required maxlength="120" autocomplete="name">
             </div>
 
             <div class="field-row">
@@ -91,91 +111,156 @@
                 <input id="m-nasc" name="nascimento" type="date" required>
               </div>
               <div class="field">
-                <label for="m-horario">Horário escolhido para as aulas <span class="req">*</span></label>
-                <input id="m-horario" name="horario" type="text" required placeholder="Ex.: Seg/Qua/Sex às 7h">
+                <label for="m-sexo">Sexo <span class="req">*</span></label>
+                <select id="m-sexo" name="sexo" required>
+                  <option value="">Selecione…</option>
+                  <option>Masculino</option>
+                  <option>Feminino</option>
+                  <option>Outro</option>
+                </select>
               </div>
             </div>
 
-            <!-- RG e CPF só valem para maior de idade, e é a data de nascimento
-                 que decide. O bloco aparece sozinho: pedir documento de uma
-                 criança seria erro, e explicar em texto ninguém lê. -->
-            <div class="field-row" id="mat-docs" hidden>
-              <div class="field">
-                <label for="m-rg">RG</label>
-                <input id="m-rg" name="rg" type="text" inputmode="numeric">
+            <!-- Documento e estado civil só valem para maior de idade, e é a
+                 data de nascimento que decide. O bloco aparece sozinho: pedir
+                 CPF de uma criança seria erro, e explicar em texto ninguém lê. -->
+            <div id="mat-docs" hidden>
+              <div class="field-row">
+                <div class="field">
+                  <label for="m-cpf">CPF <span class="req">*</span></label>
+                  <input id="m-cpf" name="cpf" type="text" inputmode="numeric" maxlength="14" placeholder="000.000.000-00">
+                </div>
+                <div class="field">
+                  <label for="m-rg">RG</label>
+                  <input id="m-rg" name="rg" type="text" inputmode="numeric" maxlength="20">
+                </div>
               </div>
-              <div class="field">
-                <label for="m-cpf">CPF</label>
-                <input id="m-cpf" name="cpf" type="text" inputmode="numeric" placeholder="000.000.000-00">
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="m-endereco">Endereço completo <span class="req">*</span></label>
-              <input id="m-endereco" name="endereco" type="text" required placeholder="Rua, número, bairro" autocomplete="street-address">
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label for="m-cep">CEP <span class="req">*</span></label>
-                <input id="m-cep" name="cep" type="text" inputmode="numeric" required placeholder="00000-000" autocomplete="postal-code">
-              </div>
-              <div class="field">
-                <label for="m-profissao">Profissão</label>
-                <input id="m-profissao" name="profissao" type="text">
-              </div>
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label for="m-civil">Estado civil</label>
-                <select id="m-civil" name="estado_civil">
+              <div class="field-row">
+                <div class="field">
+                  <label for="m-rg-emissor">Órgão emissor do RG</label>
+                  <input id="m-rg-emissor" name="rg_emissor" type="text" maxlength="20" placeholder="SDS/PE">
+                </div>
+                <div class="field">
+                  <label for="m-civil">Estado civil</label>
+                  <select id="m-civil" name="estado_civil">
                   <option value="">Selecione…</option>
                   <option>Solteiro(a)</option>
                   <option>Casado(a)</option>
                   <option>União estável</option>
+                  <option>Separado(a)</option>
                   <option>Divorciado(a)</option>
                   <option>Viúvo(a)</option>
-                </select>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-profissao">Profissão</label>
+                <input id="m-profissao" name="profissao" type="text" maxlength="80">
               </div>
               <div class="field">
+                <label for="m-nac">Nacionalidade</label>
+                <input id="m-nac" name="nacionalidade" type="text" maxlength="40" value="Brasileira">
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
                 <label for="m-mae">Nome da mãe <span class="req">*</span></label>
-                <input id="m-mae" name="mae" type="text" required>
+                <input id="m-mae" name="mae" type="text" required maxlength="120">
+              </div>
+              <div class="field">
+                <label for="m-pai">Nome do pai</label>
+                <input id="m-pai" name="pai" type="text" maxlength="120">
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- ========================== ENDEREÇO =========================== -->
+          <!-- Em partes, não num campo só: o contrato escreve "residente na
+               Rua X, nº Y, Bairro Z, Cep…" e precisa de cada pedaço. -->
+          <fieldset class="mat-bloco">
+            <legend><span class="mat-bloco__n">3</span> Endereço</legend>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-rua">Rua / avenida <span class="req">*</span></label>
+                <input id="m-rua" name="logradouro" type="text" required maxlength="120" autocomplete="address-line1">
+              </div>
+              <div class="field">
+                <label for="m-num">Número <span class="req">*</span></label>
+                <input id="m-num" name="numero" type="text" required maxlength="10">
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-compl">Complemento</label>
+                <input id="m-compl" name="complemento" type="text" maxlength="60" autocomplete="address-line2">
+              </div>
+              <div class="field">
+                <label for="m-bairro">Bairro <span class="req">*</span></label>
+                <input id="m-bairro" name="bairro" type="text" required maxlength="60">
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-cidade">Cidade <span class="req">*</span></label>
+                <input id="m-cidade" name="cidade" type="text" required maxlength="60" value="Caruaru" autocomplete="address-level2">
+              </div>
+              <div class="field">
+                <label for="m-uf">Estado <span class="req">*</span></label>
+                <select id="m-uf" name="uf" required><option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option selected>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option></select>
               </div>
             </div>
 
             <div class="field">
-              <label for="m-pai">Nome do pai</label>
-              <input id="m-pai" name="pai" type="text">
+              <label for="m-cep">CEP <span class="req">*</span></label>
+              <input id="m-cep" name="cep" type="text" inputmode="numeric" required maxlength="9" placeholder="00000-000" autocomplete="postal-code">
             </div>
           </fieldset>
 
           <!-- ========================= RESPONSÁVEL ========================= -->
-          <!-- Aparece só quando a data de nascimento indica menor de 18. -->
+          <!-- Aparece só quando a data de nascimento indica menor de 18: o
+               contrato sai no nome de quem responde pela criança. -->
           <fieldset class="mat-bloco" id="mat-responsavel" hidden>
-            <legend><span class="mat-bloco__n">2</span> Dados do responsável</legend>
-            <p class="mat-bloco__nota">O aluno é menor de idade, então precisamos dos dados de quem responde por ele.</p>
+            <legend><span class="mat-bloco__n">4</span> Dados do responsável</legend>
+            <p class="mat-bloco__nota">O aluno é menor de idade: o contrato sai no nome de quem responde por ele.</p>
 
             <div class="field">
               <label for="m-r-nome">Nome completo do responsável <span class="req">*</span></label>
-              <input id="m-r-nome" name="resp_nome" type="text">
+              <input id="m-r-nome" name="resp_nome" type="text" maxlength="120">
             </div>
 
             <div class="field-row">
-              <div class="field">
-                <label for="m-r-rg">RG do responsável <span class="req">*</span></label>
-                <input id="m-r-rg" name="resp_rg" type="text" inputmode="numeric">
-              </div>
               <div class="field">
                 <label for="m-r-cpf">CPF do responsável <span class="req">*</span></label>
-                <input id="m-r-cpf" name="resp_cpf" type="text" inputmode="numeric" placeholder="000.000.000-00">
+                <input id="m-r-cpf" name="resp_cpf" type="text" inputmode="numeric" maxlength="14" placeholder="000.000.000-00">
+              </div>
+              <div class="field">
+                <label for="m-r-rg">RG do responsável <span class="req">*</span></label>
+                <input id="m-r-rg" name="resp_rg" type="text" inputmode="numeric" maxlength="20">
               </div>
             </div>
 
             <div class="field-row">
               <div class="field">
-                <label for="m-r-profissao">Profissão do responsável</label>
-                <input id="m-r-profissao" name="resp_profissao" type="text">
+                <label for="m-r-emissor">Órgão emissor do RG</label>
+                <input id="m-r-emissor" name="resp_rg_emissor" type="text" maxlength="20" placeholder="SDS/PE">
+              </div>
+              <div class="field">
+                <label for="m-r-nasc">Data de nascimento do responsável</label>
+                <input id="m-r-nasc" name="resp_nascimento" type="date">
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-r-fone">Telefone do responsável <span class="req">*</span></label>
+                <input id="m-r-fone" name="resp_fone" type="tel" maxlength="20" placeholder="(00) 00000-0000">
               </div>
               <div class="field">
                 <label for="m-r-civil">Estado civil do responsável</label>
@@ -184,47 +269,81 @@
                   <option>Solteiro(a)</option>
                   <option>Casado(a)</option>
                   <option>União estável</option>
+                  <option>Separado(a)</option>
                   <option>Divorciado(a)</option>
                   <option>Viúvo(a)</option>
                 </select>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-r-profissao">Profissão do responsável</label>
+                <input id="m-r-profissao" name="resp_profissao" type="text" maxlength="80">
+              </div>
+              <div class="field">
+                <label for="m-r-nac">Nacionalidade do responsável</label>
+                <input id="m-r-nac" name="resp_nacionalidade" type="text" maxlength="40" value="Brasileira">
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-r-trab">Endereço do trabalho</label>
+                <input id="m-r-trab" name="resp_end_trabalho" type="text" maxlength="160">
+              </div>
+              <div class="field">
+                <label for="m-r-ftrab">Telefone do trabalho</label>
+                <input id="m-r-ftrab" name="resp_fone_trabalho" type="tel" maxlength="20" placeholder="(00) 0000-0000">
               </div>
             </div>
           </fieldset>
 
           <!-- ============================ CONTATO =========================== -->
           <fieldset class="mat-bloco">
-            <legend><span class="mat-bloco__n">3</span> Contato para a matrícula</legend>
+            <legend><span class="mat-bloco__n">5</span> Contato</legend>
 
             <div class="field-row">
               <div class="field">
                 <label for="m-whats">WhatsApp <span class="req">*</span></label>
-                <input id="m-whats" name="whatsapp" type="tel" required placeholder="(00) 00000-0000" autocomplete="tel">
+                <input id="m-whats" name="fone1" type="tel" required maxlength="20" placeholder="(00) 00000-0000" autocomplete="tel">
+              </div>
+              <div class="field">
+                <label for="m-fone2">Outro telefone</label>
+                <input id="m-fone2" name="fone2" type="tel" maxlength="20" placeholder="(00) 00000-0000">
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-email">E-mail</label>
+                <input id="m-email" name="email" type="email" maxlength="120" autocomplete="email">
               </div>
               <div class="field">
                 <label for="m-insta">Instagram</label>
-                <input id="m-insta" name="instagram" type="text" placeholder="@seuperfil">
+                <input id="m-insta" name="instagram" type="text" maxlength="60" placeholder="@seuperfil">
               </div>
             </div>
           </fieldset>
 
           <!-- =========================== DOCUMENTOS ========================= -->
           <fieldset class="mat-bloco">
-            <legend><span class="mat-bloco__n">4</span> Documentos</legend>
-            <!-- Foto e comprovante NÃO são enviados por aqui de propósito: subir
-                 documento pessoal para um servidor cria uma guarda de dado
-                 sensível que este site não precisa ter. Vão pelo WhatsApp,
-                 junto da conversa. -->
+            <legend><span class="mat-bloco__n">6</span> Foto e comprovante</legend>
+            <!-- Foto e comprovante continuam FORA desta página, de propósito:
+                 um formulário aberto na internet recebendo foto de criança vira
+                 guarda de dado sensível sem saber quem mandou. Vão pela
+                 conversa, e a secretaria anexa a foto ao cadastro. -->
             <ul class="mat-docs">
-              <li>📸 <b>Foto do aluno</b> — envie pelo WhatsApp, junto com esta mensagem.</li>
-              <li>📄 <b>Comprovante de pagamento</b> — envie pelo WhatsApp.</li>
+              <li>📸 <b>Foto do aluno</b> — envie pelo WhatsApp depois de enviar esta ficha.</li>
+              <li>📄 <b>Comprovante de pagamento</b> — também pelo WhatsApp.</li>
             </ul>
-            <p class="mat-bloco__nota">Não anexe documentos por esta página: eles vão direto na conversa do WhatsApp, que fica só entre você e a academia.</p>
+            <p class="mat-bloco__nota">Ao terminar, aparece um botão que abre a conversa com a academia já com o nome do aluno.</p>
           </fieldset>
 
           <!-- ========================== AUTORIZAÇÃO ========================= -->
           <fieldset class="mat-bloco mat-bloco--termos">
-            <legend><span class="mat-bloco__n">5</span> Autorização e compromisso</legend>
-            <p class="mat-bloco__nota">Marque as três para validar a matrícula.</p>
+            <legend><span class="mat-bloco__n">7</span> Autorização e compromisso</legend>
+            <p class="mat-bloco__nota">Marque as quatro para enviar a matrícula.</p>
 
             <label class="mat-check">
               <input type="checkbox" name="t1" required>
@@ -238,18 +357,35 @@
               <input type="checkbox" name="t3" required>
               <span>Autorizo a efetivação da matrícula.</span>
             </label>
+            <!-- A LGPD pede consentimento específico, dado por quem tem a
+                 guarda, para tratar dado de criança (art. 14). Por isso este
+                 item é separado dos três acima, e o texto muda com a idade. -->
+            <label class="mat-check">
+              <input type="checkbox" name="aceite_dados" required>
+              <span id="mat-texto-dados">Autorizo a Forms Fitness a guardar estes dados para a gestão da matrícula, conforme a <a href="/privacidade/" target="_blank" rel="noopener">Política de Privacidade</a>.</span>
+            </label>
           </fieldset>
 
           <p class="mat-erro" id="mat-erro" role="alert" hidden></p>
 
-          <button class="btn btn--lime btn--lg mat-enviar" type="submit">Enviar matrícula pelo WhatsApp</button>
+          <button class="btn btn--lime btn--lg mat-enviar" type="submit">Enviar matrícula</button>
 
           <p class="mat-privacidade">
             ⚠️ Caso alguma informação esteja faltando, entraremos em contato.<br>
-            🔒 Os dados vão direto para o WhatsApp da academia — <b>nada é guardado neste site</b>.
+            🔒 Os dados ficam no sistema da academia, com acesso só da equipe, e servem apenas para a matrícula.
             <a href="/privacidade/">Política de Privacidade</a>.
           </p>
         </form>
+
+        <!-- O que aparece depois de enviar: o formulário some e fica o próximo
+             passo, que é mandar a foto e o comprovante. -->
+        <div class="mat-ok" id="mat-ok" hidden tabindex="-1">
+          <p class="mat-ok__icone" aria-hidden="true">✅</p>
+          <h2 class="mat-ok__titulo">Matrícula recebida!</h2>
+          <p>A secretaria vai conferir os dados e confirmar a vaga com você pelo WhatsApp.</p>
+          <p><b>Falta só enviar a foto do aluno e o comprovante de pagamento.</b></p>
+          <a class="btn btn--lime btn--lg" id="mat-ok-zap" href="#" target="_blank" rel="noopener">Enviar foto e comprovante pelo WhatsApp</a>
+        </div>
       </div>
     </section>
   </main>
@@ -268,6 +404,6 @@
     </div>
   </footer>
 
-  <script type="module" src="/assets/js/main.js"></script>
+  <script type="module" src="/assets/js/main.js?v=1.21.0"></script>
 </body>
 </html>

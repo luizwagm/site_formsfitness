@@ -5,6 +5,257 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.24.0 — 2026-09-14 · tabelas maiores e paginação em todas
+
+**Tabelas maiores na tela.** O conteúdo do painel parava em 1000px de
+largura: numa tela grande as tabelas ficavam espremidas no meio, com faixa
+vazia dos lados. Agora usa a largura da tela (até 1640px), com letra e
+espaçamento de lista — lê-se de relance.
+
+**Paginação em todas as tabelas.** Embaixo de cada uma: "Mostrando 1–20 de
+57", os botões de página (1 … 4 5 6 … 12, nunca uma fileira de 40) e quantos
+por página (10, 20, 50 ou 100 — a escolha fica lembrada por tabela).
+- **Alunos e Auditoria são paginados no SERVIDOR**: são as que crescem sem
+  limite. A lista de alunos antiga cortava em 500 sem avisar — com o código
+  começando em 4148, a academia tem milhares de alunos no histórico.
+- As demais (turmas, atividades, professores, calendário, usuários, versões e
+  histórico de contratos, indicadores, Acessos) são paginadas na tela, por
+  uma função só que se aplica **sozinha** a toda tabela que aparece — tabela
+  criada no futuro já nasce paginada.
+- Fica de fora a grade de atividades do aluno: ela é formulário, e esconder
+  uma linha numa página 2 esconderia uma atividade que vai ser salva.
+- Trocar filtro ou busca volta para a página 1. A Auditoria perdeu o
+  "Carregar mais" — agora é página como as outras.
+
+## 1.23.0 — 2026-09-14 · cadastro de professores
+
+O professor deixou de ser um texto digitado em cada turma ("Ronaldo",
+"ronaldo" e "Prof. Ronaldo" eram três pessoas) e virou um **cadastro**:
+menu **Professores**, com nome, CREF, telefone, e-mail, observação e ativo.
+- **Turma**: o campo Professor é um **select** dos professores cadastrados.
+- **Atividades do aluno**: a coluna Professor também virou select. A primeira
+  opção é "o da turma (Ronaldo)"; escolher outro vale só para aquele aluno
+  naquela atividade. A ficha impressa mostra o professor de cada atividade.
+- O nome sai **sempre do cadastro**: renomear um professor muda o nome em
+  todas as turmas, fichas, relatórios e indicadores, sem cópia desatualizada.
+- Nome repetido é recusado (sem diferença de maiúsculas). Professor com turma
+  ou aluno não se apaga — inativa: some das listas de escolha e continua onde
+  já estava.
+- **Migração automática**: o nome que estava digitado em cada turma virou um
+  professor cadastrado, um por pessoa ("Ronaldo" e "ronaldo" viram um só).
+
+## 1.22.1 — 2026-09-13 · a tela confere se as atividades foram gravadas
+
+"Criando a atividade mas não está salvando." O servidor que atendia ainda
+era o de ANTES da 1.22.0 (iniciado antes da atualização): a tela, lida do
+disco a cada acesso, já mandava a lista de atividades, e o servidor antigo a
+descartava em silêncio — respondia "ok", a janela fechava, nada gravado.
+- O servidor agora responde **quantas atividades o aluno ficou tendo**, e a
+  tela confere com quantas mandou. Se não bater, ela diz: "As atividades NÃO
+  foram gravadas — reinicie o servidor e salve de novo", e a janela não fecha.
+- A confirmação "Cadastro salvo" sumia quando havia aviso de vaga — e também
+  quando a mensagem anterior tinha sido um erro, porque a tela conferia uma
+  marca que ficava presa na caixa de mensagens. Agora a confirmação sai
+  sempre, com o aviso de vaga junto quando houver.
+
+## 1.22.0 — 2026-09-13 · várias atividades por aluno, indicadores e agenda para compartilhar
+
+**Atividades do aluno, como no sistema antigo.** No cadastro, abaixo de
+Observação, a área **Atividades** é uma grade: atividade, os **dias marcados**
+(Seg a Sáb), o horário, o professor e a mensalidade de cada uma. Um aluno pode
+fazer natação às 06h (terça e sexta) e hidroginástica às 07h (terça, quarta e
+sexta). "+ Adicionar atividade" põe mais uma linha; o × tira.
+- Nova tabela `g_matriculas` (aluno × turma, com os dias e a mensalidade). A
+  mensalidade do aluno virou o **total** das atividades — é o valor do contrato.
+- **Migração automática**: a turma única que cada aluno tinha virou a primeira
+  matrícula dele, com a mesma mensalidade e os dias da academia. Roda uma vez só.
+- Editar grava **por diferença**: a data em que o aluno entrou numa turma
+  sobrevive a uma edição qualquer.
+- **Contrato**: "atividade física de Natação e Hidroginástica … das 06:00h e
+  das 07:00h" sai do modelo que já existe. Dois marcadores novos para quem
+  quiser detalhar: `{{ATIVIDADES_HORARIOS}}` (cada atividade com o seu horário
+  e os seus dias) e `{{DIAS_ALUNO}}` (os dias deste aluno — o `{{DIAS_AULA}}`
+  continua sendo o da academia).
+- **Ficha**: a grade de atividades com os dias marcados, o horário, o professor
+  e a mensalidade, logo abaixo dos dados principais.
+- Relatórios (alunos, aniversariantes) mostram as atividades de cada um.
+
+**Vagas: permitido passar, com aviso.** A turma pode receber aluno além do
+limite. Na grade do cadastro aparece "12 de 12 vagas · passará do limite"; ao
+salvar, o sistema avisa "a turma passou do limite: 13 alunos para 12 vagas";
+em Turmas, Indicadores e no relatório de turmas ela fica marcada como
+**excedente +1**. Pré-matrícula não ocupa vaga — só conta quando é efetivada.
+
+**Indicadores** (menu Gestão da academia). Alunos ativos, pré-matrículas,
+inativos, turmas acima do limite, e dois gráficos: **alunos por turma** (com o
+traço do limite de vagas e o excedente em vermelho, sempre com o texto
+"excedente" — a cor nunca carrega o aviso sozinha) e **alunos por atividade**
+(quem faz duas turmas da mesma atividade conta uma vez). Passar o mouse mostra
+o detalhe; os números também estão em tabela.
+
+**Agenda para compartilhar.** Na Agenda, "Imagem e impressão do mês":
+- **Imagem para rede social**, desenhada no próprio navegador: feed
+  (1080×1350) ou stories (1080×1920), com o mês em tons pastel, a legenda, as
+  datas do mês e o contato público da academia no rodapé. Botão "Baixar imagem".
+- **Impressão para os alunos**, em A4, vertical ou horizontal.
+- As duas mostram só o que vale: a data que perdeu para outra no mesmo dia não
+  aparece.
+
+**Impressão sem cabeçalho e rodapé do navegador, vertical ou horizontal.** A
+data, o título, o endereço da página e o "1/1" que o navegador punha no papel
+sumiram: a página não tem mais margem para ele usar — a margem vem da própria
+folha, repetida em cada página impressa. Ficha, contrato, relatórios e agenda
+ganharam os botões **Vertical / Horizontal**; a escolha fica lembrada, e o
+ajuste de uma folha da ficha e do contrato refaz a conta para a orientação.
+- As caixas da ficha passaram a ter altura proporcional à letra: antes, na
+  horizontal, elas não encolhiam com o ajuste e a ficha não cabia nem com a
+  letra no mínimo.
+- O "Página 1" fixo do cabeçalho saiu (mentia nos relatórios de várias folhas).
+
+## 1.21.0 — 2026-09-11 · calendário com cor, auditoria e sobre o sistema
+
+**Calendário com três tipos de dia.** O cadastro de feriados virou o
+**calendário** da academia: cada data diz o que o dia é — **feriado**
+(vermelho, sem aula), **dia de aula** (azul, para uma reposição fora da regra
+da semana) ou **outra atividade** (amarelo: exame de pele, capacitação da
+equipe de natação). Na Agenda, **clicar num dia** abre o cadastro já com a
+data.
+- **Data de um dia só vale mais que a que se repete.** É assim que a academia
+  diz "este ano, no São João, tem aula": cadastra 24/06/2026 como dia de aula,
+  e o feriado anual continua valendo em 2027. O feriado que perdeu aparece
+  riscado na lista do mês, com o motivo.
+- No mesmo nível, feriado vence atividade, que vence dia de aula. Atividade
+  num dia de aula mantém a aula; atividade num feriado, não.
+- As datas que já existiam continuam feriado; tipo de dia desconhecido é
+  recusado, em vez de virar feriado em silêncio.
+- A coluna "Em 2026" achava a data pelo NOME: duas datas chamadas "Exame de
+  pele" mostravam o mesmo dia. Agora é pelo registro.
+
+**Horário da matrícula só por lista.** No formulário do site, o horário é
+sempre um select com as turmas cadastradas — o campo de texto livre saiu. Sem
+turma aberta, o envio fica travado com um aviso para falar pelo WhatsApp (e o
+servidor também recusa). No **Revisar pré-matrícula**, o "Pediu no site" em
+texto virou o próprio select de horário, já com o que a pessoa escolheu; o
+texto livre das pré-matrículas antigas aparece como nota embaixo.
+
+**Máscara de real** nos campos de dinheiro (mensalidade do aluno e mensalidade
+padrão da atividade): digitar 1-1-0-0-0 dá **R$ 110,00**.
+
+**Auditoria do sistema** (menu da conta, só administrador). Cada alteração
+feita no sistema — cadastros, contratos, modelo, configurações, calendário,
+usuários e também o site (textos, blog, fotos, publicar) — fica registrada com
+quem, quando, sobre o quê, o resultado (feito, recusado, erro) e o endereço de
+onde veio. Entram também as entradas no sistema, as tentativas de senha
+recusadas e as **impressões** de ficha, contrato e relatório.
+- **Ninguém apaga nem edita a auditoria**, nem o administrador: o banco recusa
+  (gatilhos, como nos contratos).
+- O registro nasce num gancho que olha **toda** requisição que muda algo —
+  rota nova entra sozinha, sem ninguém lembrar.
+- **Pré-matrícula entra só pelo número, nunca pelo nome** — nem a recebida
+  pelo site, nem as ações da equipe sobre ela (editar, imprimir, apagar). A
+  política promete apagar a pré-matrícula que não se confirma, e a auditoria
+  não se apaga: com o nome da criança nela, a promessa viraria mentira. Depois
+  de efetivada (aí há contrato), o registro cita nome e código. A entrada do
+  site também vai **sem o IP**. A política de privacidade ganhou um parágrafo
+  sobre a auditoria.
+- Leitura comum (abrir telas e listas) não entra: esconderia o que importa.
+- Filtros por pessoa, período e texto; lista em páginas.
+
+**Sobre o sistema** (menu da conta, todos). Versão atual, desde quando o
+servidor está no ar, plataforma, e o **histórico de versões** lido deste
+arquivo — um lugar só para escrever o que mudou.
+
+### Correções que vieram junto
+
+- **Arquivos internos saíam pela web.** A proteção era uma lista do que é
+  PROIBIDO, e deixava passar qualquer `.js` da raiz que não fosse `server.js`
+  ou `db.js`: `testar.js`, `testar-gestao.js` (com a senha inicial dentro),
+  `backup.js`, `limitador.js` — além das pastas `docs/` (a documentação
+  técnica) e `ci/`. Agora vale a lista do que é **permitido**: páginas
+  geradas, `assets/`, `admin/` e cinco arquivos da raiz.
+
+## 1.20.0 — 2026-09-11 · a gestão da academia
+
+O painel deixou de só editar o site. O menu lateral agora tem dois grupos —
+**Gestão da academia** (aberto) e **Gestão do site** (tudo o que já existia,
+sem mudar nada) — e uma barra no topo com atalhos e o menu da conta, na
+arquitetura da área restrita do BemEstar.
+
+**Alunos.** Cadastro completo, na ordem da ficha de papel: dados, endereço em
+partes (o contrato precisa de cada pedaço), documentos, responsável quando o
+aluno é menor, turma, mensalidade e foto. Status **ativo / inativo /
+pré-matrícula**, estado civil com todas as opções (incluindo Separado(a)).
+- **Código de matrícula continua do 004148**, para bater com os cadastros de
+  papel. Pode ser digitado à mão; o próximo é sempre o maior + 1.
+- **Pré-matrícula não gasta código.** Só a efetivação pela secretaria numera —
+  um formulário aberto na internet não pode consumir a sequência.
+- **Foto** reduzida no navegador (o que também tira a localização GPS do
+  arquivo), guardada no banco e servida só com login.
+
+**Ficha e contrato em uma folha cada.** A ficha segue o modelo impresso, com
+as **condições da matrícula** no pé — texto editável em Configurações, que não
+aparece no site. O **contrato é o documento Word transcrito**, alimentado pelo
+cadastro; para aluno menor, o contratante é o responsável. Um script encolhe a
+letra até caber em uma folha, com piso, e avisa se nem assim couber.
+
+**Histórico de contratos imutável.** Cada contrato gerado guarda o texto
+exatamente como saiu, com data, hora, quem gerou e se foi assinado. **O banco
+recusa alterar ou apagar** (gatilhos no SQLite), não só a tela. O **modelo** é
+editável, com marcadores, pré-visualização e versões; vale dali em diante.
+A imagem das assinaturas da contratada é enviada no painel e não vai para o
+repositório.
+
+**Atividades, Turmas, Agenda, Relatórios, Configurações.** Turma por horário,
+com a opção de aparecer no site. Agenda do mês em tons pastel: azul nos dias de
+aula, vermelho nos feriados. Dias de aula por checkbox (terça, quarta e sexta
+de fábrica). **15 feriados semeados** — nacionais, de Pernambuco e de Caruaru,
+com a Sexta-feira Santa calculada pela Páscoa; incluir, editar e remover à
+vontade. Carnaval e Corpus Christi ficaram de fora: são ponto facultativo.
+Relatórios: ficha do aluno, aniversariantes, alunos ativos, inativos, turmas
+ativas e inativas.
+
+**Usuários.** O login pede usuário e senha. O primeiro, `admin`, herda a senha
+que já existia — ninguém fica trancado do lado de fora na atualização. Perfis
+administrador e secretaria; desativar ou trocar a senha de alguém derruba as
+sessões dele; o último administrador não pode ser desativado. "Usuário
+inexistente" e "senha errada" recebem a mesma resposta.
+
+**A matrícula do site grava na gestão, em vez de ir pelo WhatsApp.** O
+formulário foi revisto contra a ficha de papel e ganhou o que faltava: turma
+(lida da gestão na hora), sexo, nacionalidade, órgão emissor, e-mail, segundo
+telefone, endereço em partes e, do responsável, telefone, nascimento, trabalho.
+- Entra como **pré-matrícula**, com contador no menu.
+- **Consentimento de dados separado** dos três termos (LGPD, art. 14): para
+  menor, o texto muda e quem autoriza é o responsável. Fica gravado com a data,
+  **sem o IP**.
+- Protegido por campo-isca, 5 envios por hora por endereço, corpo de até 32 KB
+  e validação completa no servidor (CPF com dígito verificador, datas, UF).
+- Foto e comprovante continuam pelo WhatsApp: depois de enviar, aparece um
+  botão que abre a conversa já com o nome do aluno.
+
+**A política de privacidade foi reescrita.** Ela dizia "o formulário do site não
+guarda nada aqui" — deixou de ser verdade, e texto de privacidade errado é a
+primeira coisa que uma fiscalização confere. A página de matrícula dizia o
+mesmo, e também mudou.
+
+### Correções que vieram junto
+
+- **`[hidden]` não escondia nada no site.** `.field { display: grid }` vence o
+  `hidden` do navegador — e o bloco de RG/CPF de adulto **aparecia para
+  criança desde que a página existe**. Regra global `[hidden] { display: none
+  !important }`. Achado olhando a tela; agora é teste.
+- O formulário de matrícula ganhou `method="post"`: se o JavaScript falhasse,
+  ele enviaria por GET, com CPF e endereço na URL — e no log do nginx.
+- A lista de alunos no celular rola de lado em vez de espremer o nome.
+
+### Para quem opera
+
+- `PORT`, `FF_DATA` e `FF_BACKUPS` passam a ser lidos do ambiente. Sem eles,
+  nada muda.
+- Nova suíte `testar-gestao.js` (79 conferências, sobe o próprio servidor com
+  banco temporário). `testar.js` foi de 245 para 254 e aceita `PORT`/`FF_DATA`.
+- Depois do deploy: passo **8** do `DEPLOY.md` (assinaturas, turmas, usuários).
+
 ## 1.19.0 — 2026-08-26 · o Feed aceita vídeo
 
 A matéria do Feed pode ter **foto ou vídeo** na capa. No painel, o campo da

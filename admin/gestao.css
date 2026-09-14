@@ -1,0 +1,325 @@
+/* ==========================================================================
+   admin/gestao.css — a gestão da academia dentro do painel
+
+   A estrutura segue a área restrita do BemEstar (barra lateral com seções
+   recolhíveis + barra do topo com o menu da conta), na pele do Forms: azul
+   da piscina, verde-lima do nadador, Nunito Sans.
+   ========================================================================== */
+
+/* ------------------------------------------------------------- estrutura */
+.app{grid-template-columns:238px 1fr}
+.conteudo{display:flex;flex-direction:column;min-height:100vh;min-width:0}
+.conteudo>main{flex:1}
+
+/* A barra do topo: atalhos à esquerda do menu da conta, como no BemEstar. */
+.appbar{display:flex;align-items:center;gap:.6rem;padding:.55rem 1.4rem;background:#fff;
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30}
+.appbar .ab-titulo{font-weight:800;color:var(--blue);font-size:.95rem;margin-right:auto;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ab-drop{position:relative}
+.ab-bt{display:inline-flex;align-items:center;gap:.45rem;border:1.5px solid var(--line2);background:#fff;
+  color:var(--blue);font-weight:800;padding:.42rem .85rem;border-radius:999px}
+.ab-bt:hover,.ab-drop.aberto>.ab-bt{background:#f2f8fd}
+.ab-bt .caret{font-size:.6rem;opacity:.8}
+.ab-bt--icone{width:38px;height:38px;padding:0;justify-content:center}
+.ab-painel{position:absolute;right:0;top:calc(100% + 6px);min-width:230px;background:#fff;
+  border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 44px rgba(11,78,162,.2);
+  padding:.4rem;display:none;z-index:50}
+.ab-drop.aberto>.ab-painel{display:block}
+.ab-painel .navbtn,.ab-painel a.ab-item{display:block;width:100%;text-align:left;color:var(--text);
+  padding:.55rem .75rem;border-radius:8px;font-weight:700;text-decoration:none;background:none;border:0}
+.ab-painel .navbtn:hover,.ab-painel a.ab-item:hover{background:#eef6fd;color:var(--blue)}
+.ab-painel .navbtn.on{background:var(--lime);color:#0e2a4a}
+.ab-painel hr{border:0;border-top:1px solid var(--line);margin:.35rem .2rem}
+.ab-painel .ab-versao{font-size:.72rem;color:var(--dim);text-align:center;margin:.35rem 0 .1rem}
+.ab-painel small{display:block;font-weight:600;color:var(--dim);font-size:.75rem}
+
+/* ------------------------------------------------- menu lateral: seções */
+aside .navgrupo{margin-bottom:.35rem}
+aside .navtopo{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase}
+.navrotulo{display:block;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  color:rgba(191,224,247,.6);margin:.55rem .8rem .2rem}
+.navbadge{display:inline-block;min-width:1.35rem;padding:0 .35rem;margin-left:.35rem;border-radius:999px;
+  background:var(--lime);color:#0e2a4a;font-size:.72rem;font-weight:800;text-align:center;line-height:1.35rem}
+.navbtn.on .navbadge{background:#0e2a4a;color:#fff}
+.side-credito{margin-top:1rem;padding-top:.8rem;text-align:center;font-size:.7rem;font-weight:700;
+  color:rgba(191,224,247,.55);border-top:1px solid rgba(255,255,255,.14)}
+
+/* ------------------------------------------------------ peças comuns */
+.g-barra{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:1rem}
+.g-barra .g-busca{flex:1 1 260px;max-width:420px}
+.g-chips{display:flex;flex-wrap:wrap;gap:.35rem}
+.g-chip{border:1.5px solid var(--line2);background:#fff;color:var(--muted);font-weight:800;font-size:.82rem;
+  padding:.35rem .8rem;border-radius:999px}
+.g-chip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.g-chip .navbadge{margin-left:.3rem}
+
+.g-tabela-caixa{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:var(--r)}
+/* Maiores na tela (1.24.0): letra e respiro de lista para ler de relance,
+   como numa planilha — não de rodapé. */
+table.g-tabela{width:100%;border-collapse:collapse;font-size:1rem}
+.g-tabela th{text-align:left;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+  background:#f6fbff;padding:.8rem 1rem;border-bottom:1px solid var(--line);white-space:nowrap}
+.g-tabela td{padding:.8rem 1rem;border-bottom:1px solid var(--line);vertical-align:middle}
+.g-tabela tr:last-child td{border-bottom:0}
+
+/* A barra de páginas, embaixo de toda tabela: quantos, onde, e quantos por
+   página. Botões de 36px — alvo de dedo no celular. */
+.g-pag{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.6rem 1rem;margin:.6rem 0 1rem;font-size:.9rem;color:var(--muted)}
+.g-pag .pag-info{font-weight:700}
+.g-pag .pag-botoes{display:flex;align-items:center;gap:.25rem}
+.g-pag button{min-width:36px;height:36px;padding:0 .6rem;border:1px solid var(--line2);border-radius:10px;background:#fff;
+  font:inherit;font-weight:700;color:var(--text);cursor:pointer}
+.g-pag button:hover:not(:disabled){border-color:var(--blue);color:var(--blue)}
+.g-pag button.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.g-pag button:disabled{opacity:.4;cursor:default}
+.g-pag .pag-reti{padding:0 .2rem}
+.g-pag .pag-por{display:flex;align-items:center;gap:.4rem;margin:0;font-weight:700}
+.g-pag .pag-por select{width:auto;margin:0;padding:.35rem .5rem}
+.g-tabela tr:hover td{background:#fbfdff}
+.g-tabela .cod{font-family:ui-monospace,Consolas,monospace;font-weight:700;color:var(--blue)}
+.g-tabela .acoes{white-space:nowrap;text-align:right}
+.g-tabela .acoes .btn{margin-left:.25rem}
+.g-tabela .fraco{color:var(--dim)}
+/* No celular a lista rola de lado em vez de espremer o nome uma palavra por linha. */
+.g-tabela .nw{white-space:nowrap}
+table.g-alunos{min-width:720px}
+.g-alunos td:nth-child(2){min-width:14rem}
+.g-vazio{padding:2rem;text-align:center;color:var(--muted)}
+
+.selo{display:inline-block;font-size:.72rem;font-weight:800;padding:.12rem .55rem;border-radius:999px;white-space:nowrap}
+.selo--ativo{background:#e6f7d9;color:#2f6b0b}
+.selo--inativo{background:#eef1f5;color:#5b6b7d}
+.selo--pendente{background:#fff3cd;color:#7a5200}
+.selo--site{background:#e3f2fd;color:#0B4EA2}
+.selo--ok{background:#e6f7d9;color:#2f6b0b}
+.selo--nao{background:#fdeef2;color:#a3264a}
+
+/* ------------------------------------------------------------ diálogos */
+/* `margin:auto` é o que centraliza um <dialog> aberto com showModal(). O
+   reset do painel (`*{margin:0}`) apagava essa margem, e o diálogo abria
+   grudado no canto de cima, por cima do menu. */
+dialog.g-dlg{margin:auto;border:0;border-radius:18px;padding:0;width:min(1040px,96vw);max-height:92vh;
+  box-shadow:0 30px 80px rgba(11,40,90,.35);color:var(--text)}
+dialog.g-dlg--pequeno{width:min(520px,96vw)}
+dialog.g-dlg::backdrop{background:rgba(14,42,74,.45)}
+.g-dlg-cab{display:flex;align-items:center;gap:.8rem;padding:1rem 1.3rem;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:#fff;z-index:2}
+.g-dlg-cab h2{margin:0;font-size:1.15rem;flex:1}
+.g-dlg-corpo{padding:1rem 1.3rem 1.3rem;overflow-y:auto;max-height:calc(92vh - 130px)}
+.g-dlg-rodape{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:flex-end;padding:.8rem 1.3rem;
+  border-top:1px solid var(--line);background:#fafdff;position:sticky;bottom:0}
+.g-dlg-rodape .esq{margin-right:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+.g-fechar{border:0;background:none;font-size:1.5rem;line-height:1;color:var(--muted);padding:.2rem .5rem;border-radius:8px}
+.g-fechar:hover{background:#eef4fb}
+
+/* ------------------------------------------------- formulário do aluno */
+.gf-sec{margin:1rem 0 .2rem;padding-top:.8rem;border-top:1px dashed var(--line2);font-size:.78rem;font-weight:800;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--blue)}
+.gf-sec:first-child{margin-top:0;padding-top:0;border-top:0}
+.gf{display:grid;grid-template-columns:repeat(12,1fr);gap:0 .8rem}
+.gf>div{grid-column:span 12}
+.gf .c1{grid-column:span 1}.gf .c2{grid-column:span 2}.gf .c3{grid-column:span 3}.gf .c4{grid-column:span 4}.gf .c5{grid-column:span 5}
+.gf .c6{grid-column:span 6}.gf .c7{grid-column:span 7}.gf .c8{grid-column:span 8}.gf .c9{grid-column:span 9}
+.gf label{margin-top:.6rem}
+.gf .obrig::after{content:" *";color:var(--red)}
+.gf-nota{font-size:.82rem;color:var(--muted);background:#f2f8fd;border-radius:10px;padding:.55rem .8rem;margin:.6rem 0 0}
+.gf-nota--alerta{background:#fff3cd;color:#6b4a00}
+.gf-topo{display:grid;grid-template-columns:1fr 150px;gap:1.2rem;align-items:start}
+.gf-foto{display:flex;flex-direction:column;align-items:center;gap:.4rem}
+.gf-foto .quadro{width:132px;height:170px;border:1.5px dashed var(--line2);border-radius:12px;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:.8rem;text-align:center;background:#f7fbfe}
+.gf-foto .quadro img{width:100%;height:100%;object-fit:cover}
+.gf-check{display:flex;align-items:center;gap:.5rem;margin-top:.6rem;font-weight:700;color:var(--muted);font-size:.9rem}
+.gf-check input{width:auto}
+
+/* ------------------------------------------------------------ contratos */
+.g-hist td .quando{font-weight:700}
+.g-hist td small{display:block;color:var(--dim)}
+
+/* --------------------------------------------------------------- agenda */
+.ag-cab{display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem}
+.ag-cab h2{margin:0;min-width:12rem;text-align:center;font-size:1.25rem;text-transform:capitalize}
+.ag-grade{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.ag-sem{text-align:center;font-size:.75rem;font-weight:800;color:var(--muted);text-transform:uppercase;padding:.3rem 0}
+.ag-dia{min-height:86px;border-radius:12px;background:#fff;border:1px solid var(--line);padding:.4rem .5rem;
+  display:flex;flex-direction:column;gap:.2rem;
+  /* É um <button> (clicar no dia cadastra uma data nele): zera o que o
+     navegador põe em botão para ele continuar parecendo um dia do mês. */
+  font:inherit;text-align:left;color:inherit;cursor:pointer;width:100%}
+button.ag-dia:hover{border-color:var(--blue);box-shadow:0 0 0 2px rgba(11,78,162,.12)}
+.ag-dia .n{font-weight:800;color:var(--muted)}
+.ag-dia small{font-size:.72rem;line-height:1.25;font-weight:700}
+.ag-dia.fora{background:transparent;border-color:transparent}
+/* Tons PASTÉIS, como pedido: azul para aula, vermelho para feriado e
+   amarelo para outra atividade. No mesmo dia o vermelho vence — é o que a
+   secretaria precisa ver para avisar as turmas de que não haverá aula. */
+.ag-dia.aula{background:#dcecfb;border-color:#b9d8f5}
+.ag-dia.aula .n{color:#0B4EA2}
+.ag-dia.aula small{color:#28609f}
+.ag-dia.feriado{background:#fbdde2;border-color:#f3b8c2}
+.ag-dia.feriado .n{color:#a3264a}
+.ag-dia.feriado small{color:#8f2340}
+.ag-dia.atividade{background:#fdf1c7;border-color:#f0d982}
+.ag-dia.atividade .n{color:#8a6300}
+.ag-dia.atividade small{color:#7a5700}
+.ag-dia.hoje{outline:2.5px solid var(--lime);outline-offset:1px}
+.ag-legenda{display:flex;flex-wrap:wrap;gap:1rem;margin-top:.9rem;font-size:.85rem;color:var(--muted);font-weight:700}
+.ag-legenda span::before{content:"";display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:.4rem;vertical-align:-2px}
+.ag-legenda .l-aula::before{background:#dcecfb;border:1px solid #b9d8f5}
+.ag-legenda .l-feriado::before{background:#fbdde2;border:1px solid #f3b8c2}
+.ag-legenda .l-atividade::before{background:#fdf1c7;border:1px solid #f0d982}
+.ag-legenda .l-livre::before{background:#fff;border:1px solid var(--line)}
+.ag-lista{margin:0;padding:0;list-style:none;display:grid;gap:.35rem}
+.ag-lista li{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem}
+.ag-lista li.vencida>b,.ag-lista li.vencida>small{text-decoration:line-through;opacity:.7}
+.ag-bola{width:12px;height:12px;border-radius:50%;flex:none}
+.ag-bola.aula{background:#9cc4ec}.ag-bola.feriado{background:#ee9aab}.ag-bola.atividade{background:#e8c655}
+
+/* A mesma cor do dia, em etiqueta: na tabela do calendário e no formulário. */
+.chip-cat{display:inline-block;border-radius:999px;padding:.12rem .6rem;font-size:.78rem;font-weight:800;border:1px solid}
+.chip-cat.aula{background:#dcecfb;border-color:#b9d8f5;color:#0B4EA2}
+.chip-cat.feriado{background:#fbdde2;border-color:#f3b8c2;color:#8f2340}
+.chip-cat.atividade{background:#fdf1c7;border-color:#f0d982;color:#7a5700}
+.g-cats{display:grid;gap:.4rem;margin:.2rem 0 .6rem}
+.g-cats .chip-cat{display:flex;align-items:center;gap:.5rem;border-radius:12px;padding:.5rem .7rem;font-size:.9rem;cursor:pointer;margin:0;opacity:.75}
+.g-cats .chip-cat small{font-weight:600;opacity:.85;margin-left:auto;text-align:right}
+.g-cats .chip-cat:has(input:checked){opacity:1;box-shadow:0 0 0 2px currentColor}
+.g-cats input{width:auto;margin:0}
+
+/* ------------------------------------------- atividades do aluno (grade) */
+table.ativ-grade{min-width:880px}
+.ativ-grade select[data-c="turma"]{min-width:118px}
+.ativ-grade th,.ativ-grade td{padding:.4rem .45rem;vertical-align:top}
+.ativ-grade th.dia,.ativ-grade td.dia{text-align:center;width:2.6rem;padding-left:0;padding-right:0}
+.ativ-grade td.dia input{width:18px;height:18px;margin:.55rem 0 0;accent-color:var(--blue)}
+.ativ-grade select,.ativ-grade input[data-c="mens"]{margin:0;padding:.45rem .55rem;font-size:.88rem}
+.ativ-grade td:first-child select{min-width:140px}
+.ativ-grade input[data-c="mens"]{width:110px}
+.ativ-grade select[data-c="prof"]{min-width:150px}
+.ativ-grade small[data-c="vaga"]{display:block;margin-top:.2rem;font-size:.75rem}
+.ativ-grade small.alerta{color:#b3261e;font-weight:800}
+.ativ-grade .g-fechar{margin-top:.25rem}
+
+/* ------------------------------------------------ agenda: compartilhar */
+.g-acoes-topo{display:flex;gap:.5rem;flex-wrap:wrap}
+.comp-previa{margin-top:.8rem;background:#eef4fa;border-radius:12px;padding:.6rem;display:flex;justify-content:center;min-height:200px;align-items:center}
+.comp-previa img{max-height:52vh;width:auto;border-radius:8px;box-shadow:0 4px 18px rgba(8,59,126,.18)}
+
+/* ------------------------------------------------------------ indicadores
+   Barras horizontais em HTML: rótulo à esquerda, trilho com grade fina,
+   barra de no máximo 18px com a ponta arredondada e a base reta, e o valor
+   na ponta. O excedente é um segmento separado por 2px de fundo. */
+.gi-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.8rem}
+.gi-tile{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:.9rem 1rem;display:flex;flex-direction:column;gap:.2rem}
+.gi-tile span{font-size:.82rem;color:var(--muted);font-weight:700}
+.gi-tile b{font-size:1.9rem;line-height:1.1;color:var(--text)}
+.gi-tile.hero b{font-size:2.6rem;color:var(--blue)}
+.gi-tile.alerta{border-color:#f3b8c2;background:#fff7f8}
+.gi-tile.alerta b{color:#b3261e}
+.gi-tit{margin:0 0 .15rem;font-size:1.02rem}
+.gb{position:relative;margin-top:.6rem}
+.gb-eixo{position:relative;height:1.2rem;margin-left:210px;margin-right:150px;font-size:.72rem;color:var(--dim)}
+.gb-eixo span{position:absolute;transform:translateX(-50%);font-variant-numeric:tabular-nums}
+.gb-linha{display:flex;align-items:center;min-height:34px;border-radius:8px}
+.gb-linha:hover{background:#f5f9fd}
+/* O rótulo quebra linha em vez de ser cortado: um nome de turma pela metade
+   ("Hidroginástica — 07:0…") esconde justamente o horário. */
+.gb-rot{width:210px;flex:none;font-size:.84rem;font-weight:700;padding:.2rem .8rem .2rem 0;text-align:right;line-height:1.25}
+.gb-trilho{position:relative;flex:1;height:34px;margin-right:150px}
+.gb-grade{position:absolute;top:0;bottom:0;width:1px;background:#e8eef5}
+.gb-barra{position:absolute;left:0;top:8px;height:18px;background:#0B4EA2;border-radius:0 4px 4px 0}
+.gb-barra.corta{border-radius:0}
+.gb-barra.fora{background:#d03b3b;border-radius:0 4px 4px 0}
+.gb-limite{position:absolute;top:3px;bottom:3px;width:2px;margin-left:-1px;background:#0e2a4a;border-radius:2px}
+.gb-valor{position:absolute;top:7px;white-space:nowrap;font-size:.86rem;font-weight:800;color:var(--text)}
+.gb-valor small{font-weight:600;color:var(--muted)}
+.gb-alerta{color:#b3261e;margin-left:.3rem}
+.gb-dica{position:absolute;z-index:3;min-width:200px;max-width:260px;background:#0e2a4a;color:#fff;font-size:.8rem;line-height:1.4;
+  padding:.55rem .7rem;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.2);pointer-events:none}
+.gi-tabela summary{cursor:pointer;font-weight:800}
+
+/* ------------------------------------------------------------ auditoria */
+.g-aud-filtros select,.g-aud-filtros input[type=search]{width:auto;flex:1 1 180px;max-width:280px;margin:0}
+.g-aud-filtros label{display:flex;align-items:center;gap:.35rem;margin:0;font-size:.85rem;color:var(--muted);font-weight:700}
+.g-aud-filtros input[type=date]{width:auto;margin:0}
+table.g-aud{min-width:820px}
+.g-aud td{font-size:.84rem;vertical-align:top}
+
+/* ---------------------------------------------------------------- sobre */
+.sobre-cab{display:flex;gap:1.1rem;align-items:flex-start}
+.sobre-cab img{border-radius:14px;flex:none}
+.sobre-cab h2{margin:0 0 .2rem;font-size:1.2rem}
+.sobre-versao{margin:0 0 .7rem;color:var(--muted)}
+.sobre-versao b{color:var(--blue);font-size:1.05rem}
+.sobre-dados{display:grid;grid-template-columns:max-content 1fr;gap:.3rem 1rem;margin:0;font-size:.9rem}
+.sobre-dados dt{font-weight:800;color:var(--muted)}
+.sobre-dados dd{margin:0}
+.sobre-v{border:1px solid var(--line);border-radius:12px;margin-bottom:.5rem;background:#fff}
+.sobre-v summary{cursor:pointer;padding:.65rem .9rem;font-size:.95rem}
+.sobre-v[open] summary{border-bottom:1px solid var(--line)}
+.sobre-corpo{padding:.4rem 1rem .8rem;font-size:.88rem;line-height:1.55}
+.sobre-corpo h4{margin:.9rem 0 .3rem;font-size:.9rem}
+.sobre-corpo p{margin:.5rem 0}
+.sobre-corpo ul{margin:.3rem 0;padding-left:1.2rem}
+.sobre-corpo code{background:#eef4fa;border-radius:5px;padding:0 .3rem;font-size:.85em}
+.sobre-corpo blockquote{margin:.5rem 0;padding:.4rem .8rem;border-left:3px solid var(--line2);color:var(--muted)}
+.sobre-corpo pre{background:#f4f8fc;border-radius:8px;padding:.6rem;overflow:auto;font-size:.8rem}
+
+/* ----------------------------------------------------------- relatórios */
+.g-cartoes{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.9rem}
+.g-cartao{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.5rem}
+.g-cartao h3{margin:0;font-size:1rem}
+.g-cartao p{margin:0;color:var(--muted);font-size:.88rem}
+.g-cartao .btn{align-self:flex-start;margin-top:auto}
+
+/* ------------------------------------------------------ contrato: editor */
+.g-duas{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:1rem;align-items:start}
+.g-marcadores{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:.8rem;position:sticky;top:70px;
+  max-height:calc(100vh - 100px);overflow:auto}
+.g-marcadores h3{margin:0 0 .4rem;font-size:.95rem}
+.g-marcadores button{display:block;width:100%;text-align:left;border:0;background:none;padding:.3rem .4rem;border-radius:7px;font-size:.82rem}
+.g-marcadores button:hover{background:#eef6fd}
+.g-marcadores code{font-weight:800;color:var(--blue);font-size:.8rem}
+.g-marcadores small{display:block;color:var(--dim)}
+.g-previa{border:1px solid var(--line);border-radius:12px;background:#fff;padding:1.2rem 1.4rem;
+  font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.4;text-align:justify;color:#111}
+.g-previa h2,.g-previa h3{text-align:center;text-transform:uppercase;color:#111}
+.g-previa h2{font-size:1.02em}.g-previa h3{font-size:.95em;margin:.6em 0 .2em}
+.g-previa p{margin:0 0 .35em}
+.g-previa img{max-width:100%}
+.g-previa .logo-contrato{display:block;height:44px;margin:0 auto 6px}
+.g-previa .local-data{text-align:right}
+.g-previa .ass-contratante{width:62%}
+.g-previa .ass-contratante .linha-x{display:block;border-bottom:1px solid #111;padding-top:14px;line-height:1}
+.g-previa .ass-linhas .traco{display:block;border-top:1px solid #111;margin:18px 0 2px}
+.g-previa .ass-contratante b{display:block}
+.g-previa .ass-linhas{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;text-align:center;font-size:.85em}
+.g-assinatura-img{max-width:100%;max-height:110px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:.3rem}
+
+/* ------------------------------------------------------ configurações */
+.g-dias{display:flex;flex-wrap:wrap;gap:.5rem;margin:.4rem 0 .9rem}
+.g-dias label{display:flex;align-items:center;gap:.4rem;margin:0;border:1.5px solid var(--line2);border-radius:999px;
+  padding:.4rem .85rem;font-size:.9rem;color:var(--text);cursor:pointer;background:#fff}
+.g-dias input{width:auto}
+.g-dias label:has(input:checked){background:#dcecfb;border-color:#9cc4ec;color:#0B4EA2}
+
+@media (max-width:980px){
+  .conteudo{min-height:auto}
+  .appbar{padding:.5rem .9rem}
+  .gf-topo{grid-template-columns:1fr}
+  .gf-foto{flex-direction:row}
+  .g-duas{grid-template-columns:1fr}
+  .g-marcadores{position:static;max-height:none}
+}
+@media (max-width:640px){
+  .gf .c1,.gf .c2,.gf .c3,.gf .c4,.gf .c5,.gf .c6,.gf .c7,.gf .c8,.gf .c9{grid-column:span 12}
+  .ag-dia{min-height:58px;padding:.3rem}
+  .ag-dia small{display:none}
+  .sobre-cab{flex-direction:column}
+  .gb-eixo{margin-left:110px;margin-right:110px}
+  .gb-rot{width:110px;font-size:.78rem}
+  .gb-trilho{margin-right:110px}
+  .sobre-dados{grid-template-columns:1fr}
+  .appbar .ab-titulo{display:none}
+}
