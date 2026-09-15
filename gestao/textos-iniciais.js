@@ -12,6 +12,12 @@
    Os dois só são gravados UMA vez (ver esquema.js). Mudar este arquivo depois
    não altera o que já está no banco — e é assim que tem de ser, senão um
    deploy desfaria o que a direção escreveu.
+
+   SEM DADO PESSOAL AQUI (1.25.0). O repositório é PÚBLICO no GitHub, e a
+   primeira transcrição trazia o RG, o CPF e o endereço de correspondência do
+   diretor. A qualificação completa dele fica só no BANCO (tela "Contrato"),
+   que não vai para o git; este arquivo é apenas o ponto de partida de uma
+   instalação nova.
    ========================================================================== */
 "use strict";
 
@@ -21,7 +27,7 @@
    na primeira edição e ninguém saberia por quê. */
 const MODELO_CONTRATO = `<h2>CONTRATO DE PRESTAÇÃO DE SERVIÇOS - IDENTIFICAÇÃO DAS PARTES CONTRATANTES</h2>
 <p><b>CONTRATANTE:</b> {{CONTRATANTE_NOME}} - {{CODIGO}}, Nacionalidade {{CONTRATANTE_NACIONALIDADE}}, Carteira de Identidade nº {{CONTRATANTE_RG}} e órgão {{CONTRATANTE_RG_EMISSOR}}, C.P.F. nº {{CONTRATANTE_CPF}}, residente e domiciliado na {{ENDERECO}}, nº {{NUMERO}}, bairro {{BAIRRO}}, Cep {{CEP}}, Cidade {{CIDADE}}, no Estado {{UF}}.</p>
-<p><b>CONTRATADA:</b> FORMS FITNESS ACADEMIA AQUÁTICA, com endereço de arrendamento na Rua São Vicente Férrer, s/ nº, bairro Boa Vista II, Cidade Caruaru, Cep 55038-570, no Estado PE, inscrita no C.N.P.J. sob o nº 02.192.745/0001-25, devidamente representada neste ato por Ronaldo José de Menezes, Brasileiro, Diretor e Professor, Solteiro, Carteira de Identidade nº 3723988 SDSPE, C.P.F. 686.455.894-00, com endereço para correspondência na Rua Silvino Macêdo nº 134, Caixa Postal 534 bairro Mauricio de Nassau, Cep 55012-380, Cidade Caruaru, no Estado PE.</p>
+<p><b>CONTRATADA:</b> FORMS FITNESS ACADEMIA AQUÁTICA, com endereço de arrendamento na Rua São Vicente Férrer, s/ nº, bairro Boa Vista II, Cidade Caruaru, Cep 55038-570, no Estado PE, inscrita no C.N.P.J. sob o nº 02.192.745/0001-25, devidamente representada neste ato por seu Diretor e Professor, Ronaldo José de Menezes.</p>
 <p>As partes acima identificadas têm, entre si, justas e acertadas o presente Contrato de Prestação de Serviços de Academia, que se regerá pelas cláusulas seguintes e pelas condições descritas no presente.</p>
 {{#SE_MENOR}}<p>Caso o aluno seja menor de idade: a contratante é o responsável pelo (a) aluno (a) de menor idade por nome de <b>{{ALUNO_NOME}}</b> com data de nascimento, {{ALUNO_NASCIMENTO}} perfazendo {{ALUNO_IDADE}} anos de idade.</p>{{/SE_MENOR}}
 <h3>DO OBJETO DO CONTRATO</h3>

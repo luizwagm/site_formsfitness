@@ -475,7 +475,11 @@
      descarta os metadados EXIF — que numa foto de celular incluem a
      localização GPS de onde ela foi tirada, muitas vezes a casa da criança.
      Lê por FileReader (data:) porque a CSP do painel não aceita blob:. */
-  function reduzirImagem(arq, max, qualidade) {
+  /* `semPapel` (1.25.1): para as ASSINATURAS. A saída padrão é JPEG — ótima
+     para foto, mas JPEG não tem transparência: o PNG transparente que a
+     direção enviava virava um retângulo PRETO no contrato. Com `semPapel`,
+     sai PNG, e um escaneamento em papel branco perde o papel (ver tirarPapel). */
+  function reduzirImagem(arq, max, qualidade, { semPapel = false } = {}) {
     return new Promise((ok, falha) => {
       if (!/^image\/(jpeg|png|webp)$/.test(arq.type)) return falha(new Error("Envie uma foto JPG, PNG ou WEBP."));
       const leitor = new FileReader();
@@ -487,13 +491,36 @@
           const k = Math.min(1, max / Math.max(img.width, img.height));
           const c = document.createElement("canvas");
           c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-          c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-          ok(c.toDataURL("image/jpeg", qualidade));
+          const ctx = c.getContext("2d");
+          ctx.drawImage(img, 0, 0, c.width, c.height);
+          if (!semPapel) return ok(c.toDataURL("image/jpeg", qualidade));
+          tirarPapel(ctx, c.width, c.height);
+          ok(c.toDataURL("image/png"));
         };
         img.src = leitor.result;
       };
       leitor.readAsDataURL(arq);
     });
+  }
+
+  /* Tira o papel de uma assinatura escaneada: o branco vira transparente e a
+     tinta fica, na MESMA cor que tinha sobre o papel ("cor para alfa" contra
+     o branco — sobre folha branca a imagem imprime idêntica ao escaneado, só
+     que sem o retângulo). O quase-branco (≥ 246) conta como papel, para o pó
+     do scanner não virar sujeira cinza no contrato. Se a imagem JÁ tem
+     transparência, alguém a preparou: fica como veio. */
+  function tirarPapel(ctx, w, h) {
+    const quadro = ctx.getImageData(0, 0, w, h), p = quadro.data;
+    for (let i = 3; i < p.length; i += 4) if (p[i] < 250) return;
+    const PAPEL = 246;
+    for (let i = 0; i < p.length; i += 4) {
+      const v = [p[i], p[i + 1], p[i + 2]].map((x) => Math.min(255, x * 255 / PAPEL));
+      const a = 1 - Math.min(v[0], v[1], v[2]) / 255;
+      if (a <= 0) { p[i + 3] = 0; continue; }
+      for (let k = 0; k < 3; k++) p[i + k] = Math.round((v[k] - (1 - a) * 255) / a);
+      p[i + 3] = Math.round(a * 255);
+    }
+    ctx.putImageData(quadro, 0, 0);
   }
 
   /* ==========================================================================
@@ -628,7 +655,7 @@
       const x = p || { ativo: 1 };
       abrir($("#dlg-pequeno"), `<form id="f-prof">${cab(p ? "Editar professor" : "Novo professor")}<div class="g-dlg-corpo">
         <label class="obrig">Nome</label><input name="nome" value="${e(x.nome || "")}" maxlength="80" required>
-        <div class="gf"><div class="c6"><label>CREF</label><input name="cref" value="${e(x.cref || "")}" maxlength="30" placeholder="ex.: 001058-G/PE"></div>
+        <div class="gf"><div class="c6"><label>CREF</label><input name="cref" value="${e(x.cref || "")}" maxlength="30" placeholder="ex.: 000000-G/PE"></div>
           <div class="c6"><label>Telefone</label><input name="telefone" data-mask="fone" inputmode="tel" value="${e(x.telefone || "")}" maxlength="20"></div></div>
         <label>E-mail</label><input name="email" type="email" value="${e(x.email || "")}" maxlength="120">
         <label>Observação</label><input name="observacao" value="${e(x.observacao || "")}" maxlength="300" placeholder="ex.: turmas infantis, hidroginástica">
@@ -1151,7 +1178,7 @@
     $("#mc-ass-arq").onchange = async (ev) => {
       const arq = ev.target.files[0]; if (!arq) return;
       try {
-        const dataUrl = await reduzirImagem(arq, 1600, 0.92);
+        const dataUrl = await reduzirImagem(arq, 1600, 0.92, { semPapel: true });
         await api("/api/gestao/contrato/assinatura", "POST", { dataUrl });
         toast("Imagem das assinaturas salva."); telaContrato();
       } catch (err) { toast(err.message, true); }
@@ -1207,6 +1234,15 @@
           <td class="acoes"><button class="btn btn-ghost btn-sm" data-cf="editar-feriado" data-id="${f.id}">Editar</button>
           <button class="btn btn-danger btn-sm" data-cf="apagar-feriado" data-id="${f.id}">Apagar</button></td></tr>`).join("")}</tbody></table></div></div>
 
+      <div class="card mt"><h3 style="margin:0 0 .2rem">Rodapé do contrato</h3>
+        <p class="hint">Sai no fim de todo contrato gerado daqui em diante, no lugar do endereço que o Word trazia. Site, Instagram e
+          WhatsApp vêm de <b>Gestão do site ▸ Contato</b>; o e-mail administrativo é daqui.</p>
+        <label for="cfg-email-admin">E-mail administrativo</label>
+        <input id="cfg-email-admin" type="email" maxlength="120" value="${e(cfg.email_admin)}"
+          placeholder="${e(cfg.email_contato ? `vazio = o de contato do site (${cfg.email_contato})` : "ex.: administrativo@formsfitness.com")}">
+        <p class="rodape-previa" id="cfg-rodape">${cfg.rodape.map(e).join(" &nbsp;·&nbsp; ") || '<span class="fraco">(nenhum contato cadastrado)</span>'}</p>
+        <button class="btn btn-navy btn-sm" data-cf="rodape">Salvar rodapé</button></div>
+
       <div class="card mt"><h3 style="margin:0 0 .2rem">Condições da matrícula</h3>
         <p class="hint">O texto que sai no fim da <b>ficha impressa</b>, antes da assinatura. Não aparece no formulário do site.</p>
         <div id="cfg-cond" class="mt">${editorRico('data-ed="condicoes"', cfg.condicoes, true)}</div>
@@ -1218,6 +1254,10 @@
         if (b.dataset.cf === "dias") {
           const dias = $$("#cfg-dias input:checked").map((i) => Number(i.value));
           await api("/api/gestao/config", "PUT", { dias_aula: dias }); toast("Dias de aula salvos.");
+        }
+        if (b.dataset.cf === "rodape") {
+          await api("/api/gestao/config", "PUT", { email_admin: $("#cfg-email-admin").value.trim() });
+          toast("Rodapé do contrato salvo."); telaConfig();
         }
         if (b.dataset.cf === "condicoes") {
           const inp = $('#cfg-cond input[type=hidden]'); edSync(inp.id);

@@ -5,7 +5,7 @@ Site institucional com blog, o **gerenciador de conteúdo** e, desde a 1.20.0, a
 Forms Fitness Academia Aquática — Caruaru-PE, 33 anos de mercado.
 
 - **Domínio:** formsfitness.com (é `.com`, **não** `.com.br`)
-- **Porta interna:** 5186 · **Serviço:** `forms.service` · **Versão:** `1.24.2`
+- **Porta interna:** 5186 · **Serviço:** `forms.service` · **Versão:** `1.25.1`
 - **Stack:** Node ≥ 20 com `node:http`, SQLite via `better-sqlite3`. **Uma
   dependência de produção, e só.**
 

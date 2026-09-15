@@ -167,10 +167,56 @@ const PUB_MENOR = (extra = {}) => ({
     certo("dias de aula vêm da configuração", /nos dias de terças, quartas e sextas/.test(h1));
     certo("horário vem da turma", /das 10:00h/.test(h1));
     certo("nenhum marcador sobra no papel", !/\{\{/.test(h1));
+    /* Rodapé (1.25.0): no lugar do endereço do Word, o contato de hoje. */
+    certo("o contrato sai com o rodapé de site, e-mail, Instagram e WhatsApp",
+      /class="rodape-contrato"/.test(h1) && /Site: formsfitness\.com/.test(h1) && /WhatsApp: /.test(h1) && !/Silvino/.test(h1),
+      (h1.match(/<p class="rodape-contrato">[^<]*<\/p>/) || ["sem rodapé"])[0]);
+    const emailRuim = await pedir("PUT", "/api/gestao/config", { cookie: A, corpo: { email_admin: "sem-arroba" } });
+    certo("e-mail administrativo inválido é recusado", emailRuim.status === 400);
+    await pedir("PUT", "/api/gestao/config", { cookie: A, corpo: { email_admin: "zzqa.admin@formsfitness.com" } });
+    const cfgRod = (await pedir("GET", "/api/gestao/config", { cookie: A })).j;
+    certo("o e-mail administrativo entra no rodapé", cfgRod.email_admin === "zzqa.admin@formsfitness.com"
+      && cfgRod.rodape.includes("E-mail: zzqa.admin@formsfitness.com"), JSON.stringify(cfgRod.rodape));
+    const textosIniciais = fs.readFileSync(path.join(__dirname, "gestao", "textos-iniciais.js"), "utf8");
+    /* O repositório é PÚBLICO: a primeira transcrição do contrato levou para
+       lá o RG, o CPF e o endereço do diretor. */
+    certo("o modelo semente não tem CPF nem RG de ninguém (o repositório é público)",
+      !/\d{3}\.\d{3}\.\d{3}-\d{2}/.test(textosIniciais) && !/Identidade nº\s*\d/.test(textosIniciais));
     const c2adulto = await pedir("POST", `/api/gestao/alunos/${novo.j.id}/contratos`, { cookie: A });
     const h2 = (await pedir("GET", `/admin/imprimir/contrato/${c2adulto.j.id}`, { cookie: A })).texto;
     certo("adulto: assina ele mesmo, e o parágrafo do menor NÃO sai",
       /CONTRATANTE:<\/b> Zz Qa Adulto Novo - 004150/.test(h2) && !/menor de idade: a contratante/.test(h2));
+
+    /* Assinaturas da contratada (1.25.1). Sem imagem: três linhas em branco. */
+    certo("sem imagem de assinaturas: local/data ao lado do aluno e três linhas em branco",
+      /class="ass-linha1"/.test(h2) && (h2.match(/<span class="traco"><\/span>/g) || []).length === 3 && !/<img class="ass-img"/.test(h2),
+      (h2.match(/<div class="assinaturas[\s\S]{0,600}/) || ["sem bloco"])[0]);
+    /* PNG 1×1 TRANSPARENTE (tipo de cor 6, com alfa). */
+    const pngAlfa = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+    const envAss = await pedir("POST", "/api/gestao/contrato/assinatura", { cookie: A, corpo: { dataUrl: "data:image/png;base64," + pngAlfa } });
+    certo("envia a imagem das assinaturas da contratada", envAss.status === 200 && envAss.j.assinatura_id > 0, envAss.texto);
+    const arqAss = await fetch(`${BASE}/admin/arquivo/${envAss.j.assinatura_id}`, { headers: { Cookie: A } });
+    const bytesAss = Buffer.from(await arqAss.arrayBuffer());
+    certo("a imagem volta como PNG, byte a byte — a transparência não se perde no servidor",
+      arqAss.headers.get("content-type") === "image/png" && bytesAss.equals(Buffer.from(pngAlfa, "base64")));
+    const cAss = await pedir("POST", `/api/gestao/alunos/${novo.j.id}/contratos`, { cookie: A });
+    const hAss = (await pedir("GET", `/admin/imprimir/contrato/${cAss.j.id}`, { cookie: A })).texto;
+    const blocoAss = (hAss.match(/<div class="assinaturas ass-lado">[\s\S]*?<\/div>\s*<\/div>/) || [""])[0];
+    certo("com imagem: aluno à esquerda; à direita o local/data e, LOGO ABAIXO, a imagem",
+      /class="ass-contratante"[\s\S]*class="ass-contratada">\s*<p class="local-data">Caruaru \(PE\),[\s\S]*<img class="ass-img" src="\/admin\/arquivo\/\d+"/.test(blocoAss)
+      && !/ass-linha1|traco/.test(blocoAss), blocoAss.slice(0, 300) || "sem .ass-lado");
+    /* O envio do painel passava a assinatura pelo redutor das FOTOS, que grava
+       JPEG — e JPEG não tem transparência: o fundo virava um retângulo preto. */
+    const painelJs = fs.readFileSync(path.join(__dirname, "admin", "gestao.js"), "utf8");
+    certo("o painel envia a assinatura em PNG, sem passar pelo JPEG das fotos",
+      /reduzirImagem\(arq, \d+, [\d.]+, \{ semPapel: true \}\)/.test(painelJs)
+      && /if \(!semPapel\) return ok\(c\.toDataURL\("image\/jpeg"/.test(painelJs) && /ok\(c\.toDataURL\("image\/png"\)\)/.test(painelJs));
+    /* O CSS é aplicado na hora de imprimir, o HTML do contrato é congelado:
+       as classes das versões anteriores continuam valendo. */
+    const cssContrato = fs.readFileSync(path.join(__dirname, "gestao", "documentos.js"), "utf8");
+    certo("o CSS do contrato ainda veste as marcações antigas (.traco, .ass-linha1) e a nova (.ass-lado)",
+      /\.ass-contratante \.traco\{/.test(cssContrato) && /\.ass-linha1\{/.test(cssContrato) && /\.ass-lado \.ass-img\{height:35mm/.test(cssContrato));
+    await pedir("DELETE", "/api/gestao/contrato/assinatura", { cookie: A });
 
     const modelo = (await pedir("GET", "/api/gestao/contrato/modelo", { cookie: A })).j;
     const typo = await pedir("POST", "/api/gestao/contrato/modelo", { cookie: A, corpo: { texto: modelo.texto + "<p>{{ENDERECOO}}</p>" } });

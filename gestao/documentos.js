@@ -174,17 +174,34 @@ function dadosDoContrato({ aluno, matriculas = [], diasAula, hoje, assinaturaId 
    cadastrou a imagem das assinaturas (como no contrato em Word), ela entra;
    senão, três linhas em branco para assinar à caneta. */
 function blocoAssinaturas(contratante, hoje, assinaturaId) {
-  const contratada = assinaturaId
-    ? `<img class="ass-img" src="/admin/arquivo/${Number(assinaturaId)}" alt="Assinaturas da contratada e das testemunhas">`
-    : `<div class="ass-linhas">
-         <div><span class="traco"></span>Contratado</div>
-         <div><span class="traco"></span>Testemunha I</div>
-         <div><span class="traco"></span>Testemunha II</div>
-       </div>`;
+  const aluno = `<div class="ass-contratante"><span class="linha-x">X</span><b>${esc(contratante || "")}</b><small>Contratante</small></div>`;
+  const localData = `<p class="local-data">Caruaru (PE), ${esc(U.dataExtenso(hoje))}.</p>`;
+  /* Com a imagem (1.25.1): uma fileira só — o aluno à esquerda e, à direita,
+     o local/data com as assinaturas da contratada logo abaixo. A linha do
+     aluno desce até a altura dos traços da imagem: lado a lado, as quatro
+     assinaturas leem como UM papel assinado, e não como um recorte colado
+     embaixo do texto (que era o aspecto da 1.25.0, imagem na largura toda). */
+  if (assinaturaId) {
+    return `<div class="assinaturas ass-lado">
+    ${aluno}
+    <div class="ass-contratada">
+      ${localData}
+      <img class="ass-img" src="/admin/arquivo/${Number(assinaturaId)}" alt="Assinaturas da contratada e das testemunhas">
+    </div>
+  </div>`;
+  }
+  /* Sem a imagem: local e data AO LADO da linha do aluno (1.25.0), e as três
+     linhas em branco embaixo, para assinar à caneta. */
   return `<div class="assinaturas">
-    <p class="local-data">Caruaru (PE), ${esc(U.dataExtenso(hoje))}.</p>
-    <div class="ass-contratante"><span class="linha-x">X</span><b>${esc(contratante || "")}</b><small>Contratante</small></div>
-    ${contratada}
+    <div class="ass-linha1">
+      ${aluno}
+      ${localData}
+    </div>
+    <div class="ass-linhas">
+      <div><span class="traco"></span>Contratado</div>
+      <div><span class="traco"></span>Testemunha I</div>
+      <div><span class="traco"></span>Testemunha II</div>
+    </div>
   </div>`;
 }
 
@@ -467,13 +484,37 @@ const CSS_CONTRATO = `
   .ass-img{display:block;width:100%;max-height:30mm;object-fit:contain}
   .ass-linhas{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:16px;font-size:.88em;text-align:center}
   .ass-linhas .traco{display:block;border-top:1px solid #111;margin-bottom:1px}
+  /* A linha do aluno e o local/data lado a lado (contratos da 1.25 em diante;
+     os anteriores não têm .ass-linha1 e seguem com as regras de cima). */
+  .ass-linha1{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 0 4px}
+  .ass-linha1 .ass-contratante{margin:0}
+  .ass-linha1 .local-data{margin:0 0 1.9em;white-space:nowrap}
+  /* Aluno | local/data + imagem, na mesma fileira (1.25.1). A imagem tem
+     ALTURA FIXA em mm: o ajuste de uma folha mede o contrato antes de a
+     imagem baixar, e uma altura que dependesse do arquivo mudaria a conta
+     depois. 35 mm deixa os nomes impressos nela do tamanho do rótulo
+     "Contratante" (letra ~8 px). Os traços da imagem ficam a 60% da altura,
+     14 mm acima da base; o padding leva a linha do aluno até lá, descontando
+     as duas linhas de texto (nome + "Contratante") que ficam sob o traço. */
+  .ass-lado{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:5mm;align-items:end}
+  .ass-lado .ass-contratante{width:auto;max-width:85mm;margin:0;padding-bottom:calc(14mm - 2.4em)}
+  .ass-lado .ass-contratada{min-width:0}
+  .ass-lado .local-data{margin:0 0 1mm;white-space:nowrap}
+  .ass-lado .ass-img{height:35mm;width:auto;max-width:100%;max-height:none;object-fit:contain}
+  .contrato .rodape-contrato{margin:8px 0 0;padding-top:4px;border-top:1px solid #111;text-align:center;font-size:.86em}
 `;
 
-function contratoCorpo({ modelo, dados }) {
+/* O rodapé (1.25.0): no lugar do endereço que o Word trazia no fim, o contato
+   de hoje — site, e-mail administrativo, Instagram e WhatsApp. Faz parte do
+   HTML CONGELADO: o contrato guarda o contato do dia em que foi gerado, como
+   o papel guardaria. Contrato gerado antes da 1.25 fica sem, e não muda. */
+function contratoCorpo({ modelo, dados, rodape = [] }) {
   const miolo = renderizar(modelo, dados.valores, dados.condicoes);
+  const itens = (rodape || []).filter(Boolean);
   return `<div class="contrato">
   <img class="logo-contrato" src="/assets/img/logo-original.svg" alt="Forms Fitness">
   ${miolo}
+  ${itens.length ? `<p class="rodape-contrato">${itens.map(esc).join(" &nbsp;·&nbsp; ")}</p>` : ""}
 </div>`;
 }
 

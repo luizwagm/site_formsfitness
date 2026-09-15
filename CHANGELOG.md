@@ -5,6 +5,60 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.25.1 — 2026-09-14 · assinaturas da contratada sem fundo preto, ao lado do aluno
+
+**O fundo preto.** A imagem das assinaturas saía no contrato dentro de um
+retângulo preto. O envio passava a imagem pelo mesmo redutor das fotos, que
+grava sempre em JPEG — e JPEG não tem transparência: o fundo transparente do
+PNG virava preto. Agora o envio das assinaturas grava em **PNG** e respeita a
+transparência. Se vier um escaneamento com papel branco (JPG ou PNG sem
+transparência), o painel **tira o papel** antes de salvar: o branco vira
+transparente e a tinta fica na mesma cor.
+
+**Mais natural.** A imagem limpa foi refeita a partir do escaneamento
+original, com uma tinta só (grafite azulado) e o traço claro da caneta com
+mais corpo. A primeira tentativa, que separava a caneta azul do texto
+impresso, ficou manchada: o scanner registrou o mesmo traço metade azul,
+metade cinza. Também saíram os pontinhos de pó do scanner.
+
+**Posição.** As assinaturas da contratada deixaram de ocupar uma faixa na
+largura toda embaixo do texto. Ficam **ao lado da assinatura do aluno**,
+logo abaixo de "Caruaru (PE), data". A linha do aluno desce até a altura dos
+traços da imagem, e as quatro assinaturas ficam numa fileira só. A imagem tem
+altura fixa (35 mm), para o ajuste de uma folha medir o contrato sem esperar
+o arquivo carregar. Sem imagem cadastrada, continua como na 1.25.0: local e
+data ao lado do aluno e três linhas em branco embaixo.
+
+**Para quem já enviou a imagem:** apague a de fundo preto e envie de novo em
+Contrato ▸ Assinaturas da contratada. Contrato já gerado guarda a imagem que
+tinha. Se algum saiu com o fundo preto, gere de novo.
+
+---
+
+## 1.25.0 — 2026-09-14 · rodapé do contrato e as assinaturas da contratada
+
+**Rodapé do contrato.** No lugar do endereço que o Word trazia no fim, o
+contrato gerado sai
+com **site, e-mail administrativo, Instagram e WhatsApp**. Site, Instagram e
+WhatsApp vêm de Gestão do site ▸ Contato; o **e-mail administrativo** é um
+campo novo em Configurações ▸ Rodapé do contrato (vazio, usa o de contato do
+site). O rodapé faz parte do contrato congelado: vale para os gerados daqui em
+diante, e os antigos não mudam.
+
+**Assinaturas da contratada.** A imagem com as assinaturas do contratado
+(Ronaldo José de Menezes) e das duas testemunhas foi recortada do Word e
+limpa (fundo do papel transparente). Enviada em Contrato ▸ Assinaturas da
+contratada, ela sai impressa em todo contrato gerado depois; só a linha do
+aluno (ou do responsável) fica em aberto. **A imagem não vai para o git** — o
+repositório é público —, e por isso é enviada pelo painel.
+
+**Dados pessoais fora do repositório.** A primeira transcrição do contrato
+(1.20.0) levou para o código o RG, o CPF e o endereço de correspondência do
+diretor — e o repositório é público no GitHub. O modelo semente agora traz só
+o nome e o cargo; a qualificação completa fica no banco (tela Contrato), que
+não vai para o git. Prova nova na suíte: o modelo semente não tem CPF nem RG.
+O exemplo do campo CREF deixou de usar o número real.
+
 ## 1.24.2 — 2026-09-14 · o código de matrícula começa em 004149
 
 Os cadastros antigos da academia vão até 4148, então a numeração do sistema
