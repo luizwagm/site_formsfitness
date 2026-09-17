@@ -18,3 +18,10 @@ node_modules/
 *.log
 *.tmp
 .DS_Store
+
+# Segredos do servidor (1.26.0): a chave e o Código de Acesso da API de
+# Cobrança do Sicredi. Este repositório é PÚBLICO — um .env commitado aqui é
+# a chave de emitir boleto em nome da academia publicada na internet.
+.env
+.env.*
+!.env.exemplo

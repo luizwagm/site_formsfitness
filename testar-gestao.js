@@ -53,11 +53,142 @@ const PUB_MENOR = (extra = {}) => ({
   aceite_termos: true, aceite_dados: true, ...extra,
 });
 
+/* ==========================================================================
+   OS SERVIÇOS DE CEP, DE MENTIRA (1.26.0)
+   A suíte não sai na internet: numa rede sem saída ela ficaria pendurada e o
+   defeito pareceria do código. Este servidor responde no formato do ViaCEP
+   (/via/...) e da BrasilAPI (/brasil/...), com um caso para cada caminho.
+   ========================================================================== */
+const PORTA_CEP = PORTA + 7;
+const pedidosCep = [];
+const servidorCep = require("node:http").createServer((req, res) => {
+  pedidosCep.push(req.url);
+  const via = /^\/via\/ws\/(\d{8})\/json\/$/.exec(req.url);
+  const bra = /^\/brasil\/api\/cep\/v1\/(\d{8})$/.exec(req.url);
+  const cep = (via || bra || [])[1];
+  const manda = (st, obj) => { res.writeHead(st, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
+  if (via) {
+    if (cep === "55038270") return manda(200, { cep: "55038-270", logradouro: "Avenida Caruaru", bairro: "Maria Auxiliadora", localidade: "Caruaru", uf: "PE" });
+    if (cep === "55120000") return manda(200, { cep: "55120-000", logradouro: "", bairro: "", localidade: "Riacho das Almas", uf: "PE" });
+    if (cep === "55038999") return manda(200, { logradouro: "<img src=x onerror=alert(1)>Rua Zz", bairro: "Zz", localidade: "Caruaru", uf: "PE" });
+    if (cep === "55555555" || cep === "56666666") return manda(500, {});
+    return manda(200, { erro: true });
+  }
+  if (bra) {
+    if (cep === "55555555") return manda(200, { cep, street: "Rua Zz da Reserva", neighborhood: "Centro", city: "Caruaru", state: "PE" });
+    if (cep === "56666666") return manda(503, {});
+    return manda(404, { message: "CEP não encontrado" });
+  }
+  manda(404, {});
+});
+
+/* ==========================================================================
+   O SICREDI, DE MENTIRA (1.26.0)
+
+   Confere o que o manual exige (chave, contexto, token, cooperativa e posto)
+   e devolve boletos com código de barras VÁLIDO — montado aqui com a mesma
+   conta do banco, para a conferência do carnê ter o que conferir.
+
+   As alavancas (`SB.perderProxima`, `SB.colidirProxima`, `SB.recusarProxima`,
+   `SB.invalidarToken`) simulam os acidentes que causariam cobrança dobrada
+   ou carnê errado.
+   ========================================================================== */
+const Bol = require("./gestao/boleto");
+const PORTA_SB = PORTA + 8;
+const SB = { tokens: 0, registros: [], boletos: new Map(), baixas: [], pdfs: 0, chamadas401: 0,
+  perderProxima: false, colidirProxima: false, recusarProxima: false, tokenValido: "" };
+function codigoBarrasFalso(nosso, valorCentavos) {
+  const livre = ("11" + nosso + "678903123451").padEnd(25, "0").slice(0, 25);
+  const semDv = "7489" + "1234" + String(valorCentavos).padStart(10, "0") + livre;
+  for (let dv = 1; dv <= 9; dv++) {
+    const c = semDv.slice(0, 4) + dv + semDv.slice(4);
+    if (Bol.codigoBarrasValido(c)) return c;
+  }
+  throw new Error("sem DV");
+}
+const servidorSB = require("node:http").createServer((req, res) => {
+  let bruto = "";
+  req.on("data", (d) => (bruto += d));
+  req.on("end", () => {
+    const manda = (st, obj, tipo = "application/json") => {
+      res.writeHead(st, { "Content-Type": tipo });
+      res.end(tipo === "application/json" ? JSON.stringify(obj) : obj);
+    };
+    const url = new URL(req.url, "http://x");
+    if (req.headers["x-api-key"] !== "chave-de-teste") return manda(401, { message: "Could not find a required Access Token" });
+    if (url.pathname === "/auth/openapi/token") {
+      const f = new URLSearchParams(bruto);
+      if (req.headers.context !== "COBRANCA") return manda(401, { error: "sem contexto" });
+      if (f.get("grant_type") !== "password" || f.get("username") !== "123450512" || f.get("password") !== "codigo-de-teste"
+        || f.get("scope") !== "cobranca") return manda(401, { error_description: "Invalid user credentials" });
+      SB.tokens++;
+      SB.tokenValido = `tok-${SB.tokens}`;
+      return manda(200, { access_token: SB.tokenValido, expires_in: 300, refresh_token: "ref", refresh_expires_in: 1800, token_type: "Bearer" });
+    }
+    if (req.headers.authorization !== `Bearer ${SB.tokenValido}`) { SB.chamadas401++; return manda(401, { message: "UNAUTHORIZED" }); }
+    if (req.headers.cooperativa !== "0512" || req.headers.posto !== "03") return manda(401, { message: "Cooperativa diferente" });
+
+    if (url.pathname === "/cobranca/boleto/v1/boletos" && req.method === "POST") {
+      const b = JSON.parse(bruto);
+      SB.registros.push(b);
+      if (SB.recusarProxima) { SB.recusarProxima = false; return manda(400, { message: "CEP do pagador invalido" }); }
+      if (SB.colidirProxima) {
+        SB.colidirProxima = false;
+        SB.boletos.set(b.nossoNumero, { seuNumero: "OUTRO", valorNominal: 999, situacao: "EM CARTEIRA", nossoNumero: b.nossoNumero });
+        return manda(422, { message: "Nosso numero ja cadastrado" });
+      }
+      if (SB.boletos.has(b.nossoNumero)) return manda(422, { message: "Nosso numero ja cadastrado" });
+      const codigoBarras = codigoBarrasFalso(b.nossoNumero, Math.round(b.valor * 100));
+      const salvo = { ...b, valorNominal: b.valor, situacao: "EM CARTEIRA PIX", codigoBarras,
+        linhaDigitavel: Bol.linhaDoCodigo(codigoBarras), txId: "tx" + b.nossoNumero,
+        codigoQrCode: `00020101021226930014br.gov.bcb.pix2571pix-qrcode-h.sicredi.com.br/qr/v2/cobv/${b.nossoNumero}5204000053039865802BR6304ABCD` };
+      SB.boletos.set(b.nossoNumero, salvo);
+      if (SB.perderProxima) { SB.perderProxima = false; return req.socket.destroy(); }   /* registrou e a resposta se perdeu */
+      return manda(201, { txid: salvo.txId, qrCode: salvo.codigoQrCode, linhaDigitavel: salvo.linhaDigitavel,
+        codigoBarras, cooperativa: "0512", posto: "03", nossoNumero: b.nossoNumero });
+    }
+    if (url.pathname === "/cobranca/boleto/v1/boletos" && req.method === "GET") {
+      if (url.searchParams.get("codigoBeneficiario") !== "12345") return manda(401, { message: "beneficiario diferente" });
+      const b = SB.boletos.get(url.searchParams.get("nossoNumero"));
+      return b ? manda(200, b) : manda(404, { message: "Titulo nao encontrado" });
+    }
+    let m;
+    if ((m = /^\/cobranca\/boleto\/v1\/boletos\/(\d{9})\/baixa$/.exec(url.pathname)) && req.method === "PATCH") {
+      const b = SB.boletos.get(m[1]);
+      if (!b) return manda(400, { message: "Titulo nao encontrado" });
+      SB.baixas.push(m[1]); b.situacao = "BAIXADO POR SOLICITACAO";
+      return manda(202, { statusComando: "MOVIMENTO_ENVIADO", tipoMensagem: "BAIXA", nossoNumero: m[1] });
+    }
+    if (url.pathname === "/cobranca/boleto/v1/boletos/pdf") { SB.pdfs++; return manda(200, "%PDF-1.4 boleto de teste", "application/pdf"); }
+    manda(404, { message: "rota" });
+  });
+});
+
 (async () => {
+  await new Promise((r) => servidorCep.listen(PORTA_CEP, "127.0.0.1", r));
+  await new Promise((r) => servidorSB.listen(PORTA_SB, "127.0.0.1", r));
+  /* As credenciais vão num .env de mentira, lido pelo servidor como o de
+     verdade — é o que prova o carregador do .env. */
+  const ENV = path.join(TMP, "servidor.env");
+  fs.writeFileSync(ENV, [
+    "# .env de prova",
+    "SICREDI_AMBIENTE=producao",
+    "SICREDI_API_KEY=chave-de-teste",
+    'SICREDI_CODIGO_ACESSO="codigo-de-teste"',
+    "SICREDI_COOPERATIVA=0512",
+    "SICREDI_POSTO=03",
+    "SICREDI_BENEFICIARIO=12345",
+    `SICREDI_BASE_URL=http://127.0.0.1:${PORTA_SB}`,
+  ].join("\n"));
   const servidor = spawn(process.execPath, ["server.js"], {
     cwd: __dirname,
     env: { ...process.env, PORT: String(PORTA), FF_DATA: path.join(TMP, "data"), FF_BACKUPS: path.join(TMP, "backups"),
-      BACKUP_HORAS: "100000" },
+      BACKUP_HORAS: "100000",
+      FF_CEP_BASES: `http://127.0.0.1:${PORTA_CEP}/via,http://127.0.0.1:${PORTA_CEP}/brasil`,
+      FF_ENV: ENV,
+      /* Nenhuma credencial de verdade da máquina entra na prova. */
+      SICREDI_AMBIENTE: undefined, SICREDI_API_KEY: undefined, SICREDI_CODIGO_ACESSO: undefined,
+      SICREDI_COOPERATIVA: undefined, SICREDI_POSTO: undefined, SICREDI_BENEFICIARIO: undefined, SICREDI_BASE_URL: undefined },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";
@@ -623,6 +754,223 @@ const PUB_MENOR = (extra = {}) => ({
     const p2 = (await pedir("GET", `/api/gestao/auditoria?limite=3&antes=${p1.itens[2].id}`, { cookie: A })).j;
     certo("a lista vem em páginas, sem repetir linha", p1.mais && p1.itens.length === 3 && p2.itens.every((l) => l.id < p1.itens[2].id));
 
+    console.log("\n— CEP preenche o endereço (1.26.0)");
+    {
+      const cep = (c, cookie = A) => pedir("GET", `/api/gestao/cep/${c}`, { cookie });
+      const cheio = await cep("55038-270");
+      certo("CEP completo devolve rua, bairro, cidade e UF", cheio.status === 200
+        && cheio.j.logradouro === "Avenida Caruaru" && cheio.j.bairro === "Maria Auxiliadora"
+        && cheio.j.cidade === "Caruaru" && cheio.j.uf === "PE", JSON.stringify(cheio.j));
+      const antes = pedidosCep.length;
+      await cep("55038270");
+      certo("a mesma consulta de novo não sai do servidor (guardada)", pedidosCep.length === antes);
+      const cidade = await cep("55120000");
+      certo("CEP de cidade inteira devolve cidade e UF, com rua vazia", cidade.status === 200
+        && cidade.j.cidade === "Riacho das Almas" && cidade.j.logradouro === "", JSON.stringify(cidade.j));
+      const reserva = await cep("55555555");
+      certo("com o ViaCEP fora do ar, a BrasilAPI responde", reserva.status === 200 && reserva.j.logradouro === "Rua Zz da Reserva");
+      const nenhum = await cep("01001999");
+      certo("CEP que nenhum serviço conhece é 404 (e pergunta aos DOIS)", nenhum.status === 404
+        && pedidosCep.some((u) => u.includes("/brasil/api/cep/v1/01001999")));
+      const fora = await cep("56666666");
+      certo("os dois fora do ar é 503, com recado para digitar à mão", fora.status === 503 && /à mão/.test(fora.j.error || ""));
+      const sujo = await cep("55038999");
+      certo("marcação vinda do serviço não chega à tela", sujo.status === 200 && !/[<>]/.test(JSON.stringify(sujo.j)));
+      certo("sem login, a consulta de CEP é 401 (não é repasse aberto)", (await pedir("GET", "/api/gestao/cep/55038270")).status === 401);
+      certo("CEP malformado não vira consulta", (await cep("5503")).status === 404 && !pedidosCep.some((u) => u.includes("/5503/")));
+    }
+
+    console.log("\n— boletos: a matemática (contra o manual do Sicredi)");
+    {
+      certo("nosso número do exemplo do manual (0100/02/00248, 18, byte 2, seq 1) = 182000011",
+        Bol.nossoNumero({ cooperativa: "0100", posto: "02", beneficiario: "00248", ano: 18, byte: 2, sequencial: 1 }) === "182000011");
+      /* O exemplo do manual sozinho é CEGO para peso errado: com pesos de 2 a 8
+         (em vez de 2 a 9) ele dá o mesmo dígito, por coincidência — a sabotagem
+         passou. Este vetor foi feito À MÃO: 0512 03 12345 26 2 00001, pesos
+         2..9 da direita para a esquerda, soma 188, resto 1, 11 − 1 = 10 → 0. */
+      certo("nosso número calculado à mão (0512/03/12345, 26, byte 2, seq 1) = 262000010",
+        Bol.nossoNumero({ cooperativa: "0512", posto: "03", beneficiario: "12345", ano: 26, byte: 2, sequencial: 1 }) === "262000010");
+      const cbManual = "74891886400000099901125100614205120315335103";
+      certo("linha digitável do exemplo do manual sai do código de barras",
+        Bol.linhaDoCodigo(cbManual) === "74891125110061420512803153351030188640000009990");
+      const trocado = cbManual.slice(0, 20) + (cbManual[20] === "9" ? "8" : "9") + cbManual.slice(21);
+      certo("um dígito trocado no código de barras é pego", !Bol.codigoBarrasValido(trocado));
+      certo("valor diferente do registro é pego na conferência",
+        Bol.conferirBoleto({ codigoBarras: cbManual, linhaDigitavel: Bol.linhaDoCodigo(cbManual), valor: 9991 }).length === 1);
+      const svg = Bol.barrasSVG(cbManual);
+      const largura = Number(/width="([\d.]+)mm"/.exec(svg)[1]) - 5;
+      certo("código de barras com 114 barras e 102,9 mm (padrão FEBRABAN: até 103 mm)",
+        (svg.match(/z/g) || []).length === 114 && Math.abs(largura - 102.87) < 0.01, `${largura} mm`);
+      certo("vencimento dia 31 em novembro vira 30, e fevereiro bissexto 29",
+        Bol.vencimentoNoMes(2026, 11, 31) === "2026-11-30" && Bol.vencimentoNoMes(2028, 2, 30) === "2028-02-29");
+      const p = Bol.parcelasAteDezembro({ hoje: "2026-09-16", dia: 16 });
+      certo("parcela que vence HOJE não entra no carnê", p[0].competencia === "2026-10" && p.length === 3);
+      certo("juros de 1% ao mês por dia: R$ 110,00 → 4 centavos; mínimo de 1 centavo",
+        Bol.jurosPorDiaCentavos(11000) === 4 && Bol.jurosPorDiaCentavos(200) === 1);
+      const { lerConfig } = require("./gestao/sicredi");
+      const vazio = lerConfig({});
+      certo("sem credenciais, os boletos ficam desligados e dizem o que falta",
+        !vazio.configurado && vazio.faltam.some((f) => /SICREDI_API_KEY/.test(f)));
+    }
+
+    console.log("\n— boletos no Sicredi (1.26.0)");
+    {
+      const U = require("./gestao/util");
+      const Database = require("better-sqlite3");
+      const banco = new Database(path.join(TMP, "data", "site.db"));
+      const novoAluno = async (extra) => {
+        const r = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: {
+          nome: "Zz Qa Boleto", nascimento: "1990-04-02", cpf: "529.982.247-25", mensalidade: "110,00", status: "ativo",
+          logradouro: "Avenida Caruaru", numero: "579", bairro: "Maria Auxiliadora", cidade: "Caruaru", uf: "PE", cep: "55038-270",
+          dia_vencimento: "28", ...extra } });
+        return r.j.id;
+      };
+      const esperadas = Bol.parcelasAteDezembro({ hoje: U.hojeLocal(), dia: 28 });
+      if (!esperadas.length) console.log("  (fim de dezembro: sem parcela até dezembro para provar o carnê)");
+
+      /* dia de vencimento */
+      const al = await novoAluno();
+      certo("o dia de vencimento é gravado no cadastro", (await pedir("GET", `/api/gestao/alunos/${al}`, { cookie: A })).j.aluno.dia_vencimento === 28);
+      const diaRuim = await pedir("PUT", `/api/gestao/alunos/${al}`, { cookie: A, corpo: { dia_vencimento: "32" } });
+      certo("dia de vencimento 32 é recusado", diaRuim.status === 400, String(diaRuim.status));
+
+      const tela = (await pedir("GET", `/api/gestao/alunos/${al}/boletos`, { cookie: A })).j;
+      certo("o .env é lido: boletos configurados, em produção", tela.configurado === true && tela.ambiente === "producao", JSON.stringify(tela.faltam));
+      certo("a prévia mostra os meses até dezembro, com a mensalidade",
+        JSON.stringify(tela.previa.map((x) => [x.competencia, x.vencimento, x.valor])) === JSON.stringify(esperadas.map((x) => [x.competencia, x.vencimento, 11000])));
+      certo("pagador adulto é o próprio aluno", tela.pagador.nome === "Zz Qa Boleto" && !tela.pagador.bloqueios.length);
+
+      const menor = await novoAluno({ nome: "Zz Qa Criança Boleto", nascimento: "2018-01-01", cpf: "",
+        resp_nome: "Zz Qa Mãe Pagadora", resp_cpf: "111.444.777-35" });
+      const telaMenor = (await pedir("GET", `/api/gestao/alunos/${menor}/boletos`, { cookie: A })).j;
+      certo("aluno menor: o boleto sai no nome e CPF do responsável", telaMenor.pagador.nome === "Zz Qa Mãe Pagadora" && telaMenor.pagador.menor);
+      const semCpf = await novoAluno({ cpf: "123.456.789-00" });
+      const recusaCpf = await pedir("POST", `/api/gestao/alunos/${semCpf}/boletos`, { cookie: A, corpo: {} });
+      certo("CPF que não confere bloqueia a geração antes de ir ao banco", recusaCpf.status === 400 && /CPF/.test(recusaCpf.j.error || "") && SB.registros.length === 0);
+
+      if (esperadas.length) {
+        /* ------------------------------------------------ gerar */
+        const g = await pedir("POST", `/api/gestao/alunos/${al}/boletos`, { cookie: A, corpo: {} });
+        certo("gera o carnê: um boleto por mês, todos em aberto",
+          g.status === 200 && g.j.resultado?.length === esperadas.length && g.j.resultado.every((b) => b.situacao === "aberto"), JSON.stringify(g.j).slice(0, 300));
+        const corpo0 = SB.registros[0] || {};
+        certo("boleto HÍBRIDO (com QR Code Pix), com multa de 2% e juros de R$ 0,04 ao dia",
+          corpo0.tipoCobranca === "HIBRIDO" && corpo0.multa === 2 && corpo0.tipoJuros === "VALOR" && corpo0.juros === 0.04 && corpo0.valor === 110);
+        certo("sem negativação nem protesto automáticos (decisão da academia)",
+          SB.registros.every((b) => !("diasNegativacaoAuto" in b) && !("diasProtestoAuto" in b)));
+        const nn = corpo0.nossoNumero || "";
+        certo("nosso número gerado aqui, com o dígito do Sicredi",
+          /^\d{9}$/.test(nn) && Bol.nossoNumero({ cooperativa: "0512", posto: "03", beneficiario: "12345",
+            ano: Number(nn.slice(0, 2)), byte: 2, sequencial: Number(nn.slice(3, 8)) }) === nn, nn);
+        certo("seu número e mensagens dentro dos limites do banco (10 e 80 caracteres, sem acento)",
+          SB.registros.every((b) => b.seuNumero.length <= 10 && b.mensagens.every((m) => m.length <= 80 && /^[\x20-\x7E]*$/.test(m))));
+        certo("vencimentos enviados = os da prévia", JSON.stringify(SB.registros.map((b) => b.dataVencimento)) === JSON.stringify(esperadas.map((x) => x.vencimento)));
+        certo("o token é reaproveitado entre as chamadas (o banco limita pedidos)", SB.tokens === 1, String(SB.tokens));
+
+        const antes = SB.registros.length;
+        const de2 = await pedir("POST", `/api/gestao/alunos/${al}/boletos`, { cookie: A, corpo: {} });
+        certo("gerar de novo não cobra nenhum mês duas vezes", de2.status === 200 && SB.registros.length === antes && de2.j.resultado?.length === 0);
+
+        /* ---------------------------------------- dois cliques ao mesmo tempo */
+        const al2 = await novoAluno();
+        const antes2 = SB.registros.length;
+        await Promise.all([
+          pedir("POST", `/api/gestao/alunos/${al2}/boletos`, { cookie: A, corpo: {} }),
+          pedir("POST", `/api/gestao/alunos/${al2}/boletos`, { cookie: A, corpo: {} }),
+        ]);
+        const vivos2 = banco.prepare("SELECT competencia, COUNT(*) n FROM g_boletos WHERE aluno_id=? AND situacao<>'baixado' GROUP BY competencia").all(al2);
+        certo("dois pedidos simultâneos: um boleto por mês, e o banco recebeu cada mês uma vez só",
+          vivos2.length === esperadas.length && vivos2.every((v) => v.n === 1) && SB.registros.length - antes2 === esperadas.length,
+          `${SB.registros.length - antes2} registros`);
+
+        /* -------------------------------------------- a resposta que se perde */
+        const al3 = await novoAluno();
+        SB.perderProxima = true;
+        const perdeu = await pedir("POST", `/api/gestao/alunos/${al3}/boletos`, { cookie: A, corpo: { competencias: [esperadas[0].competencia] } });
+        const b3 = perdeu.j.resultado?.[0] || {};
+        certo("sem resposta do banco, o boleto fica 'sem resposta' (e não é dado como falho)", b3.situacao === "registrando", JSON.stringify(b3));
+        const nn3 = SB.registros[SB.registros.length - 1]?.nossoNumero;
+        const antes3 = SB.registros.length;
+        const retoma = await pedir("POST", `/api/gestao/alunos/${al3}/boletos`, { cookie: A, corpo: { competencias: [esperadas[0].competencia] } });
+        certo("a nova tentativa CONSULTA e adota o boleto que o banco já tinha — sem registrar de novo",
+          retoma.j.resultado?.[0]?.situacao === "aberto" && SB.registros.length === antes3
+          && banco.prepare("SELECT nosso_numero FROM g_boletos WHERE aluno_id=?").get(al3)?.nosso_numero === nn3);
+
+        /* ------------------------ o nosso número já usado por outro boleto */
+        const al4 = await novoAluno();
+        SB.colidirProxima = true;
+        const col = await pedir("POST", `/api/gestao/alunos/${al4}/boletos`, { cookie: A, corpo: { competencias: [esperadas[0].competencia] } });
+        const linha4 = banco.prepare("SELECT * FROM g_boletos WHERE aluno_id=?").get(al4);
+        const outro = [...SB.boletos.values()].find((b) => b.seuNumero === "OUTRO");
+        certo("número ocupado por boleto alheio: não adota o dos outros, troca o número e registra",
+          col.j.resultado?.[0]?.situacao === "aberto" && !!outro && linha4?.nosso_numero !== outro.nossoNumero && outro.situacao === "EM CARTEIRA");
+
+        /* ------------------------------------------------------- recusa */
+        const al5 = await novoAluno();
+        SB.recusarProxima = true;
+        const rec = await pedir("POST", `/api/gestao/alunos/${al5}/boletos`, { cookie: A, corpo: { competencias: [esperadas[0].competencia] } });
+        certo("recusa do banco aparece com a frase dele", rec.j.resultado?.[0]?.situacao === "recusado" && /CEP do pagador/.test(rec.j.resultado?.[0]?.erro || ""));
+        const rec2 = await pedir("POST", `/api/gestao/alunos/${al5}/boletos`, { cookie: A, corpo: { competencias: [esperadas[0].competencia] } });
+        certo("corrigido o cadastro, a parcela recusada é registrada na tentativa seguinte", rec2.j.resultado?.[0]?.situacao === "aberto");
+
+        /* ------------------------------------------------ token vencido */
+        SB.tokenValido = "outro";
+        const conf = await pedir("POST", `/api/gestao/alunos/${al}/boletos/atualizar`, { cookie: A, corpo: {} });
+        certo("token recusado pelo banco: pede outro e segue (a secretaria não vê erro)", conf.status === 200 && SB.tokens === 2, `${conf.status} ${SB.tokens}`);
+
+        /* --------------------------------------------------- o carnê */
+        const carne = await pedir("GET", `/admin/imprimir/carne/${al}`, { cookie: A });
+        const b0 = banco.prepare("SELECT * FROM g_boletos WHERE aluno_id=? ORDER BY competencia").all(al);
+        /* Sem boleto nenhum (o servidor não registrou), o resto do bloco não tem
+           o que conferir — e a falha tem de aparecer como prova, não como a
+           suíte inteira quebrando. */
+        if (!b0.length) certo("há boletos registrados para conferir o carnê", false);
+        else {
+        certo("o carnê traz uma parcela por boleto em aberto", carne.status === 200
+          && (carne.texto.match(/class="parcela"/g) || []).length === esperadas.length);
+        certo("com linha digitável, código de barras, QR Code Pix e ficha de compensação",
+          carne.texto.includes(Bol.linhaFormatada(b0[0].linha_digitavel)) && carne.texto.includes('class="barras"')
+          && carne.texto.includes('class="qr"') && /Ficha de compensação/.test(carne.texto));
+        certo("em produção, sem a tarja de teste", !/Teste — não pague/.test(carne.texto));
+        certo("o carnê não sai sem login", (await pedir("GET", `/admin/imprimir/carne/${al}`)).status === 302);
+        /* Um dígito trocado no banco de dados: esse boleto NÃO pode ir ao papel. */
+        banco.prepare("UPDATE g_boletos SET codigo_barras=? WHERE id=?")
+          .run(b0[0].codigo_barras.slice(0, 30) + (b0[0].codigo_barras[30] === "1" ? "2" : "1") + b0[0].codigo_barras.slice(31), b0[0].id);
+        const carne2 = await pedir("GET", `/admin/imprimir/carne/${al}`, { cookie: A });
+        certo("boleto que não passa na conferência fica FORA do carnê",
+          (carne2.texto.match(/class="parcela"/g) || []).length === esperadas.length - 1 && !carne2.texto.includes(Bol.linhaFormatada(b0[0].linha_digitavel)));
+
+        const pdf = await pedir("GET", `/admin/imprimir/boleto/${b0[b0.length - 1].id}.pdf`, { cookie: A });
+        certo("a 2ª via oficial vem do Sicredi, em PDF", pdf.status === 200 && /application\/pdf/.test(pdf.cab.get("content-type")) && SB.pdfs === 1);
+
+        /* --------------------------------------------- pago e cancelado */
+        const ultimo = b0[b0.length - 1];
+        const noBanco = SB.boletos.get(ultimo.nosso_numero);
+        noBanco.situacao = "LIQUIDADO PIX"; noBanco.dadosLiquidacao = { data: "2026-09-20T10:00:00.000Z", valor: 110 };
+        const at = await pedir("POST", `/api/gestao/alunos/${al}/boletos/atualizar`, { cookie: A, corpo: {} });
+        const pago = at.j.boletos?.find((b) => b.id === ultimo.id) || {};
+        certo("conferir pagamentos marca o boleto pago, com valor e data", pago.situacao === "pago" && pago.valor_pago === 11000);
+        const baixaPago = await pedir("POST", `/api/gestao/boletos/${ultimo.id}/baixa`, { cookie: A, corpo: {} });
+        certo("boleto pago não se cancela", baixaPago.status === 409);
+        if (b0.length > 1) {
+          const alvo = b0[b0.length - 2];
+          const baixa = await pedir("POST", `/api/gestao/boletos/${alvo.id}/baixa`, { cookie: A, corpo: {} });
+          certo("cancelar pede a baixa ao banco", baixa.status === 200 && baixa.j.boleto.situacao === "baixado" && SB.baixas.includes(alvo.nosso_numero));
+          const depois = (await pedir("GET", `/api/gestao/alunos/${al}/boletos`, { cookie: A })).j;
+          certo("o mês cancelado volta a poder ser gerado", depois.previa.some((x) => x.competencia === alvo.competencia));
+          const aud = (await pedir("GET", "/api/gestao/auditoria?q=boleto", { cookie: A })).j.itens || [];
+          certo("o cancelamento fica na auditoria, com o aluno e o mês", aud.some((l) => l.alvo.includes(`boleto de ${alvo.competencia}`)));
+        }
+        let apagou = true;
+        try { banco.prepare("DELETE FROM g_boletos WHERE id=?").run(ultimo.id); } catch { apagou = false; }
+        certo("boleto não se apaga do banco de dados (só se baixa)", !apagou);
+        }
+      }
+      banco.close();
+      const exemplo = await pedir("GET", "/.env.exemplo");
+      certo("o .env.exemplo (e qualquer .env) não sai pela web", exemplo.status === 404);
+    }
+
     console.log("\n— o que não pode escapar");
     const codigo = await pedir("GET", "/gestao/rotas.js");
     certo("o código da gestão não é servido pela web", codigo.status === 404);
@@ -649,6 +997,8 @@ const PUB_MENOR = (extra = {}) => ({
     console.log(log.split("\n").slice(-20).join("\n"));
   } finally {
     servidor.kill();
+    servidorCep.close();
+    servidorSB.close();
     await new Promise((r) => setTimeout(r, 300));
     try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {}
   }

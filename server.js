@@ -15,10 +15,36 @@ const { criarLimitador } = require("./limitador");
 const { agendarBackups } = require("./backup");
 
 const ROOT = __dirname;
+
+/* ==========================================================================
+   O .env (1.26.0) — segredo que não vai para o repositório
+
+   Nasceu com os boletos: a chave e o Código de Acesso do Sicredi registram
+   cobrança em nome da academia, e o repositório deste site é PÚBLICO. O
+   arquivo mora ao lado do server.js, fora do git (.gitignore), e é lido aqui,
+   antes de qualquer módulo que dependa dele.
+
+   Formato: CHAVE=valor, uma por linha; `#` comenta. O que já está no ambiente
+   (systemd `Environment=`, a suíte de provas) ganha do arquivo. `FF_ENV`
+   aponta outro arquivo — é por onde as provas garantem que nenhum .env de
+   desenvolvimento entre no teste.
+
+   Não é servido pela web: estático só sai de lugar permitido (PASTAS_PUBLICAS),
+   e a suíte da gestão confere `GET /.env`.
+   ========================================================================== */
+(() => {
+  let texto;
+  try { texto = fs.readFileSync(process.env.FF_ENV || path.join(ROOT, ".env"), "utf8"); } catch { return; }
+  for (const linha of texto.split(/\r?\n/)) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(linha);
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^(["'])(.*)\1$/, "$2");
+  }
+})();
+
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.25.1";
+const APP_VERSION = "1.26.0";
 /* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
    deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
    num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento

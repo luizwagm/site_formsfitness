@@ -16,10 +16,11 @@ São duas áreas no mesmo processo e no mesmo arquivo de banco:
 | Área | O que é | Sessão |
 |---|---|---|
 | `/` | site público — 9 páginas estáticas, reescritas na publicação | — |
-| `/admin/` | **Gestão da academia** (alunos, atividades, turmas, agenda, relatórios, contrato, configurações) e **Gestão do site** (textos, modalidades, fotos, blog, contato) | cookie, 12 h deslizante, **por usuário** |
+| `/admin/` | **Gestão da academia** (alunos, atividades, turmas, agenda, relatórios, contrato, **boletos**, configurações) e **Gestão do site** (textos, modalidades, fotos, blog, contato) | cookie, 12 h deslizante, **por usuário** |
 
-Não há financeiro: mensalidade é um valor do cadastro que vai para o contrato,
-não uma cobrança.
+Desde a 1.26.0 há **carnê de boletos** (Sicredi, com QR Code Pix), registrado pela
+API de Cobrança a partir da mensalidade e do dia de vencimento de cada aluno —
+ver DEPLOY.md, seção 8b. Não há contas a pagar nem fluxo de caixa.
 
 ## Objetivo
 
@@ -119,9 +120,11 @@ db.js             único lugar que abre o banco; escolhe o driver
 limitador.js      freio de tentativas de senha
 backup.js         cópia diária, dentro do processo
 testar.js         suíte principal — 272 conferências
-testar-gestao.js  suíte da gestão — 144 conferências, com banco temporário
+testar-gestao.js  suíte da gestão — 231 conferências, com banco temporário, CEP e Sicredi falsos
 gestao/           a gestão: esquema, rotas, documentos (ficha/contrato), textos,
-                  auditoria e sobre (o CHANGELOG convertido para a tela)
+                  auditoria e sobre (o CHANGELOG convertido para a tela);
+                  cep (busca de endereço), boleto (nosso número, código de barras),
+                  sicredi (API de Cobrança), cobranca (o carnê), carne (a impressão)
 src/              moldes: blog · post · matricula · privacidade · busca
 admin/            o gerenciador (gestao.js/gestao.css = telas da gestão)
 assets/           css, js, imagens e o índice de busca

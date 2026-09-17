@@ -5,6 +5,127 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.26.0 — 2026-09-16 · CEP que preenche o endereço e carnê de boletos do Sicredi
+
+### CEP preenche o endereço
+
+No cadastro do aluno, digitar o CEP preenche **rua, bairro, cidade e UF**, e o
+cursor salta para o número. O CEP passou para o **começo** da seção de
+endereço. No fim da linha, como estava, a secretaria já teria digitado à mão
+tudo o que ele preencheria.
+
+- **Quem consulta é o servidor, e não o navegador.** O painel roda com
+  `connect-src 'self'`, e abrir uma exceção para um site de CEP afrouxaria a
+  trava da tela que guarda CPF e foto de criança.
+- **Há um serviço de reserva.** Consulta o ViaCEP; se ele cair ou não conhecer
+  o CEP, consulta a BrasilAPI. Só quando os dois falham a tela diz para digitar
+  à mão.
+- **Só preenche o que veio.** CEP de cidade inteira (ex.: 55120-000, Riacho das
+  Almas) não tem rua: a tela avisa e põe o cursor na rua. O que a secretaria
+  digitou fica. Mas a rua e o bairro que o **CEP anterior** preencheu são
+  limpos: a primeira versão os deixava, e a "Avenida Caruaru" de um CEP ficava
+  num endereço de Riacho das Almas, errado com cara de certo (achado conferindo
+  na tela). Número e complemento nunca são tocados.
+- **Trocar o CEP no meio da busca descarta a resposta antiga.** Preencher o
+  endereço do CEP anterior seria o pior erro, porque parece certo.
+- A consulta **exige login**; aberta, viraria um repasse gratuito para quem
+  quisesse usar o servidor da academia.
+
+### Carnê de boletos (Sicredi, com QR Code Pix)
+
+Na tela do aluno, o botão **Boletos** mostra, antes de gerar, o que vai ser
+cobrado: cada mês até dezembro, com vencimento e valor, e quem é o pagador. Os
+boletos são **registrados no Sicredi** pela API de Cobrança como **boleto
+híbrido**: pagáveis pelo código de barras em qualquer banco ou pelo Pix. O
+carnê sai em A4, três parcelas por folha, cada uma com o recibo do pagador e a
+ficha de compensação.
+
+**Decisões da academia (16/09/2026):**
+
+| | |
+|---|---|
+| Vencimento | **dia de cada aluno** (campo novo *Vencimento (dia)*; em branco, o dia da matrícula) |
+| Multa e juros | **2%** de multa e **1% ao mês** de juros (enviados como valor por dia) |
+| Negativação / protesto | **não automáticos**; a academia decide caso a caso |
+| Pagador | o aluno; se menor de idade, o **responsável** (como no contrato) |
+
+**Nenhum mês é cobrado duas vezes.** Três travas, uma para cada caminho até a
+cobrança dobrada:
+
+1. **No banco de dados.** Um índice único permite um só boleto vivo por aluno
+   por mês. Dois cliques, duas abas ou duas secretarias esbarram nele.
+2. **O "nosso número" é gerado aqui**, com o dígito verificador do manual do
+   Sicredi, e gravado **antes** de ir ao banco. Se a rede cai depois de o
+   pedido chegar e antes de a resposta voltar, a parcela fica como
+   *sem resposta*. A tentativa seguinte **consulta** o banco por aquele número
+   antes de registrar de novo.
+3. **Só é adotado o boleto que é nosso.** Achando o número já usado, o boleto
+   só é aceito se o "seu número" e o valor forem os deste aluno. Um boleto
+   emitido por outro caminho (Internet Banking) com o mesmo número não é
+   confundido: o número é trocado e o registro segue.
+
+**O que vai ao papel é conferido.** Antes de imprimir, o código de barras
+passa por três conferências: o dígito verificador, a linha digitável igual à
+do código de barras e o valor igual ao do registro. Em produção, boleto que
+não passa **fica fora do carnê**. O código de barras é desenhado em milímetros
+no padrão FEBRABAN (barra fina de 0,254 mm, 102,9 mm de largura, 13 mm de
+altura), para o leitor do caixa ler.
+
+**Mais:**
+- *2ª via* por parcela: o PDF oficial gerado pelo Sicredi.
+- *Conferir pagamentos* consulta o banco e marca o boleto como pago, com valor
+  e data.
+- *Cancelar* pede a baixa ao banco. Boleto pago não se cancela, e o mês
+  cancelado pode ser gerado de novo.
+- Boleto emitido **não se apaga** do banco de dados, nem por comando manual
+  (gatilho). Gerar, cancelar e imprimir ficam na auditoria.
+- Sem credenciais, a tela diz o que falta e não oferece botão que não
+  funciona. Em `SICREDI_AMBIENTE=sandbox`, os carnês saem com a tarja
+  "Teste — não pague".
+
+**As credenciais ficam num `.env` no servidor, fora do git.** O `.env` é
+novidade neste projeto (o servidor passou a lê-lo na subida), e o
+`.gitignore` **não o protegia**. Num repositório público, um `.env`
+commitado publicaria a chave de emitir boleto em nome da academia. Agora está
+protegido, e há um `.env.exemplo` com o passo a passo para obter a chave.
+DEPLOY.md, seção 8b.
+
+**Dependência nova:** `qrcode` (a mesma do Alafcell). Ela é carregada só quando
+o carnê é desenhado: se o `npm install` da entrega falhar (o `deploy.sh` segue
+mesmo assim), o site continua no ar e o carnê sai sem o QR, com o código de
+barras valendo.
+
+### Defeito antigo corrigido
+
+**O git tratava o `gestao/rotas.js` como binário.** A linha que limpa
+caracteres de controle tinha os próprios caracteres **crus** dentro da
+expressão regular, e não escritos como `\x00`. Funcionava, mas todo diff desse
+arquivo aparecia como `Bin`, sem mostrar a mudança. Agora estão escritos como
+escape.
+
+### Provas
+
+**232 na suíte da gestão** (eram 178), e nenhuma sai na internet: a suíte sobe
+um ViaCEP/BrasilAPI falso e um **Sicredi falso**. O Sicredi falso confere
+chave, contexto, token, cooperativa e posto, e simula a resposta perdida, o
+nosso número ocupado, a recusa e o token vencido. A matemática é provada contra
+os **exemplos do manual do Sicredi**: o nosso número `182000011` e a linha
+digitável do exemplo de cadastro.
+
+**21 sabotagens.** Duas precisaram de conserto na prova, e não no código:
+- **O exemplo do manual é cego para peso errado no dígito do nosso número.**
+  Com pesos de 2 a 8 (em vez de 2 a 9) ele dá o mesmo dígito, por
+  coincidência. Entrou um vetor calculado à mão (`262000010`), que muda com o
+  erro.
+- **Tirar a leitura do `.env` derrubava a suíte inteira**, em vez de reprovar
+  uma prova. Suíte que quebra não é suíte que viu o defeito. As provas dos
+  boletos passaram a falhar limpas quando o servidor não responde o esperado.
+
+A suíte do site (272) passou numa **cópia** do projeto. Ela publica o site, e
+no projeto de verdade teria reescrito as páginas geradas que estão no git.
+
+---
+
 ## 1.25.1 — 2026-09-14 · assinaturas da contratada sem fundo preto, ao lado do aluno
 
 **O fundo preto.** A imagem das assinaturas saía no contrato dentro de um

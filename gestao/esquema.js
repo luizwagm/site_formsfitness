@@ -246,6 +246,69 @@ function instalar({ db, getS, setS, hashSenha }) {
   if (!temColuna("g_matriculas", "professor_id")) db.exec("ALTER TABLE g_matriculas ADD COLUMN professor_id INTEGER REFERENCES g_professores(id)");
 
   /* ==========================================================================
+     BOLETOS (1.26.0)
+
+     O dia de vencimento é de CADA aluno (decisão da academia em 16/09/2026),
+     como a cláusula 9ª pressupõe. 0 = não informado: vale o dia da matrícula.
+
+     Um boleto é uma linha, e a linha nasce ANTES de ir ao banco, já com o
+     nosso número (ver gestao/cobranca.js). Situações:
+       registrando  o pedido saiu e a resposta não voltou — pode existir no banco
+       aberto       registrado, esperando pagamento
+       pago         o banco informou a liquidação
+       baixado      cancelado a pedido da academia
+       recusado     o banco disse não (dado inválido); pode ser tentado de novo
+     ========================================================================== */
+  if (!temColuna("g_alunos", "dia_vencimento")) db.exec("ALTER TABLE g_alunos ADD COLUMN dia_vencimento INTEGER NOT NULL DEFAULT 0");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS g_boletos (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      aluno_id          INTEGER NOT NULL REFERENCES g_alunos(id),
+      ambiente          TEXT NOT NULL,                       -- producao | sandbox
+      competencia       TEXT NOT NULL,                       -- 'AAAA-MM'
+      vencimento        TEXT NOT NULL,
+      valor             INTEGER NOT NULL,                    -- centavos
+      seu_numero        TEXT NOT NULL,
+      nn_ano            INTEGER NOT NULL,
+      nn_seq            INTEGER NOT NULL,
+      nosso_numero      TEXT NOT NULL,
+      situacao          TEXT NOT NULL DEFAULT 'registrando',
+      situacao_banco    TEXT NOT NULL DEFAULT '',
+      linha_digitavel   TEXT NOT NULL DEFAULT '',
+      codigo_barras     TEXT NOT NULL DEFAULT '',
+      txid              TEXT NOT NULL DEFAULT '',
+      qr_code           TEXT NOT NULL DEFAULT '',
+      pagador_nome      TEXT NOT NULL DEFAULT '',
+      pagador_documento TEXT NOT NULL DEFAULT '',
+      multa_percentual  REAL NOT NULL DEFAULT 0,
+      juros_dia         INTEGER NOT NULL DEFAULT 0,         -- centavos por dia
+      tentativas        INTEGER NOT NULL DEFAULT 0,
+      erro              TEXT NOT NULL DEFAULT '',
+      pago_em           TEXT NOT NULL DEFAULT '',
+      valor_pago        INTEGER NOT NULL DEFAULT 0,
+      criado_em         TEXT NOT NULL,
+      criado_por        TEXT NOT NULL DEFAULT '',
+      atualizado_em     TEXT NOT NULL DEFAULT '',
+      baixado_em        TEXT NOT NULL DEFAULT '',
+      baixado_por       TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS g_boletos_aluno ON g_boletos(aluno_id);
+    /* O nosso número é a chave do boleto NO BANCO: repetido, dois boletos
+       seriam o mesmo título para o Sicredi. */
+    CREATE UNIQUE INDEX IF NOT EXISTS g_boletos_nn ON g_boletos(ambiente, nosso_numero);
+    /* UM BOLETO VIVO POR ALUNO POR MÊS — no banco, e não só na tela. Dois
+       cliques em "Gerar carnê", duas abas abertas ou duas secretarias ao mesmo
+       tempo esbarram aqui, e o aluno não recebe duas cobranças de outubro.
+       O baixado não conta: cancelar e gerar de novo com outro valor é legítimo. */
+    CREATE UNIQUE INDEX IF NOT EXISTS g_boletos_mes ON g_boletos(ambiente, aluno_id, competencia)
+      WHERE situacao <> 'baixado';
+    /* Cobrança emitida é registro financeiro: não se apaga, só se baixa. */
+    CREATE TRIGGER IF NOT EXISTS g_boletos_sem_apagar
+      BEFORE DELETE ON g_boletos
+      BEGIN SELECT RAISE(ABORT, 'boleto não pode ser apagado; peça a baixa'); END;
+  `);
+
+  /* ==========================================================================
      AS TRAVAS DO CONTRATO — no banco, e não na tela
 
      A tela não oferece botão para editar um contrato gerado. Isso não basta:

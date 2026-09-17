@@ -218,6 +218,12 @@
             ${campo("data_matricula", "Data da matrícula", "c3", 'type="date"')}
             <div class="c3"><label for="fa-total">Mensalidade total</label>
               <input id="fa-total" value="${a.mensalidade ? moeda(a.mensalidade) : ""}" disabled title="A soma das mensalidades das atividades, lá embaixo"></div>
+            <!-- O dia em que vencem os boletos DESTE aluno (1.26.0). Em branco,
+                 vale o dia da matrícula — o placeholder mostra qual é. -->
+            <div class="c3"><label for="fa-dia_vencimento">Vencimento (dia)</label>
+              <input id="fa-dia_vencimento" name="dia_vencimento" inputmode="numeric" maxlength="2"
+                value="${a.dia_vencimento ? e(a.dia_vencimento) : ""}"
+                placeholder="${/^\d{4}-\d{2}-\d{2}$/.test(a.data_matricula || "") ? `dia ${Number(a.data_matricula.slice(8))} (da matrícula)` : "dia da matrícula"}"></div>
           </div>
         </div>
         <div class="gf-foto">
@@ -245,15 +251,20 @@
       </div>
 
       <p class="gf-sec">Endereço</p>
+      <!-- O CEP vem PRIMEIRO desde a 1.26.0: digitado, ele preenche rua,
+           bairro, cidade e UF, e o cursor salta para o número. No fim da
+           linha, como era, a secretaria já teria digitado à mão tudo o que ele
+           preencheria. -->
       <div class="gf">
+        ${campo("cep", "CEP", "c2", 'data-mask="cep" inputmode="numeric" autocomplete="off"')}
         ${campo("logradouro", "Rua / avenida", "c6")}
         ${campo("numero", "Número", "c2")}
-        ${campo("complemento", "Complemento", "c4")}
+        ${campo("complemento", "Complemento", "c2")}
         ${campo("bairro", "Bairro", "c4")}
-        ${campo("cidade", "Cidade", "c4")}
+        ${campo("cidade", "Cidade", "c6")}
         <div class="c2"><label for="fa-uf">UF</label><select id="fa-uf" name="uf">${opcoes(R.ufs, a.uf, "—")}</select></div>
-        ${campo("cep", "CEP", "c2", 'data-mask="cep" inputmode="numeric"')}
       </div>
+      <p class="gf-nota" id="fa-cep-aviso" role="status" hidden></p>
 
       <p class="gf-sec">Contato e filiação</p>
       <div class="gf">
@@ -295,7 +306,8 @@
     <div class="g-dlg-rodape">
       <div class="esq">
         ${id && !pend ? `<button type="button" class="btn btn-ghost btn-sm" data-la="ficha">Ficha</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-la="contratos">Contrato</button>` : ""}
+          <button type="button" class="btn btn-ghost btn-sm" data-la="contratos">Contrato</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-la="boletos">Boletos</button>` : ""}
         ${pend ? `<button type="button" class="btn btn-danger btn-sm" data-la="apagar">Apagar</button>` : ""}
       </div>
       <button type="button" class="btn btn-ghost" data-fechar>Cancelar</button>
@@ -305,6 +317,59 @@
 
     const F = $("#form-aluno");
     mascarar(F);
+
+    /* ----------------------------------------------------- CEP → endereço
+       (1.26.0) Ao completar os 8 dígitos, o servidor consulta o CEP (ver
+       gestao/cep.js) e a tela preenche rua, bairro, cidade e UF.
+
+       Só o que VEIO é escrito: CEP de cidade pequena não tem rua, e apagar a
+       rua que a secretaria digitou por causa de uma resposta vazia seria
+       perder trabalho. Número e complemento nunca são tocados.
+
+       Abrir um cadastro que já tem CEP não dispara nada — só digitar. E se a
+       pessoa trocar o CEP enquanto a resposta viaja, a resposta velha é
+       descartada: preencher o endereço do CEP anterior seria o pior erro
+       possível, porque parece certo. */
+    const cepEl = $("#fa-cep", F);
+    const cepAviso = $("#fa-cep-aviso", F);
+    const soDigitos = (v) => String(v || "").replace(/\D/g, "");
+    let cepConsultado = soDigitos(cepEl.value);
+    const cepPreencheu = { logradouro: "", bairro: "", cidade: "" };   /* o que a última consulta escreveu */
+    const avisarCep = (msg, alerta) => {
+      cepAviso.hidden = !msg; cepAviso.textContent = msg || "";
+      cepAviso.classList.toggle("gf-nota--alerta", !!alerta);
+    };
+    cepEl.addEventListener("input", async () => {
+      const cep = soDigitos(cepEl.value);
+      if (cep.length < 8) { cepConsultado = ""; avisarCep(""); return; }
+      if (cep === cepConsultado) return;
+      cepConsultado = cep;
+      avisarCep("Buscando o endereço deste CEP…");
+      try {
+        const r = await api(`/api/gestao/cep/${cep}`);
+        if (soDigitos(cepEl.value) !== cep) return;
+        /* Campo que o CEP ANTERIOR preencheu e ninguém mexeu: se o novo CEP
+           não traz esse campo (CEP de cidade inteira), ele é limpo. Deixar a
+           "Avenida Caruaru" do CEP anterior num endereço de Riacho das Almas
+           seria endereço errado com cara de certo. O que a pessoa digitou
+           continua intocado. */
+        for (const nome of ["logradouro", "bairro", "cidade"]) {
+          const campoEl = $(`#fa-${nome}`, F);
+          if (r[nome]) campoEl.value = r[nome];
+          else if (cepPreencheu[nome] && campoEl.value === cepPreencheu[nome]) campoEl.value = "";
+          cepPreencheu[nome] = r[nome] || "";
+        }
+        if (r.uf) $("#fa-uf", F).value = r.uf;
+        avisarCep(r.logradouro ? "" : "Este CEP é da cidade inteira: preencha a rua e o bairro.");
+        $(r.logradouro ? "#fa-numero" : "#fa-logradouro", F).focus();
+      } catch (err) {
+        if (soDigitos(cepEl.value) !== cep) return;
+        /* Deixa tentar de novo: apagar e redigitar o último dígito repete a
+           consulta — útil quando o serviço estava fora do ar. */
+        cepConsultado = "";
+        avisarCep(err.message || "Não foi possível consultar o CEP.", true);
+      }
+    });
     const nasc = $("#fa-nascimento", F);
     const menorOuNao = () => {
       const i = idadeDe(nasc.value);
@@ -439,6 +504,7 @@
         if (b.dataset.la === "rm-ativ") { b.closest("tr").remove(); total(); return; }
         if (b.dataset.la === "ficha") imprimirEm(`/admin/imprimir/ficha/${id}`);
         if (b.dataset.la === "contratos") { $("#dlg-aluno").close(); abrirContratos(id, a.nome); }
+        if (b.dataset.la === "boletos") { $("#dlg-aluno").close(); abrirBoletos(id, a.nome); }
         if (b.dataset.la === "apagar") {
           if (!confirm(`Apagar a pré-matrícula de ${a.nome}? Use para envio repetido ou de teste. Não tem volta.`)) return;
           await api(`/api/gestao/alunos/${id}`, "DELETE");
@@ -573,6 +639,123 @@
           abrirContratos(id, nome); listarAlunos();
         }
       } catch (err) { toast(err.message, true); }
+    };
+  }
+
+  /* ==========================================================================
+     BOLETOS DO ALUNO (1.26.0)
+
+     O carnê até dezembro, registrado no Sicredi. A tela mostra ANTES de gerar
+     exatamente o que vai ser cobrado — mês, vencimento e valor — e quem é o
+     pagador, porque boleto registrado é cobrança de verdade: desfazer é pedir
+     baixa ao banco, parcela por parcela.
+
+     As regras (um boleto por mês, retomada segura quando a rede cai) moram no
+     servidor, em gestao/cobranca.js. A tela não é a trava de nada.
+     ========================================================================== */
+  const SITUACAO_BOLETO = {
+    aberto: ["em aberto", "selo--pendente"], pago: ["pago", "selo--ok"], baixado: ["cancelado", "selo--inativo"],
+    recusado: ["recusado", "selo--nao"], registrando: ["sem resposta", "selo--nao"],
+  };
+
+  async function abrirBoletos(id, nome) {
+    const dlg = $("#dlg-boletos");
+    let d;
+    try { d = await api(`/api/gestao/alunos/${id}/boletos`); }
+    catch (err) { toast(err.message, true); return; }
+
+    const bloqueado = !d.configurado || d.pagador.bloqueios.length > 0;
+    const imprimiveis = d.boletos.filter((b) => b.imprimivel);
+    const teste = d.ambiente === "sandbox";
+
+    abrir(dlg, `${cab(`Boletos — ${nome}`)}
+      <div class="g-dlg-corpo">
+        ${!d.configurado ? `<p class="gf-nota gf-nota--alerta"><b>Boletos ainda não configurados no servidor.</b>
+          Falta no .env: ${e(d.faltam.join(", "))}. Veja o arquivo <code>.env.exemplo</code>.</p>` : ""}
+        ${teste ? `<p class="gf-nota gf-nota--alerta"><b>Ambiente de TESTE do Sicredi.</b> Os boletos saem com a tarja
+          "Teste — não pague" e não valem.</p>` : ""}
+        <p class="gf-nota">Pagador: <b>${e(d.pagador.nome || "—")}</b>${d.pagador.cpf ? ` · CPF ${e(d.pagador.cpf)}` : ""}
+          ${d.pagador.menor ? " (responsável — aluno menor de idade)" : ""}<br>
+          Vence todo <b>dia ${d.dia}</b>${d.dia_do_cadastro ? "" : " (o da matrícula — dá para trocar no cadastro, em Vencimento)"}.
+          Multa de 2% e juros de 1% ao mês após o vencimento.</p>
+        ${d.pagador.bloqueios.length ? `<p class="gf-nota gf-nota--alerta">Antes de gerar: ${e(d.pagador.bloqueios.join("; "))}.</p>` : ""}
+        ${d.pagador.avisos.length ? `<p class="gf-nota">${e(d.pagador.avisos.join("; "))}.</p>` : ""}
+
+        <p class="gf-sec">Carnê até dezembro</p>
+        ${d.previa.length ? `<div class="g-tabela-caixa"><table class="g-tabela" data-sem-paginacao>
+          <thead><tr><th></th><th>Mês</th><th>Vencimento</th><th>Valor</th></tr></thead>
+          <tbody>${d.previa.map((p) => `<tr>
+            <td><input type="checkbox" data-comp="${e(p.competencia)}" checked${bloqueado ? " disabled" : ""} aria-label="Gerar ${e(p.rotulo)}"></td>
+            <td>${e(p.rotulo)}</td><td>${dataBR(p.vencimento)}</td><td>${moeda(p.valor)}</td></tr>`).join("")}</tbody>
+          </table></div>`
+          : '<p class="g-vazio">Nenhuma parcela a gerar: os meses até dezembro já têm boleto (ou o vencimento deste mês já passou).</p>'}
+
+        <p class="gf-sec">Boletos emitidos</p>
+        ${d.boletos.length ? `<div class="g-tabela-caixa"><table class="g-tabela">
+          <thead><tr><th>Mês</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Nosso número</th><th></th></tr></thead>
+          <tbody>${d.boletos.map((b) => {
+            const [rot, cls] = SITUACAO_BOLETO[b.situacao] || [b.situacao, ""];
+            return `<tr>
+              <td>${e(b.rotulo)}</td><td>${dataBR(b.vencimento)}</td><td>${moeda(b.valor)}</td>
+              <td><span class="selo ${cls}">${e(rot)}</span>
+                ${b.situacao === "pago" && b.valor_pago ? `<small>${moeda(b.valor_pago)} em ${dataBR(b.pago_em)}</small>` : ""}
+                ${b.situacao === "baixado" && b.baixado_por ? `<small>por ${e(b.baixado_por)}</small>` : ""}
+                ${b.erro ? `<small class="fraco">${e(b.erro)}</small>` : ""}</td>
+              <td>${e(b.nosso_numero)}</td>
+              <td class="acoes">
+                ${b.imprimivel ? `<button type="button" class="btn btn-ghost btn-sm" data-b="pdf" data-id="${b.id}" title="O PDF gerado pelo próprio Sicredi">2ª via</button>` : ""}
+                ${["aberto", "registrando", "recusado"].includes(b.situacao) && d.configurado
+                  ? `<button type="button" class="btn btn-danger btn-sm" data-b="baixa" data-id="${b.id}" data-rot="${e(b.rotulo)}">Cancelar</button>` : ""}
+              </td></tr>`;
+          }).join("")}</tbody></table></div>`
+          : '<p class="g-vazio">Nenhum boleto emitido para este aluno.</p>'}
+      </div>
+      <div class="g-dlg-rodape">
+        <div class="esq">${d.configurado && d.boletos.some((b) => ["aberto", "registrando"].includes(b.situacao))
+          ? '<button type="button" class="btn btn-ghost btn-sm" data-b="atualizar">Conferir pagamentos</button>' : ""}</div>
+        <button type="button" class="btn btn-ghost" data-fechar>Fechar</button>
+        <button type="button" class="btn btn-navy" data-b="carne"${imprimiveis.length ? "" : " disabled"}>Imprimir carnê${imprimiveis.length ? ` (${imprimiveis.length})` : ""}</button>
+        <button type="button" class="btn btn-mint" data-b="gerar"${bloqueado || !d.previa.length ? " disabled" : ""}>Gerar boletos no Sicredi</button>
+      </div>`);
+
+    dlg.onclick = async (ev) => {
+      const b = ev.target.closest("[data-b]"); if (!b || b.disabled) return;
+      try {
+        if (b.dataset.b === "carne") imprimirEm(`/admin/imprimir/carne/${id}`);
+        if (b.dataset.b === "pdf") imprimirEm(`/admin/imprimir/boleto/${b.dataset.id}.pdf`);
+        if (b.dataset.b === "gerar") {
+          const comps = $$("[data-comp]:checked", dlg).map((c) => c.dataset.comp);
+          if (!comps.length) { toast("Marque ao menos um mês.", true); return; }
+          const escolhidas = d.previa.filter((p) => comps.includes(p.competencia));
+          const total = escolhidas.reduce((s, p) => s + p.valor, 0);
+          if (!confirm(`Registrar ${comps.length} boleto(s) no Sicredi${teste ? " (AMBIENTE DE TESTE)" : ""}?\n\n`
+            + escolhidas.map((p) => `• ${p.rotulo}: ${moeda(p.valor)}, vence ${dataBR(p.vencimento)}`).join("\n")
+            + `\n\nTotal: ${moeda(total)} · Pagador: ${d.pagador.nome}`
+            + (teste ? "" : "\n\nIsso emite cobrança de verdade. Para desfazer, é preciso cancelar cada boleto."))) return;
+          b.disabled = true; b.textContent = "Registrando no Sicredi…";
+          const r = await api(`/api/gestao/alunos/${id}/boletos`, "POST", { competencias: comps });
+          const ok = r.resultado.filter((x) => x.situacao === "aberto").length;
+          const ruins = r.resultado.length - ok;
+          toast(ruins ? `${ok} registrado(s); ${ruins} com problema — veja na lista.` : `${ok} boleto(s) registrado(s).`, !!ruins, 6000);
+          abrirBoletos(id, nome);
+        }
+        if (b.dataset.b === "atualizar") {
+          b.disabled = true; b.textContent = "Conferindo…";
+          await api(`/api/gestao/alunos/${id}/boletos/atualizar`, "POST", {});
+          toast("Situação conferida no Sicredi.");
+          abrirBoletos(id, nome);
+        }
+        if (b.dataset.b === "baixa") {
+          if (!confirm(`Cancelar (pedir baixa) o boleto de ${b.dataset.rot}?\n\nO banco deixa de aceitar o pagamento dele. Não tem volta: para cobrar esse mês de novo, gera-se outro boleto.`)) return;
+          b.disabled = true;
+          await api(`/api/gestao/boletos/${b.dataset.id}/baixa`, "POST", {});
+          toast("Baixa pedida ao Sicredi.");
+          abrirBoletos(id, nome);
+        }
+      } catch (err) {
+        toast(err.message, true, 7000);
+        abrirBoletos(id, nome);
+      }
     };
   }
 

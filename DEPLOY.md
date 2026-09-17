@@ -158,6 +158,37 @@ A matrícula feita no site chega em **Alunos** como *pré-matrícula*, com um
 contador no menu. Ela só ganha código ao ser **efetivada** — a sequência
 continua do 004149.
 
+### 8b. Boletos do Sicredi (1.26.0)
+
+O carnê de boletos (com QR Code Pix) é registrado pela **API de Cobrança do
+Sicredi**. Sem as credenciais, a tela **Boletos** do aluno diz o que falta e
+não gera nada.
+
+1. **Na cooperativa:** peça a *API de Cobrança* para o convênio de cobrança da
+   academia (o mesmo dos boletos de hoje).
+2. **No Internet Banking** da conta do convênio: *Cobrança ▸ Código de Acesso
+   ▸ Gerar*. É o `SICREDI_CODIGO_ACESSO`.
+3. **No portal do desenvolvedor** (https://developer.sicredi.com.br/api-portal/):
+   crie uma APP de homologação para a API de Cobrança e abra o chamado pedindo
+   o token. É o `SICREDI_API_KEY`. Depois, o mesmo para produção.
+4. **No servidor**, crie o `.env` ao lado do `server.js` (ele nunca vai para o
+   git — o repositório é público):
+
+   ```bash
+   cd /var/www/projetos/Forms-Fitness
+   cp .env.exemplo .env && chmod 600 .env && nano .env
+   sudo systemctl restart forms
+   ```
+
+5. **Comece em `SICREDI_AMBIENTE=sandbox`.** Os carnês saem com a tarja
+   "Teste — não pague". Gere o carnê de um aluno de teste, imprima e confira.
+   Só então troque para `producao`, com a chave de produção e os códigos reais
+   de cooperativa, posto e beneficiário.
+
+Regras que valem sempre: um boleto por aluno por mês; multa de 2% e juros de
+1% ao mês; **sem** negativação ou protesto automático; boleto emitido não se
+apaga, só se cancela (pedido de baixa ao banco).
+
 ---
 
 ## Conferir se está tudo certo
