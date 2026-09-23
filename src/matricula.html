@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Nunito+Sans:wght@300;400;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/styles.css?v=1.27.0">
+  <link rel="stylesheet" href="/assets/css/styles.css?v=1.28.0">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
     {"@type":"ListItem","position":1,"name":"Início","item":"https://formsfitness.com/"},
@@ -184,6 +184,16 @@
           <fieldset class="mat-bloco">
             <legend><span class="mat-bloco__n">3</span> Endereço</legend>
 
+            <!-- (1.28.0) O CEP É O PRIMEIRO CAMPO, e não o último. Ele preenche
+                 rua, bairro, cidade e estado; no fim da linha, como estava, a
+                 pessoa já teria digitado à mão tudo o que ele traria. É a mesma
+                 ordem que o painel adotou na 1.26.0. -->
+            <div class="field">
+              <label for="m-cep">CEP <span class="req">*</span></label>
+              <input id="m-cep" name="cep" type="text" inputmode="numeric" required maxlength="9" placeholder="00000-000" autocomplete="postal-code">
+              <p class="mat-bloco__nota" id="mat-cep-aviso" role="status" aria-live="polite">Digite o CEP e o endereço vem sozinho.</p>
+            </div>
+
             <div class="field-row">
               <div class="field">
                 <label for="m-rua">Rua / avenida <span class="req">*</span></label>
@@ -217,10 +227,6 @@
               </div>
             </div>
 
-            <div class="field">
-              <label for="m-cep">CEP <span class="req">*</span></label>
-              <input id="m-cep" name="cep" type="text" inputmode="numeric" required maxlength="9" placeholder="00000-000" autocomplete="postal-code">
-            </div>
           </fieldset>
 
           <!-- ========================= RESPONSÁVEL ========================= -->
@@ -422,6 +428,6 @@
     </div>
   </footer>
 
-  <script type="module" src="/assets/js/main.js?v=1.27.0"></script>
+  <script type="module" src="/assets/js/main.js?v=1.28.0"></script>
 </body>
 </html>

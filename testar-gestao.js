@@ -848,6 +848,27 @@ const servidorSB = require("node:http").createServer((req, res) => {
       certo("marcação vinda do serviço não chega à tela", sujo.status === 200 && !/[<>]/.test(JSON.stringify(sujo.j)));
       certo("sem login, a consulta de CEP é 401 (não é repasse aberto)", (await pedir("GET", "/api/gestao/cep/55038270")).status === 401);
       certo("CEP malformado não vira consulta", (await cep("5503")).status === 404 && !pedidosCep.some((u) => u.includes("/5503/")));
+
+      /* ------------------------------------------ o CEP do site (1.28.0)
+         O formulário de matrícula é aberto, então esta porta também é. O que
+         a segura é um freio por endereço — e o cache, que atende a repetição
+         sem sair para a internet. */
+      const cepSite = (c) => pedir("GET", `/api/publico/cep/${c}`);
+      const doSite = await cepSite("55038-270");
+      certo("o site consulta CEP SEM login", doSite.status === 200 && doSite.j.cidade === "Caruaru", JSON.stringify(doSite.j));
+      const torto = await cepSite("123");
+      certo("CEP malformado no site é recusado na porta, sem virar consulta",
+        torto.status === 400 && !pedidosCep.some((u) => u.includes("/123")), `${torto.status} ${JSON.stringify(torto.j)}`);
+      const semRua = await cepSite("55120000");
+      certo("CEP de cidade inteira chega ao site com a rua vazia", semRua.status === 200 && semRua.j.logradouro === "");
+      /* O freio: 20 por hora por endereço. O cache não conta aqui — o freio é
+         antes dele, senão bastaria repetir o mesmo CEP para passar por cima. */
+      let travou = 0;
+      for (let i = 0; i < 25; i++) {
+        const r = await cepSite("55038270");
+        if (r.status === 429) { travou = i; break; }
+      }
+      certo("o site tem freio de consultas de CEP por endereço", travou > 0 && travou <= 20, `travou na ${travou}ª`);
     }
 
     console.log("\n— boletos: a matemática (contra o manual do Sicredi)");

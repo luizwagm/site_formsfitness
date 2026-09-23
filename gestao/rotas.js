@@ -410,6 +410,15 @@ function criar(ctx) {
      2 MB é folga para o celular que não conseguiu reduzir. O comprovante tem
      mais porque PDF de banco com logotipo passa fácil de 1 MB. */
   const FOTO_MAX = 2 * 1024 * 1024, COMPROVANTE_MAX = 4 * 1024 * 1024;
+
+  /* (1.28.0) Freio da consulta de CEP do formulário do site. Quem preenche uma
+     ficha consulta UM CEP — dois ou três se errar a digitação. Vinte por hora é
+     folgado para gente e inútil para quem quisesse usar o nosso servidor como
+     repasse gratuito de consulta de CEP, que é o risco de abrir esta porta (no
+     painel ela exige login justamente por isso). O cache de um dia do
+     gestao/cep.js absorve as repetições antes de sair para a internet. */
+  const cepsPorIp = new Map();
+  const LIMITE_CEP = 20;
   setInterval(() => {
     const corte = Date.now() - JANELA;
     for (const [ip, lista] of envios) {
@@ -438,6 +447,7 @@ function criar(ctx) {
   });
 
   async function publico(req, res, p) {
+    let r2;
     if (p === "/api/publico/turmas" && req.method === "GET") {
       const lista = todos(`SELECT t.id, t.horario, t.horario_fim, a.nome AS atividade_nome
         FROM g_turmas t JOIN g_atividades a ON a.id=t.atividade_id
@@ -446,6 +456,35 @@ function criar(ctx) {
       json(res, 200, { turmas: lista.map((t) => ({ id: t.id, rotulo: rotuloTurma(t) })),
         dias: U.diasPorExtenso(diasAula()) });
       return true;
+    }
+
+    /* ------------------------------------------------------------ CEP (1.28.0)
+       O mesmo buscador do painel, com o mesmo cache. A tela do site não fala
+       com o ViaCEP direto: o site tem `connect-src` próprio, e a consulta sair
+       do servidor mantém a página falando só com a própria casa — além de não
+       contar a um terceiro que alguém está preenchendo matrícula aqui. */
+    if ((r2 = /^\/api\/publico\/cep\/(.*)$/.exec(p)) && req.method === "GET") {
+      /* A conferência do formato é AQUI dentro, e não no casamento da rota:
+         caindo fora, o pedido seguia para a API com login e voltava 401 —
+         resposta sem sentido para uma porta aberta, e que ainda sugere que há
+         algo protegido ali. Formato errado é 400, e não vira consulta. */
+      if (!/^\d{5}-?\d{3}$/.test(r2[1])) return json(res, 400, { error: "CEP inválido." }), true;
+      const ip = ipDoCliente(req);
+      const corte = Date.now() - JANELA;
+      const minhas = (cepsPorIp.get(ip) || []).filter((t) => t > corte);
+      if (minhas.length >= LIMITE_CEP) {
+        res.setHeader("Retry-After", "3600");
+        return json(res, 429, { error: "Muitas consultas de CEP. Digite o endereço à mão." }), true;
+      }
+      minhas.push(Date.now()); cepsPorIp.set(ip, minhas);
+      res.setHeader("Cache-Control", "no-store");
+      try {
+        const achado = await buscarCep(r2[1]);
+        return achado ? json(res, 200, achado) : json(res, 404, { error: "CEP não encontrado." }), true;
+      } catch (e) {
+        if (e.indisponivel) return json(res, 503, { error: e.message }), true;
+        return json(res, 503, { error: "Não foi possível consultar o CEP agora." }), true;
+      }
     }
 
     if (p === "/api/publico/matricula" && req.method === "POST") {

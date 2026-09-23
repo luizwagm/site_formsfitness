@@ -125,6 +125,20 @@ diagnosticar_banco() {
 
 restaurar_e_sair() {
   vermelho "$1"
+  # O SERVIÇO PARA ANTES DE O ARQUIVO SER TOCADO.
+  #
+  # Em 23/09/2026 esta função trocou o data/site.db com o site NO AR. O SQLite
+  # roda em modo WAL: o site.db foi substituído, mas o site.db-wal e o
+  # site.db-shm continuaram sendo os do arquivo ANTERIOR. Os três descasaram e
+  # o banco passou a responder "database disk image is malformed" — o site
+  # servia as páginas estáticas, mas nada que lesse o banco funcionava, e
+  # ninguém conseguia se matricular.
+  #
+  # Restaurar é mexer no arquivo por baixo de quem o tem aberto: só se faz com
+  # o serviço parado.
+  $SC stop "$SERVICO" 2>/dev/null
+  sleep 1
+
 
   # SEMPRE guarda o banco que está no disco AGORA, antes de escrever por cima.
   # Sem isto, uma restauração equivocada é irreversível — e foi assim que um
@@ -133,6 +147,13 @@ restaurar_e_sair() {
     SOCORRO="$BACKUP_DIR/site.antes-de-restaurar.$(date +%Y-%m-%d_%H%M%S).db"
     mkdir -p "$BACKUP_DIR" && cp data/site.db "$SOCORRO" 2>/dev/null \
       && amarelo "O banco que estava no disco foi guardado em: $SOCORRO"
+    # O WAL do banco que SAI é guardado junto, e não apagado: se um dia a
+    # restauração for a equivocada, é nesse par que estarão as gravações mais
+    # recentes. Sair do caminho basta — o que estraga é deixá-los ali, casados
+    # com um arquivo que não existe mais.
+    for extra in -wal -shm; do
+      [ -f "data/site.db$extra" ] && mv -f "data/site.db$extra" "$SOCORRO$extra" 2>/dev/null
+    done
   fi
 
   if [ -f "$COFRE/site.db" ]; then
@@ -325,15 +346,27 @@ verde "     de volta no lugar (dono: $DONO:$GRUPO)"
 # Roda DEPOIS de devolver o banco: publicar antes geraria as páginas a partir
 # de um banco ausente. Se falhar, o site segue no ar com as páginas anteriores
 # e o aviso diz o que fazer, em vez de a falha passar em silêncio.
-azul "6b/7 Refazendo as páginas a partir do banco"
-# O erro APARECE: na entrega da 1.20 ele foi para /dev/null, e "o --publicar
-# falhou" sem o motivo deixou só palpite para investigar.
-if SAIDA_PUB=$(node server.js --publicar 2>&1); then
-  verde "     páginas republicadas com o conteúdo atual"
+azul "6b/7 Pedindo ao serviço que refaça as páginas"
+# O PEDIDO, E NÃO A PUBLICAÇÃO.
+#
+# Até a 1.27 este passo rodava `node server.js --publicar` aqui mesmo. Só que
+# o deploy roda como `deploy` e o serviço roda como root: as páginas geradas
+# pertencem a root, e a publicação morria com EACCES no primeiro arquivo
+# ("permission denied, open .../blog/<matéria>/index.html"). O site ficava com
+# as páginas do REPOSITÓRIO — o conteúdo da máquina de quem desenvolve — até
+# alguém entrar no painel e clicar em Publicar.
+#
+# Dar mais sudo ao `deploy` resolveria e abriria um buraco: autorizar um
+# interpretador é autorizar tudo, e neste servidor mora o Postgres com
+# prontuário de paciente. Então o deploy só deixa um BILHETE em data/ (pasta
+# onde ele já escreve, é de lá que o banco volta) e quem republica é o
+# serviço ao subir, com a identidade que sempre escreveu esses arquivos.
+if : > data/.republicar 2>/dev/null; then
+  [ "$SOU_ROOT" = "1" ] && chown "$DONO:$GRUPO" data/.republicar 2>/dev/null
+  verde "     pedido deixado — o serviço refaz as páginas ao subir"
 else
-  amarelo "     o --publicar falhou. O site segue no ar com as páginas anteriores."
-  printf '%s\n' "$SAIDA_PUB" | tail -n 6 | sed 's/^/       /'
-  amarelo "     Entre no /admin e clique em Publicar para refazê-las."
+  amarelo "     não consegui deixar o pedido em data/.republicar."
+  amarelo "     Entre no /admin e clique em Publicar para refazer as páginas."
 fi
 
 $SC start "$SERVICO"
@@ -355,12 +388,38 @@ if sem_leitura "$ANTES" || sem_leitura "$DEPOIS"; then
   amarelo "     NADA foi restaurado — o banco continua como está, e o backup do passo 1 segue guardado."
   diagnosticar_banco || true
 elif [ "$ANTES" != "$DEPOIS" ]; then
-  # a contagem de visitas muda sozinha entre as duas leituras; só alerta se o
-  # CONTEÚDO mudou — por isso compara ignorando o último campo
-  A_SEM_VISITAS="${ANTES%· *}"; D_SEM_VISITAS="${DEPOIS%· *}"
-  if [ "$A_SEM_VISITAS" != "$D_SEM_VISITAS" ]; then
-    restaurar_e_sair "     O CONTEÚDO MUDOU. Restaurando por segurança."
-  fi
+  # SÓ RESTAURA QUANDO ALGUMA CONTAGEM CAI.
+  #
+  # Em 23/09/2026 a entrega da 1.27 foi desfeita por este guarda: ele viu
+  # "36 textos" virarem 39 e concluiu que o conteúdo havia mudado. Os três a
+  # mais eram os campos NOVOS da seção Contato, que o próprio sistema semeia
+  # ao subir uma versão — exatamente como as chaves g_ tinham feito na 1.20.
+  # Toda versão que acrescenta campo dispararia o alarme, e a "segurança"
+  # virava o estrago: o banco foi trocado com o site no ar e corrompeu.
+  #
+  # Perder conteúdo é o número CAIR. Subir é conteúdo novo — semente da versão
+  # ou cadastro feito no meio do caminho —, e desfazer um deploy por causa
+  # disso nunca foi a intenção. O aumento é DITO, para ninguém achar que
+  # passou despercebido.
+  MUDANCA=$(node -e '
+    const a = process.argv[1].split(" · "), b = process.argv[2].split(" · ");
+    const num = (s) => Number((s.match(/^[0-9]+/) || [0])[0]);
+    const nome = (s) => s.replace(/^[0-9]+ /, "");
+    const caiu = [], subiu = [];
+    for (let i = 0; i < Math.min(a.length, b.length) - 1; i++) {
+      if (num(b[i]) < num(a[i])) caiu.push(`${nome(a[i])}: ${num(a[i])} para ${num(b[i])}`);
+      else if (num(b[i]) > num(a[i])) subiu.push(`${nome(a[i])}: ${num(a[i])} para ${num(b[i])}`);
+    }
+    console.log((caiu.length ? "CAIU" : "SUBIU") + "|" + (caiu.length ? caiu : subiu).join("; "));
+  ' "$ANTES" "$DEPOIS" 2>/dev/null)
+  DETALHE="${MUDANCA#*|}"
+  case "$MUDANCA" in
+    CAIU*) restaurar_e_sair "     SUMIU CONTEÚDO ($DETALHE). Restaurando por segurança." ;;
+    # Detalhe vazio = só o contador de visitas mudou entre as duas leituras,
+    # que é o normal de qualquer entrega. Não é notícia.
+    SUBIU*) { [ -n "$DETALHE" ] && amarelo "     o conteúdo AUMENTOU ($DETALHE) — campo novo da versão ou cadastro feito agora. Nada foi restaurado."; } || true ;;
+    *) amarelo "     não deu para comparar campo a campo. Nada foi restaurado; o backup do passo 1 segue guardado." ;;
+  esac
 fi
 
 OK=0

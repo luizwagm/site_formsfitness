@@ -471,6 +471,58 @@ function initMatricula() {
     el.addEventListener("blur", () => el.setCustomValidity(el.value && !cpfOk(el.value) ? "CPF inválido" : ""));
   });
 
+  /* ------------------------------------------------------- CEP → endereço
+     (1.28.0) O mesmo conforto que o painel ganhou na 1.26.0, agora para quem
+     se matricula pelo site: ao completar os 8 dígitos, o servidor consulta o
+     CEP e a tela preenche rua, bairro, cidade e estado, e salta para o número.
+     Quem pergunta é o SERVIDOR (/api/publico/cep) — a página não fala com
+     serviço de terceiro, e nenhum deles fica sabendo que alguém está
+     preenchendo uma matrícula aqui.
+
+     Só o que VEIO é escrito: CEP de cidade pequena não tem rua, e apagar o que
+     a pessoa digitou por causa de uma resposta vazia seria perder trabalho.
+     Número e complemento nunca são tocados. Se o CEP mudar enquanto a resposta
+     viaja, a resposta velha é descartada — preencher o endereço do CEP
+     anterior é o pior erro, porque parece certo. */
+  const cepEl = $("#m-cep");
+  const cepAviso = $("#mat-cep-aviso");
+  const cepPadrao = cepAviso ? cepAviso.textContent : "";
+  let cepConsultado = "";
+  const cepPreencheu = { logradouro: "", bairro: "", cidade: "" };
+  const avisarCep = (msg) => { if (cepAviso) cepAviso.textContent = msg || cepPadrao; };
+  if (cepEl) cepEl.addEventListener("input", async () => {
+    const cep = soDig(cepEl.value);
+    if (cep.length < 8) { cepConsultado = ""; avisarCep(""); return; }
+    if (cep === cepConsultado) return;
+    cepConsultado = cep;
+    avisarCep("Buscando o endereço deste CEP…");
+    try {
+      const resp = await fetch(`/api/publico/cep/${cep}`, { headers: { Accept: "application/json" } });
+      const r = await resp.json().catch(() => ({}));
+      if (soDig(cepEl.value) !== cep) return;
+      if (!resp.ok) throw new Error(r.error || "Não foi possível consultar o CEP.");
+      for (const nome of ["logradouro", "bairro", "cidade"]) {
+        const campoEl = $(`#m-${nome === "logradouro" ? "rua" : nome === "bairro" ? "bairro" : "cidade"}`);
+        if (!campoEl) continue;
+        if (r[nome]) campoEl.value = r[nome];
+        else if (cepPreencheu[nome] && campoEl.value === cepPreencheu[nome]) campoEl.value = "";
+        cepPreencheu[nome] = r[nome] || "";
+      }
+      if (r.uf) $("#m-uf").value = r.uf;
+      avisarCep(r.logradouro ? "Endereço preenchido — confira e complete o número."
+                             : "Este CEP é da cidade inteira: preencha a rua e o bairro.");
+      const proximo = $(r.logradouro ? "#m-num" : "#m-rua");
+      if (proximo) proximo.focus();
+    } catch (err) {
+      if (soDig(cepEl.value) !== cep) return;
+      /* Deixa tentar de novo: apagar e redigitar o último dígito repete a
+         consulta — útil quando o serviço estava fora do ar. O endereço
+         continua podendo ser digitado à mão, e o envio não depende disto. */
+      cepConsultado = "";
+      avisarCep((err.message || "Não foi possível consultar o CEP.") + " Pode digitar o endereço à mão.");
+    }
+  });
+
   /* Nome do arquivo escolhido, embaixo do campo. Num celular, o seletor de
      arquivos some sem dizer o que ficou selecionado, e a pessoa não sabe se o
      toque funcionou. */

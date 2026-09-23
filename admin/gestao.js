@@ -226,22 +226,31 @@
                 placeholder="${/^\d{4}-\d{2}-\d{2}$/.test(a.data_matricula || "") ? `dia ${Number(a.data_matricula.slice(8))} (da matrícula)` : "dia da matrícula"}"></div>
           </div>
         </div>
-        <div class="gf-foto">
-          <div class="quadro" id="fa-foto">${a.foto_id ? `<img src="/admin/arquivo/${a.foto_id}" alt="Foto do aluno">` : "sem foto"}</div>
-          ${id ? `<input type="file" id="fa-foto-arq" accept="image/jpeg,image/png,image/webp" hidden>
-            <button type="button" class="btn btn-ghost btn-sm" data-foto="enviar">${a.foto_id ? "Trocar foto" : "Enviar foto"}</button>
-            ${a.foto_id ? '<button type="button" class="btn btn-danger btn-sm" data-foto="remover">Remover</button>' : ""}`
-            : '<small class="fraco" style="text-align:center">A foto entra depois de salvar.</small>'}
-          <!-- Comprovante de pagamento (1.27.0). Fica ao lado da foto porque as
-               duas coisas são o MESMO gesto de conferência: quem abre uma
-               pré-matrícula olha o rosto e o pagamento, nessa ordem. -->
-          <div class="gf-comp">
-            <p class="gf-comp__tit">Comprovante</p>
+        <!-- Os dois documentos LADO A LADO (1.28.0). Empilhados, a coluna da
+             direita ficava com o dobro da altura da esquerda e abria um vazio
+             enorme no meio da ficha. Eles são o mesmo gesto — quem abre uma
+             pré-matrícula olha o rosto e o pagamento —, então ficam juntos, do
+             mesmo tamanho, com os botões em linha embaixo de cada um. -->
+        <div class="gf-docs">
+          <div class="gf-doc">
+            <p class="gf-doc__tit">Foto do aluno</p>
+            <div class="quadro" id="fa-foto">${a.foto_id ? `<img src="/admin/arquivo/${a.foto_id}" alt="Foto do aluno">` : "sem foto"}</div>
+            ${id ? `<input type="file" id="fa-foto-arq" accept="image/jpeg,image/png,image/webp" hidden>
+              <div class="gf-doc__acoes">
+                <button type="button" class="btn btn-ghost btn-sm" data-foto="enviar">${a.foto_id ? "Trocar" : "Enviar"}</button>
+                ${a.foto_id ? '<button type="button" class="btn btn-danger btn-sm" data-foto="remover">Remover</button>' : ""}
+              </div>`
+              : '<small class="fraco">Entra depois de salvar.</small>'}
+          </div>
+          <div class="gf-doc">
+            <p class="gf-doc__tit">Comprovante</p>
             <div class="quadro quadro--comp" id="fa-comp">${compHTML(a)}</div>
             ${id ? `<input type="file" id="fa-comp-arq" accept="image/jpeg,image/png,image/webp,application/pdf" hidden>
-              <button type="button" class="btn btn-ghost btn-sm" data-comp="enviar">${a.comprovante_id ? "Trocar" : "Enviar"}</button>
-              ${a.comprovante_id ? '<button type="button" class="btn btn-danger btn-sm" data-comp="remover">Remover</button>' : ""}`
-              : '<small class="fraco" style="text-align:center">Entra depois de salvar.</small>'}
+              <div class="gf-doc__acoes">
+                <button type="button" class="btn btn-ghost btn-sm" data-comp="enviar">${a.comprovante_id ? "Trocar" : "Enviar"}</button>
+                ${a.comprovante_id ? '<button type="button" class="btn btn-danger btn-sm" data-comp="remover">Remover</button>' : ""}
+              </div>`
+              : '<small class="fraco">Entra depois de salvar.</small>'}
           </div>
         </div>
       </div>

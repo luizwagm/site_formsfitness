@@ -38,7 +38,9 @@ secretaria confere, efetiva (é aí que o aluno ganha o código, a partir de
 - **Página de matrícula** que exige responsável conforme a idade, lista as
   turmas abertas da gestão e grava a **pré-matrícula** com o consentimento
   (LGPD, art. 14). Desde a 1.27.0 a ficha leva junto a **foto do aluno** e o
-  **comprovante de pagamento**, os dois obrigatórios.
+  **comprovante de pagamento**, os dois obrigatórios, e desde a 1.28.0 o **CEP
+  preenche o endereço** (primeiro campo do bloco, consulta feita pelo servidor
+  em `/api/publico/cep`, com freio de 20 por hora por endereço).
 - **Gestão da academia:** cadastro de aluno com status ativo/inativo, código de
   matrícula sequencial, **cadastro de professores** (escolhidos por select na
   turma e, se for outro, em cada atividade do aluno), **várias atividades por

@@ -533,6 +533,15 @@ function pngEmPe() {
     certo("tem o campo-isca contra robô", /name="site_url"/.test(mat.corpo));
     /* 1.21.0: só horário cadastrado. Texto livre não vira turma. */
     certo("o horário é só por lista (sem campo de texto livre)", /<select id="m-turma" name="turma_id" required>/.test(mat.corpo) && !/name="horario_desejado"/.test(mat.corpo));
+    /* (1.28.0) O CEP É O PRIMEIRO CAMPO DO ENDEREÇO e preenche o resto. No
+       fim da linha, como estava, a pessoa já teria digitado à mão tudo o que
+       ele traria — o conforto chegava atrasado e não servia para nada. */
+    const ini = mat.corpo.indexOf("Endereço</legend>");
+    const ender = ini < 0 ? null : [mat.corpo.slice(ini, mat.corpo.indexOf("</fieldset>", ini))];
+    certo("o bloco do endereço existe", !!ender);
+    certo("o CEP vem ANTES da rua, da cidade e do estado",
+      ender && ender[0].indexOf('id="m-cep"') < ender[0].indexOf('id="m-rua"')
+      && ender[0].indexOf('id="m-cep"') < ender[0].indexOf('id="m-cidade"'));
     /* Sem method, um formulário cujo JS falhou envia por GET — CPF e endereço
        na URL, e no log do nginx. */
     certo("o formulário nunca envia por GET", /id="matricula-form"[^>]*method="post"/.test(mat.corpo));
@@ -556,6 +565,12 @@ function pngEmPe() {
       /enviados na própria ficha/i.test(priv.corpo) && /apagados junto com ela/i.test(priv.corpo));
 
     const js = fs.readFileSync(path.join(__dirname, "assets", "js", "main.js"), "utf8");
+    certo("a tela pergunta o CEP ao NOSSO servidor, e não a um site de fora",
+      js.includes("/api/publico/cep/") && !/viacep|brasilapi/i.test(js));
+    /* Endereço do CEP anterior num CEP novo de cidade inteira é erro com
+       cara de certo — foi achado na tela do painel, na 1.26.0. */
+    certo("o que o CEP anterior preencheu é limpo quando o novo não traz",
+      js.includes("cepPreencheu[nome] && campoEl.value === cepPreencheu[nome]"));
     certo("o formulário envia para a gestão da academia", /fetch\("\/api\/publico\/matricula"/.test(js));
     certo("e oferece o WhatsApp do painel para falar com a academia", /wa\.me\/\$\{WHATSAPP_NUMBER\}/.test(js));
     certo("menor de idade passa a exigir responsável", /el\.required = menor/.test(js));
@@ -578,6 +593,17 @@ function pngEmPe() {
 
     const sm = await pedir("GET", "/sitemap.xml");
     certo("a matrícula entra no sitemap", /\/matricula\//.test(sm.corpo));
+
+    /* (1.28.0) O convite no fim de cada matéria. O texto antigo prometia
+       "agende uma aula experimental" e o botão embaixo dizia "Garanta sua
+       vaga" — duas promessas diferentes no mesmo cartão. */
+    const materia = await pedir("GET", "/blog/hidroginastica-o-treino-de-baixo-impacto-que-cabe-em-qualquer-idade/");
+    if (materia.status === 200) {
+      certo("o convite do fim da matéria tem o texto novo",
+        materia.corpo.includes("Venha viver isso na prática na Forms Fitness."));
+      certo("e não promete mais a aula experimental ali",
+        !materia.corpo.includes("agende uma <b>aula experimental</b>"));
+    }
   }
 
   console.log("\n-- Seções editáveis, HTML e vídeo --");
@@ -612,6 +638,37 @@ function pngEmPe() {
       /<!--#SEC_CONTATO_TITULO-->/.test(home.corpo) && /<!--#SEC_CONTATO_SUB-->/.test(home.corpo));
 
     /* Editor rico nos textos que viram HTML na página. */
+    /* (1.28.0) Com nove matérias abertas de uma vez, a tela do blog virava
+       uma rolagem de metros. Cada uma é uma dobra, e todas nascem FECHADAS:
+       um `open` no HTML gerado desfaria exatamente o que se pediu. */
+    /* ------------------------------------------ o conserto da entrega (1.28.0)
+       Três defeitos do deploy.sh que, juntos, corromperam o banco de produção
+       em 23/09/2026. Ficam provados aqui porque o deploy não tem suíte
+       própria — e porque o custo de um deles voltar é o site fora do ar. */
+    const entrega = fs.readFileSync(path.join(__dirname, "deploy.sh"), "utf8");
+    /* 1. O guarda contava "36 textos viraram 39" e desfazia a entrega. Campo
+          novo é conteúdo que ENTRA; perda é número que CAI. */
+    certo("o guarda da entrega só restaura quando alguma contagem CAI",
+      entrega.includes("SUMIU CONTEÚDO") && !entrega.includes("O CONTEÚDO MUDOU. Restaurando"));
+    /* 2. Restaurar com o site no ar trocou o site.db por baixo de um SQLite
+          em WAL: os arquivos descasaram e o banco virou "malformed". */
+    certo("a restauração PARA o serviço antes de tocar no banco",
+      entrega.slice(entrega.indexOf("restaurar_e_sair()"), entrega.indexOf("restaurar_e_sair()") + 1200).includes("$SC stop"));
+    certo("e leva o -wal e o -shm junto, guardados",
+      entrega.includes("for extra in -wal -shm"));
+    /* 3. O deploy roda como `deploy` e as páginas pertencem a root: publicar
+          ali morria com EACCES. Quem republica é o serviço, a pedido. */
+    certo("a entrega PEDE a republicação em vez de publicar ela mesma",
+      entrega.includes("data/.republicar") && !entrega.includes("$(node server.js --publicar"));
+    certo("o serviço republica ao subir quando encontra o pedido",
+      srv.includes('".republicar"') && /republicadas a pedido/.test(srv));
+
+    certo("cada matéria do painel é uma dobra", /<details class="dobra"/.test(adm) && adm.includes('COM_DOBRA'));
+    certo("as matérias nascem todas fechadas",
+      !/<details class="dobra"[^>]*[ ]open/.test(adm) && adm.includes("DOBRAS_ABERTAS[t].has(String(r.id))"));
+    certo("salvar não fecha a matéria que estava aberta", adm.includes("function lembrarDobra"));
+    certo("a matéria recém-criada já nasce aberta", adm.includes("DOBRAS_ABERTAS[t].add(String(nova.id))"));
+
     certo("os textos longos usam o editor formatado", /COM_EDITOR\s*=/.test(adm) && adm.includes("montarEditores"));
     /* O editorRico dá id próprio ao input oculto; quem lê o valor precisa
        chegar nele pelo contêiner, senão o edSync para de sincronizar. */

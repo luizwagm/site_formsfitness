@@ -125,18 +125,24 @@ dialog.g-dlg::backdrop{background:rgba(14,42,74,.45)}
 .gf .obrig::after{content:" *";color:var(--red)}
 .gf-nota{font-size:.82rem;color:var(--muted);background:#f2f8fd;border-radius:10px;padding:.55rem .8rem;margin:.6rem 0 0}
 .gf-nota--alerta{background:#fff3cd;color:#6b4a00}
-.gf-topo{display:grid;grid-template-columns:1fr 150px;gap:1.2rem;align-items:start}
-.gf-foto{display:flex;flex-direction:column;align-items:center;gap:.4rem}
-.gf-foto .quadro{width:132px;height:170px;border:1.5px dashed var(--line2);border-radius:12px;overflow:hidden;
-  display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:.8rem;text-align:center;background:#f7fbfe}
-.gf-foto .quadro img{width:100%;height:100%;object-fit:cover}
-/* Comprovante (1.27.0): mesma coluna da foto, quadro mais baixo — é
-   documento para conferir, não retrato para identificar. */
-.gf-comp{display:flex;flex-direction:column;align-items:center;gap:.4rem;margin-top:.9rem;width:100%}
-.gf-comp__tit{margin:0;font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-.gf-foto .quadro--comp{height:110px}
-.gf-foto .quadro--comp a{display:flex;width:100%;height:100%;align-items:center;justify-content:center}
-.gf-foto .quadro--comp img{width:100%;height:100%;object-fit:cover}
+/* A coluna da direita cabe os DOIS documentos lado a lado (1.28.0): com eles
+   empilhados ela tinha o dobro da altura do formulário ao lado, e sobrava um
+   vazio enorme no meio da ficha. */
+.gf-topo{display:grid;grid-template-columns:1fr 268px;gap:1.2rem;align-items:start}
+.gf-docs{display:flex;gap:.7rem;align-items:flex-start}
+.gf-doc{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:.4rem}
+.gf-doc__tit{margin:0;font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:center}
+.gf-doc .quadro{width:100%;height:158px;border:1.5px dashed var(--line2);border-radius:12px;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:.78rem;text-align:center;background:#f7fbfe}
+/* O retrato PREENCHE o quadro (é 3x4, e a sobra das bordas não importa); o
+   comprovante aparece INTEIRO — cortar um recibo esconde justamente o valor
+   e a data, que é o que a secretaria abre a ficha para ver. */
+.gf-doc .quadro img{width:100%;height:100%;object-fit:cover}
+.gf-doc .quadro--comp img{object-fit:contain;background:#fff}
+.gf-doc .quadro--comp a{display:flex;width:100%;height:100%;align-items:center;justify-content:center}
+.gf-doc__acoes{display:flex;flex-wrap:wrap;gap:.3rem;justify-content:center}
+.gf-doc__acoes .btn{padding:.35rem .6rem}
+.gf-doc .fraco{font-size:.72rem;text-align:center}
 .comp-pdf{flex-direction:column;gap:.2rem;color:var(--muted);font-weight:700;font-size:.8rem;text-decoration:none}
 .comp-pdf span{text-decoration:underline}
 .gf-check{display:flex;align-items:center;gap:.5rem;margin-top:.6rem;font-weight:700;color:var(--muted);font-size:.9rem}
@@ -323,11 +329,10 @@ table.g-aud{min-width:820px}
   .conteudo{min-height:auto}
   .appbar{padding:.5rem .9rem}
   .gf-topo{grid-template-columns:1fr}
-  .gf-foto{flex-direction:row;flex-wrap:wrap;align-items:flex-start}
-  /* No celular a foto e os botões dela ocupam a primeira linha; o comprovante
-     desce inteiro para a linha seguinte. Sem o flex-basis ele se espremia ao
-     lado do botão "Remover" da foto, e os dois blocos pareciam um só. */
-  .gf-comp{flex-basis:100%;width:100%;margin-top:.5rem}
+  /* No celular a coluna vira linha e os dois documentos continuam lado a
+     lado: são dois quadros pequenos, e empilhá-los empurraria o formulário
+     inteiro para baixo da dobra. */
+  .gf-docs{max-width:340px}
   .g-duas{grid-template-columns:1fr}
   .g-marcadores{position:static;max-height:none}
 }

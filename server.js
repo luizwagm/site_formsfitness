@@ -44,7 +44,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.27.0";
+const APP_VERSION = "1.28.0";
 /* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
    deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
    num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento
@@ -1547,6 +1547,32 @@ http.createServer(async (req, res) => {
   console.log(`  · Banco:  ${DRIVER_NOME}${DRIVER_AVISO ? "  ⚠ " + DRIVER_AVISO : ""}`);
   /* Depois do listen, nunca antes: o backup não pode atrasar o site subir. */
   agendarBackups(BACKUP_CFG);
+
+  /* ---------------------------------------- pedido de republicação (1.28.0)
+     QUEM ESCREVE AS PÁGINAS GERADAS É ESTE PROCESSO, e é isso que resolve o
+     problema. O deploy roda como `deploy`; o serviço, como root. Os arquivos
+     que o "Publicar" cria nascem do serviço e pertencem a root — então o
+     `node server.js --publicar` do deploy morria com EACCES logo no primeiro
+     deles, e o site ficava com as páginas do REPOSITÓRIO (o conteúdo da
+     máquina de quem desenvolve) até alguém entrar no painel e clicar.
+
+     Agora o deploy só deixa um bilhete em data/ — pasta em que ele escreve —, e
+     quem republica é o serviço ao subir, com a identidade de sempre. É o mesmo
+     desenho que já instala o esquema do banco: quem instala é o serviço.
+
+     Falhar aqui não derruba o site: as páginas anteriores continuam de pé, e o
+     bilhete fica para a próxima subida. */
+  try {
+    const bilhete = path.join(ROOT, "data", ".republicar");
+    if (fs.existsSync(bilhete)) {
+      publish();
+      fs.unlinkSync(bilhete);
+      console.log("  · páginas republicadas a pedido da entrega");
+    }
+  } catch (e) {
+    console.error(`  ✖ não consegui republicar as páginas: ${e.message}`);
+    console.error("    O site segue com as páginas anteriores. Entre no /admin e clique em Publicar.");
+  }
   /* Testa a escrita no boot. Sem isto, um banco somente-leitura só aparece
      quando o cliente tenta salvar algo e nada acontece — e o log fica mudo. */
   try {

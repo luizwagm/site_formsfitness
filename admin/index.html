@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap">
-  <link rel="stylesheet" href="/admin/gestao.css?v=1.27.0">
+  <link rel="stylesheet" href="/admin/gestao.css?v=1.28.0">
   <style>
     :root{--bg:#f4fafe;--surface:#fff;--line:#dcebf7;--line2:#bcd8ee;--text:#0e2a4a;--muted:#48617e;--dim:#8aa4bf;
       --blue:#0B4EA2;--blue2:#1FA8DC;--lime:#7ED321;--lime-d:#55A818;--red:#e0426b;--r:14px}
@@ -67,6 +67,29 @@
     .panel{display:none}.panel.on{display:block}
     .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:1.2rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(11,78,162,.06)}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:0 1rem}
+    /* Dobra do blog (1.28.0). A faixa fechada é o item da lista: título à
+       esquerda, data e selo à direita, e um triângulo que gira ao abrir.
+       Alvo de clique é a FAIXA INTEIRA, não só o texto — no toque, mirar duas
+       palavras é o que faz errar. */
+    .dobra{border:1px solid var(--line);border-radius:var(--r);margin-bottom:.6rem;background:var(--surface);
+      box-shadow:0 2px 8px rgba(11,78,162,.06);overflow:hidden}
+    .dobra[open]{box-shadow:0 4px 16px rgba(11,78,162,.10)}
+    .dobra__cab{display:flex;align-items:center;gap:.7rem;padding:.9rem 1.1rem;cursor:pointer;
+      font-weight:700;color:var(--navy);list-style:none;user-select:none}
+    .dobra__cab::-webkit-details-marker{display:none}
+    /* O triângulo é desenhado por nós: o nativo muda de forma a cada
+       navegador, e aqui ele precisa girar. */
+    .dobra__cab::before{content:"";flex:0 0 auto;width:0;height:0;
+      border-left:7px solid var(--navy);border-top:5px solid transparent;border-bottom:5px solid transparent;
+      transition:transform .15s ease}
+    .dobra[open] .dobra__cab::before{transform:rotate(90deg)}
+    .dobra__cab:hover{background:#f2f8fd}
+    .dobra__nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .dobra__data{flex:0 0 auto;font-weight:600;font-size:.82rem;color:var(--dim)}
+    .dobra__selo{flex:0 0 auto;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+      background:#fff3cd;color:#6b4a00;border-radius:999px;padding:.15rem .5rem}
+    /* O cartão de dentro perde a moldura própria: quem molda agora é a dobra. */
+    .dobra .card{border:0;box-shadow:none;margin-bottom:0;border-top:1px solid var(--line);border-radius:0}
     .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.6rem;gap:1rem;flex-wrap:wrap}
     .hint{font-size:.75rem;color:var(--dim)}
     .right{text-align:right}.mt{margin-top:1rem}.mb{margin-bottom:1rem}
@@ -1125,6 +1148,33 @@ const TDEFS = {
    mesma coluna `sort` e entrariam só acrescentando "portfolio" a este conjunto. */
 const COM_ORDEM = new Set(["services"]);
 
+/* (1.28.0) O BLOG ABRE FECHADO. Com nove matérias, cada uma com título, URL,
+   data, resumo, capa e o conteúdo inteiro num editor, a tela virava uma rolagem
+   de metros até a que a pessoa queria. Agora cada matéria é uma dobra: a lista
+   cabe na tela e o clique abre a que interessa.
+   Só o blog — as modalidades e os depoimentos são poucos e curtos, e fechá-los
+   esconderia sem ganho nenhum. */
+const COM_DOBRA = new Set(["posts"]);
+/* Quais estão abertas AGORA, por lista. A tabela é redesenhada inteira ao
+   salvar, mover ou excluir; sem esta memória, salvar uma matéria a fecharia na
+   cara de quem estava trabalhando nela. Ao CARREGAR a página o conjunto nasce
+   vazio, que é o "todas já vêm fechadas" pedido. */
+const DOBRAS_ABERTAS = { posts: new Set() };
+function lembrarDobra(el) {
+  const t = el.dataset.t, id = String(el.dataset.id);
+  if (el.open) DOBRAS_ABERTAS[t].add(id); else DOBRAS_ABERTAS[t].delete(id);
+}
+/* O que se lê na dobra fechada. O título é o da matéria; vazio, ela seria uma
+   faixa cinza impossível de identificar, então cai para um rótulo honesto. */
+function resumoDaDobra(t, r) {
+  const titulo = String(r.title || "").trim() || "(sem título)";
+  const data = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(r.date || "") ? r.date.split("-").reverse().join("/") : "";
+  const rascunho = SLUG_RASCUNHO.test(String(r.slug || "")) || !r.slug;
+  return `<span class="dobra__nome">${escA(titulo)}</span>
+    ${data ? `<span class="dobra__data">${data}</span>` : ""}
+    ${rascunho ? '<span class="dobra__selo">rascunho</span>' : ""}`;
+}
+
 function linhaDeOrdem(t, r, i, total) {
   const n = String(i + 1).padStart(2, "0");
   return `<div class="ordem">
@@ -1169,6 +1219,9 @@ async function moverRow(t, id, passo) {
 
 function renderTable(t) {
   $("#" + t + "-list").innerHTML = DATA[t].map((r, i) => `
+    ${COM_DOBRA.has(t) ? `<details class="dobra" data-t="${t}" data-id="${r.id}"
+        ontoggle="lembrarDobra(this)" ${DOBRAS_ABERTAS[t].has(String(r.id)) ? "open" : ""}>
+      <summary class="dobra__cab">${resumoDaDobra(t, r)}</summary>` : ""}
     <div class="card">
       ${COM_ORDEM.has(t) ? linhaDeOrdem(t, r, i, DATA[t].length) : ""}
       ${TDEFS[t].map(([f, lab, kind]) => {
@@ -1202,7 +1255,7 @@ function renderTable(t) {
         <button class="btn btn-danger btn-sm" onclick="delRow('${t}',${r.id})">Excluir</button>
         <button class="btn btn-navy btn-sm" onclick="saveRow('${t}',${r.id})">Salvar</button>
       </div>
-    </div>`).join("");
+    </div>${COM_DOBRA.has(t) ? "</details>" : ""}`).join("");
 }
 async function saveRow(t, id) {
   const body = {};
@@ -1224,8 +1277,13 @@ async function addRow(t) {
     services: { title: "Nova modalidade", text: "", sort: fim },
     testimonials: { text: "", name: "", role: "", initials: "" },
     posts: { title: "Nova matéria", excerpt: "", content: "", image: "", date: new Date().toISOString().slice(0, 10) } }[t];
+  const antes = new Set((DATA[t] || []).map((r) => String(r.id)));
   await api("/api/" + t, "POST", blank);
   DATA = await api("/api/content");
+  if (COM_DOBRA.has(t)) {
+    const nova = DATA[t].find((r) => !antes.has(String(r.id)));
+    if (nova) DOBRAS_ABERTAS[t].add(String(nova.id));
+  }
   renderTable(t);
 }
 async function delRow(t, id) {
@@ -1356,6 +1414,6 @@ async function changePw() {
 
 boot();
 </script>
-<script src="/admin/gestao.js?v=1.27.0"></script>
+<script src="/admin/gestao.js?v=1.28.0"></script>
 </body>
 </html>

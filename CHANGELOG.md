@@ -5,6 +5,79 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.28.0 — 2026-09-23 · CEP na matrícula, blog que abre fechado e a ficha sem buraco
+
+### O CEP preenche o endereço, também no site
+
+O que o painel ganhou na 1.26.0 chegou a quem se matricula pelo site: digitou o
+CEP, vêm rua, bairro, cidade e estado, e o cursor salta para o número.
+
+- **O CEP passou a ser o PRIMEIRO campo do endereço.** No fim da linha, como
+  estava, a pessoa já teria digitado à mão tudo o que ele traria.
+- **Quem pergunta é o nosso servidor** (`/api/publico/cep`), não o navegador: a
+  página não fala com serviço de terceiro, e ninguém de fora fica sabendo que
+  alguém está preenchendo uma matrícula aqui. Mesmo ViaCEP → BrasilAPI de
+  reserva e o mesmo cache de um dia que o painel usa.
+- Como esta porta é aberta (o formulário é aberto), ela tem **freio de 20
+  consultas por hora por endereço** — folgado para gente, inútil para quem
+  quisesse usar o site como repasse gratuito de consulta de CEP.
+- **CEP de cidade inteira** (sem rua) preenche só cidade e estado, avisa, e
+  limpa a rua que o CEP ANTERIOR tinha preenchido — deixá-la seria um endereço
+  errado com cara de certo. O que a pessoa digitou nunca é apagado.
+
+### No painel, cada matéria do blog abre fechada
+
+A tela do Blog mostrava todas as matérias abertas ao mesmo tempo, cada uma com
+título, URL, data, resumo, capa e o conteúdo inteiro num editor. Com nove
+matérias, achar a certa era rolar metros. Agora cada uma é uma **dobra**: a
+lista cabe na tela, o clique abre a que interessa.
+
+- A faixa fechada mostra **título, data e o selo "rascunho"** quando a matéria
+  ainda não tem URL publicada.
+- **Todas começam fechadas.** A que você abriu continua aberta depois de salvar
+  — fechá-la na cara de quem está trabalhando seria trocar um incômodo por outro.
+- **Matéria nova nasce aberta**: clicar em "+ Nova matéria" e não ver nada
+  acontecer pareceria um botão quebrado.
+
+### A ficha do aluno parou de abrir um buraco no meio
+
+Com a foto e o comprovante empilhados, a coluna da direita ficava com o dobro
+da altura do formulário ao lado. Agora os dois ficam **lado a lado**, do mesmo
+tamanho, com os botões em linha embaixo de cada um. O retrato preenche o quadro;
+o comprovante aparece **inteiro** — cortar um recibo esconde justamente o valor
+e a data, que é o que a secretaria abre a ficha para ver.
+
+### A entrega parou de poder corromper o banco
+
+A entrega da 1.27 falhou no servidor e, ao "restaurar por segurança", **corrompeu
+o banco de produção**. Três defeitos, em sequência — os três consertados aqui.
+
+- **O guarda dava alarme falso.** Ele compara o inventário antes e depois e viu
+  "36 textos" virarem 39: os três a mais eram os campos novos da seção Contato,
+  que o próprio sistema semeia ao subir. Toda versão que acrescenta campo
+  dispararia o alarme. Agora ele **só restaura quando alguma contagem CAI** —
+  perder conteúdo é o número cair; subir é conteúdo novo, e é apenas informado.
+- **A restauração trocava o banco com o site no ar.** O SQLite roda em WAL: o
+  `site.db` era substituído e o `site.db-wal` continuava o do arquivo anterior.
+  Os dois descasavam e o banco passava a responder *"database disk image is
+  malformed"* — as páginas estáticas no ar, e nada que lesse o banco
+  funcionando. Agora a restauração **para o serviço antes** de tocar no arquivo
+  e leva o `-wal` e o `-shm` junto, guardados.
+- **A republicação morria com `EACCES`.** O deploy roda como `deploy` e o
+  serviço como root: as páginas geradas pertencem a root. Agora o deploy só
+  **deixa um pedido** em `data/.republicar` e **quem republica é o serviço ao
+  subir** — com a identidade que sempre escreveu esses arquivos, sem alargar o
+  sudo do `deploy` (neste servidor mora o banco com prontuário de paciente).
+
+### O convite no fim das matérias
+
+De "Curtiu? Venha viver isso na prática: agende uma aula experimental na Forms
+Fitness 🏊" para **"Curtiu? Venha viver isso na prática na Forms Fitness."** — o
+texto prometia aula experimental e o botão logo abaixo dizia "Garanta sua vaga";
+eram duas promessas diferentes no mesmo cartão.
+
+---
+
 ## 1.27.0 — 2026-09-22 · A matrícula chega completa, e a seção Contato virou campo
 
 ### Foto e comprovante vêm junto com a matrícula
