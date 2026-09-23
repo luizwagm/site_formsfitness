@@ -232,6 +232,17 @@
             <button type="button" class="btn btn-ghost btn-sm" data-foto="enviar">${a.foto_id ? "Trocar foto" : "Enviar foto"}</button>
             ${a.foto_id ? '<button type="button" class="btn btn-danger btn-sm" data-foto="remover">Remover</button>' : ""}`
             : '<small class="fraco" style="text-align:center">A foto entra depois de salvar.</small>'}
+          <!-- Comprovante de pagamento (1.27.0). Fica ao lado da foto porque as
+               duas coisas são o MESMO gesto de conferência: quem abre uma
+               pré-matrícula olha o rosto e o pagamento, nessa ordem. -->
+          <div class="gf-comp">
+            <p class="gf-comp__tit">Comprovante</p>
+            <div class="quadro quadro--comp" id="fa-comp">${compHTML(a)}</div>
+            ${id ? `<input type="file" id="fa-comp-arq" accept="image/jpeg,image/png,image/webp,application/pdf" hidden>
+              <button type="button" class="btn btn-ghost btn-sm" data-comp="enviar">${a.comprovante_id ? "Trocar" : "Enviar"}</button>
+              ${a.comprovante_id ? '<button type="button" class="btn btn-danger btn-sm" data-comp="remover">Remover</button>' : ""}`
+              : '<small class="fraco" style="text-align:center">Entra depois de salvar.</small>'}
+          </div>
         </div>
       </div>
 
@@ -517,11 +528,31 @@
           $("#dlg-aluno").close(); await listarAlunos(); await resumo(); formAluno(id);
         }
         if (b.dataset.foto === "enviar") $("#fa-foto-arq", F).click();
+        if (b.dataset.comp === "enviar") $("#fa-comp-arq", F).click();
+        if (b.dataset.comp === "remover") {
+          if (!confirm("Remover o comprovante de pagamento deste aluno?")) return;
+          await api(`/api/gestao/alunos/${id}/comprovante`, "DELETE");
+          $("#fa-comp", F).innerHTML = "sem comprovante"; b.remove(); toast("Comprovante removido.");
+        }
         if (b.dataset.foto === "remover") {
           if (!confirm("Remover a foto do aluno?")) return;
           await api(`/api/gestao/alunos/${id}/foto`, "DELETE");
           $("#fa-foto", F).innerHTML = "sem foto"; b.remove(); toast("Foto removida.");
         }
+      } catch (err) { toast(err.message, true); }
+    });
+
+    /* O comprovante NÃO passa pelo canvas: PDF não é imagem, e uma imagem
+       redesenhada perde nitidez justamente onde importa (o valor e a data em
+       letra pequena do aplicativo do banco). Vai como veio, com teto de 4 MB
+       conferido pelo servidor. */
+    $("#fa-comp-arq", F)?.addEventListener("change", async (ev) => {
+      const arq = ev.target.files[0]; if (!arq) return;
+      try {
+        const dataUrl = await lerArquivoBase64(arq);
+        const r = await api(`/api/gestao/alunos/${id}/comprovante`, "POST", { dataUrl });
+        $("#fa-comp", F).innerHTML = compHTML({ comprovante_id: r.comprovante_id, comprovante_pdf: r.pdf });
+        toast("Comprovante salvo.");
       } catch (err) { toast(err.message, true); }
     });
 
@@ -533,6 +564,31 @@
         $("#fa-foto", F).innerHTML = `<img src="/admin/arquivo/${r.foto_id}" alt="Foto do aluno">`;
         toast("Foto salva.");
       } catch (err) { toast(err.message, true); }
+    });
+  }
+
+  /* (1.27.0) O quadrinho do comprovante. Imagem aparece; PDF vira um botão de
+     abrir, porque miniatura de PDF exigiria um leitor inteiro dentro do painel
+     para mostrar o que um clique já mostra. Nos dois casos o arquivo desce por
+     /admin/arquivo/, que só responde a quem está logado. */
+  function compHTML(a) {
+    if (!a.comprovante_id) return "sem comprovante";
+    const href = `/admin/arquivo/${a.comprovante_id}`;
+    return a.comprovante_pdf
+      ? `<a class="comp-pdf" href="${href}" target="_blank" rel="noopener">📄<span>abrir PDF</span></a>`
+      : `<a href="${href}" target="_blank" rel="noopener" title="Abrir em tamanho real"><img src="${href}" alt="Comprovante de pagamento"></a>`;
+  }
+
+  /* Arquivo cru em data URL — para o que NÃO pode ser redesenhado (PDF). */
+  function lerArquivoBase64(arq) {
+    return new Promise((ok, falha) => {
+      if (!/^(image\/(jpeg|png|webp)|application\/pdf)$/.test(arq.type))
+        return falha(new Error("Envie uma imagem (JPG, PNG, WEBP) ou um PDF."));
+      if (arq.size > 4 * 1024 * 1024) return falha(new Error("Arquivo grande demais (máx. 4 MB)."));
+      const leitor = new FileReader();
+      leitor.onerror = () => falha(new Error("Não foi possível ler o arquivo."));
+      leitor.onload = () => ok(leitor.result);
+      leitor.readAsDataURL(arq);
     });
   }
 

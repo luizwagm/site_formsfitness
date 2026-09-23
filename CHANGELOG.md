@@ -5,6 +5,52 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.27.0 — 2026-09-22 · A matrícula chega completa, e a seção Contato virou campo
+
+### Foto e comprovante vêm junto com a matrícula
+
+Quem se matricula pelo site agora **envia a foto do aluno e o comprovante de
+pagamento na própria ficha**, e os dois são obrigatórios: sem eles o formulário
+não envia.
+
+- **Por que mudou.** Os dois documentos iam pelo WhatsApp, depois. O que chega
+  pela conversa se perde no meio do dia — e a secretaria terminava correndo
+  atrás da foto e do comprovante de gente que já tinha preenchido a ficha
+  inteira. Chegando junto, a matrícula chega completa ou não chega.
+- **O que a pessoa vê.** Dois campos no fim do formulário, o nome do arquivo
+  escolhido logo abaixo (no celular o seletor some sem dizer o que ficou
+  selecionado) e o aviso de tamanho antes de gastar o envio. O comprovante
+  aceita **PDF**, porque é o que o aplicativo do banco gera — obrigar a
+  fotografar a tela do PDF faria gente desistir no último campo.
+- **A foto é reduzida no próprio aparelho** antes de subir, a 1024 px. Além de
+  não subir 4 MB para ocupar 3×4 cm na ficha, redesenhar a imagem descarta os
+  metadados EXIF — que numa foto de celular incluem a **localização GPS** de
+  onde ela foi tirada, muitas vezes a casa da criança.
+- **O comprovante sobe como veio.** Reduzir um print apagaria justamente o que
+  a secretaria precisa ler: o valor e a data em letra pequena.
+- **O que decide o tipo do arquivo são os bytes**, não o nome nem o que o
+  navegador afirmou: JPG/PNG/WEBP pela assinatura da imagem, PDF por "%PDF-".
+- **Onde os arquivos ficam.** No banco de dados da academia, como a foto que o
+  painel já guardava — nunca numa pasta do site. Só abre quem entra no painel
+  com senha, e o PDF desce como anexo, e não dentro de uma aba do painel.
+- **Some junto com a pré-matrícula.** Apagar uma pré-matrícula apaga também a
+  foto e o comprovante dela: a política de privacidade promete que o que não se
+  confirma é apagado.
+- **No painel**, o comprovante aparece ao lado da foto no cadastro do aluno, e a
+  secretaria pode **abrir, trocar ou remover** — trocar serve para o print
+  errado, remover serve para depois de conferido.
+
+### A seção "Contato" do site virou campo do painel
+
+O rótulo, o título e a descrição da seção de contato eram texto fixo no site.
+Eram os únicos cabeçalhos que sobraram de fora quando as outras seções viraram
+campos — e logo os que mais mudam com a campanha do mês ("aula experimental",
+"matrícula aberta", "turma de férias"). Ficam em **Textos do site**, junto dos
+cabeçalhos das outras seções; a aba **Contato** continua com os dados
+(telefone, e-mail, endereço) e agora diz onde o texto está.
+
+---
+
 ## 1.26.0 — 2026-09-16 · CEP que preenche o endereço e carnê de boletos do Sicredi
 
 ### CEP preenche o endereço

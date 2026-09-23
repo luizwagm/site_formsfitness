@@ -703,6 +703,25 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
 .mat-docs { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: .6rem; }
 .mat-docs li { background: var(--bg-soft); border-radius: 10px; padding: .7rem .9rem; font-size: .93rem; }
 
+/* Campos de arquivo (1.27.0). O seletor nativo de cada navegador é feio e
+   pequeno; o que dá para fazer sem reescrevê-lo é dar ao BOTÃO dentro dele
+   tamanho de dedo e a mesma linguagem do resto do formulário. */
+.mat-form input[type="file"] {
+  width: 100%; padding: .7rem .85rem; font-size: 1rem; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: var(--ink-soft);
+}
+.mat-form input[type="file"]::file-selector-button {
+  margin-right: .9rem; padding: .55rem .9rem; cursor: pointer;
+  border: 0; border-radius: 9px; background: var(--blue); color: #fff;
+  font: inherit; font-weight: 700; font-size: .9rem;
+}
+.mat-form input[type="file"]:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+/* Nome do arquivo escolhido: confirmação de que o toque funcionou. */
+.mat-arquivo {
+  margin: .5rem 0 0; padding: .45rem .7rem; border-radius: 9px;
+  background: var(--bg-soft); font-size: .85rem; color: var(--ink-soft); word-break: break-all;
+}
+
 /* Alvo de toque grande e a linha inteira clicável: são três caixas que a
    pessoa precisa marcar no celular, e um quadradinho de 13px erra o dedo. */
 .mat-check {

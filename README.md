@@ -32,11 +32,13 @@ secretaria confere, efetiva (é aí que o aluno ganha o código, a partir de
 
 ## Principais funcionalidades
 
-- **31 campos de texto** e cinco listas de conteúdo, todos editáveis no painel.
+- **34 campos de texto** e cinco listas de conteúdo, todos editáveis no painel
+  (os três últimos, o cabeçalho da seção Contato, entraram na 1.27.0).
 - **Blog** com página própria por matéria, endereço e resumo automáticos.
 - **Página de matrícula** que exige responsável conforme a idade, lista as
   turmas abertas da gestão e grava a **pré-matrícula** com o consentimento
-  (LGPD, art. 14) — foto e comprovante continuam pelo WhatsApp.
+  (LGPD, art. 14). Desde a 1.27.0 a ficha leva junto a **foto do aluno** e o
+  **comprovante de pagamento**, os dois obrigatórios.
 - **Gestão da academia:** cadastro de aluno com status ativo/inativo, código de
   matrícula sequencial, **cadastro de professores** (escolhidos por select na
   turma e, se for outro, em cada atividade do aluno), **várias atividades por
@@ -220,10 +222,13 @@ anterior vive nas mensagens do git.
 - **Consentimento prévio de verdade:** os identificadores de GA4, GTM, Pixel,
   Clarity e Hotjar em `config.js` só carregam **depois** do aceite. Cookie de
   180 dias, com "Preferências de cookies" no rodapé para reabrir a escolha.
-- **A matrícula grava a ficha na gestão, mas não aceita arquivo** — foto e
-  comprovante vão pela conversa, e a secretaria anexa a foto no painel. A foto
-  fica no banco e só sai por `/admin/arquivo/:id`, com login; nunca numa pasta
-  pública. O consentimento fica gravado com a data, **sem o IP**. Para aluno
+- **A matrícula recebe dois arquivos** (1.27.0): a foto do aluno (imagem) e o
+  comprovante (imagem ou **PDF**), obrigatórios, conferidos pelos **bytes** e
+  não pela extensão. Ficam no banco e só saem por `/admin/arquivo/:id`, com
+  login — nunca numa pasta pública; o PDF desce como **anexo**, para não abrir
+  dentro da nossa origem. A foto é reduzida **no aparelho de quem envia**, o
+  que também descarta o GPS gravado no EXIF. Apagar a pré-matrícula apaga os
+  dois arquivos. O consentimento fica gravado com a data, **sem o IP**. Para aluno
   menor, quem consente é o responsável (art. 14), com texto próprio.
 - A política de privacidade foi reescrita na 1.20.0 para dizer isso — antes ela
   afirmava que nada era guardado.

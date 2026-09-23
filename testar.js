@@ -514,10 +514,19 @@ function pngEmPe() {
     certo("as quatro autorizações estão lá", (mat.corpo.match(/class="mat-check"/g) || []).length === 4);
     certo("uma delas é o consentimento dos dados", /name="aceite_dados"/.test(mat.corpo));
     certo("avisa o horário limite de 17h", /até 17h/.test(mat.corpo));
-    certo("pede foto e comprovante pelo WhatsApp", /Foto do aluno/.test(mat.corpo) && /Comprovante de pagamento/.test(mat.corpo));
-    /* A foto — de criança, inclusive — não sobe por um formulário aberto na
-       internet: vai pela conversa e a secretaria anexa no painel. */
-    certo("a página não sobe arquivo nenhum", !/type="file"/.test(mat.corpo));
+    certo("pede a foto do aluno e o comprovante", /Foto do aluno/.test(mat.corpo) && /Comprovante de pagamento/.test(mat.corpo));
+    /* (1.27.0) Os documentos deixaram de ir pelo WhatsApp e passaram a ser
+       campo da ficha: matrícula sem os dois é matrícula pela metade, e a
+       secretaria terminava correndo atrás deles. Obrigatórios na tela E no
+       servidor — o `required` aqui é conforto, quem decide é a rota. */
+    certo("a foto do aluno sobe pela ficha, e é obrigatória",
+      /id="m-foto"[^>]*type="file"[^>]*required/.test(mat.corpo));
+    certo("o comprovante sobe pela ficha, e é obrigatório",
+      /id="m-comprovante"[^>]*type="file"[^>]*required/.test(mat.corpo));
+    certo("o comprovante aceita PDF, que é o que o banco gera",
+      /id="m-comprovante"[^>]*accept="[^"]*application[/]pdf/.test(mat.corpo));
+    certo("a foto NÃO aceita PDF (é retrato, não documento)",
+      !/id="m-foto"[^>]*accept="[^"]*pdf/.test(mat.corpo));
     /* Desde a 1.20.0 a ficha é guardada. Texto de privacidade dizendo o
        contrário seria a primeira coisa que uma fiscalização confere. */
     certo('a página não diz mais que "nada é guardado"', !/nada é guardado/i.test(mat.corpo));
@@ -538,11 +547,29 @@ function pngEmPe() {
     const priv = await pedir("GET", "/privacidade/");
     certo("a privacidade conta que a matrícula fica no sistema da academia",
       /matrícula online fica guardada no sistema da academia/i.test(priv.corpo) && !/formulário do site não guarda nada/i.test(priv.corpo));
+    /* A política dizia, em três lugares, que a foto NÃO passava pelo site.
+       Mudar o formulário sem mudar o documento seria publicar promessa falsa
+       — e é a primeira coisa que uma fiscalização confere. */
+    certo("a privacidade não diz mais que a foto não passa pelo site",
+      !/não passam pelo site/i.test(priv.corpo) && !/foto é enviada pelo responsável, pelo WhatsApp/i.test(priv.corpo));
+    certo("a privacidade explica onde a foto e o comprovante ficam",
+      /enviados na própria ficha/i.test(priv.corpo) && /apagados junto com ela/i.test(priv.corpo));
 
     const js = fs.readFileSync(path.join(__dirname, "assets", "js", "main.js"), "utf8");
     certo("o formulário envia para a gestão da academia", /fetch\("\/api\/publico\/matricula"/.test(js));
-    certo("e oferece o WhatsApp do painel para a foto e o comprovante", /wa\.me\/\$\{WHATSAPP_NUMBER\}/.test(js));
+    certo("e oferece o WhatsApp do painel para falar com a academia", /wa\.me\/\$\{WHATSAPP_NUMBER\}/.test(js));
     certo("menor de idade passa a exigir responsável", /el\.required = menor/.test(js));
+    /* FormData devolve OBJETO de arquivo nesses dois campos, e JSON.stringify
+       transformaria cada um num "{}" — a ficha chegaria sem documento e sem
+       erro nenhum. É o defeito mais fácil de deixar passar aqui. */
+    certo("os arquivos não viajam como objeto vazio do FormData",
+      js.includes("delete d.foto; delete d.comprovante;") && js.includes("d.foto = await reduzirFoto("));
+    /* A foto do celular tem 4 MB e 12 megapixels para ocupar 3×4 cm — e leva
+       dentro a localização GPS de onde foi tirada. O canvas resolve os dois. */
+    certo("a foto é reduzida no aparelho antes de subir (e perde o EXIF)",
+      js.includes('createElement("canvas")') && js.includes('toDataURL("image/jpeg"'));
+    certo("o PDF do comprovante sobe como veio, sem passar pelo canvas",
+      js.includes("await lerCru(arqComp)"));
 
     const home = await pedir("GET", "/");
     certo('o botão agora é "Garanta sua vaga"', /Garanta sua vaga/.test(home.corpo));
@@ -563,11 +590,26 @@ function pngEmPe() {
 
     /* Cabeçalhos de Modalidades e Estrutura saem do painel. */
     for (const m of ["SEC_SERV_ROTULO", "SEC_SERV_TITULO", "SEC_SERV_SUB",
-                     "SEC_ESTR_ROTULO", "SEC_ESTR_TITULO", "SEC_ESTR_SUB", "FOOTER_DIAS"])
+                     "SEC_ESTR_ROTULO", "SEC_ESTR_TITULO", "SEC_ESTR_SUB", "FOOTER_DIAS",
+                     "SEC_CONTATO_ROTULO", "SEC_CONTATO_TITULO", "SEC_CONTATO_SUB"])
       certo(`${m} é escrito pela publicação`, srv.includes(`setMarker(html, "${m}"`));
     certo("os campos existem no painel",
       ["s_sec_serv_rotulo", "ed_sec_serv_titulo", "ed_sec_serv_sub",
-       "s_sec_estr_rotulo", "ed_sec_estr_titulo", "ed_sec_estr_sub", "ed_footer_dias"].every((id) => adm.includes(id)));
+       "s_sec_estr_rotulo", "ed_sec_estr_titulo", "ed_sec_estr_sub", "ed_footer_dias",
+       "s_sec_contato_rotulo", "ed_sec_contato_titulo", "ed_sec_contato_sub"].every((id) => adm.includes(id)));
+    /* (1.27.0) A seção Contato era o único cabeçalho ainda escrito à mão na
+       página. Três coisas precisam existir juntas, e a que falta em silêncio é
+       sempre a última: o marcador no HTML, o campo no painel e a chave na
+       LISTA DE PERMISSÃO do PUT — sem ela o painel salva, avisa "salvo" e
+       nada muda. */
+    for (const k of ["sec_contato_rotulo", "sec_contato_titulo", "sec_contato_sub"]) {
+      certo(`${k} é aceito pelo servidor ao salvar`, new RegExp('"' + k + '"').test(srv));
+      certo(`${k} tem texto de partida`, srv.includes(k + ":"));
+    }
+    certo("o título e a descrição do Contato usam o editor formatado",
+      adm.includes("sec_contato_titulo") && /COM_EDITOR[^;]*sec_contato_titulo/s.test(adm));
+    certo("a seção Contato da página é escrita pela publicação, e não fixa no HTML",
+      /<!--#SEC_CONTATO_TITULO-->/.test(home.corpo) && /<!--#SEC_CONTATO_SUB-->/.test(home.corpo));
 
     /* Editor rico nos textos que viram HTML na página. */
     certo("os textos longos usam o editor formatado", /COM_EDITOR\s*=/.test(adm) && adm.includes("montarEditores"));

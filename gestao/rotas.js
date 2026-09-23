@@ -382,6 +382,20 @@ function criar(ctx) {
     return { mime, dados: b };
   }
 
+  /* (1.27.0) O COMPROVANTE aceita mais que imagem: o do aplicativo do banco
+     costuma ser PDF, e obrigar a pessoa a printar o PDF para depois fotografar
+     a tela é o tipo de exigência que faz desistir da matrícula. A assinatura
+     dos bytes continua sendo quem decide — "%PDF-" no começo, e não a extensão
+     nem o que o navegador afirmou. */
+  function lerAnexo(dataUrl, maxBytes) {
+    const m = /^data:(image\/[a-z+]+|application\/pdf);base64,([A-Za-z0-9+\/=]+)$/.exec(String(dataUrl || ""));
+    if (!m) throw new Recusa(400, "Envie uma imagem (JPG, PNG, WEBP) ou um PDF.");
+    const b = Buffer.from(m[2], "base64");
+    if (b.length > maxBytes) throw new Recusa(413, `Arquivo grande demais (máx. ${Math.round(maxBytes / 1024 / 1024)} MB).`);
+    if (b.toString("ascii", 0, 5) === "%PDF-") return { mime: "application/pdf", dados: b };
+    return lerImagem(dataUrl, maxBytes);
+  }
+
   /* ==========================================================================
      PORTA 1 — O FORMULÁRIO DO SITE (sem login)
      ========================================================================== */
@@ -392,6 +406,10 @@ function criar(ctx) {
      cadastro acerta todas as vezes. */
   const envios = new Map();
   const LIMITE_ENVIOS = 5, JANELA = 3600_000;
+  /* Cada anexo, já decodificado. A foto sai do navegador reduzida a 1024 px;
+     2 MB é folga para o celular que não conseguiu reduzir. O comprovante tem
+     mais porque PDF de banco com logotipo passa fácil de 1 MB. */
+  const FOTO_MAX = 2 * 1024 * 1024, COMPROVANTE_MAX = 4 * 1024 * 1024;
   setInterval(() => {
     const corte = Date.now() - JANELA;
     for (const [ip, lista] of envios) {
@@ -400,9 +418,14 @@ function criar(ctx) {
     }
   }, 10 * 60_000).unref();
 
-  /* Corpo pequeno: o cadastro inteiro cabe em poucos KB. O leitor genérico do
-     servidor aceita 25 MB (é o do upload de foto) — aberto ao público, seria
-     um convite para encher a memória. */
+  /* Corpo pequeno: os CAMPOS do cadastro cabem em poucos KB. O leitor genérico
+     do servidor aceita 25 MB (é o do upload de foto) — aberto ao público, seria
+     um convite para encher a memória.
+
+     (1.27.0) A matrícula passou a trazer a foto do aluno e o comprovante, então
+     o corpo dela cresceu — mas com teto próprio (ver ANEXO_MAX): o navegador já
+     reduz a foto antes de subir, e o limite de 5 envios por hora por endereço
+     continua valendo. Quem chega perto deste teto é PDF de banco, não foto. */
   const lerPequeno = (req, max = 32 * 1024) => new Promise((ok, falha) => {
     let d = "", n = 0;
     req.on("data", (c) => {
@@ -434,7 +457,7 @@ function criar(ctx) {
           res.setHeader("Retry-After", "3600");
           throw new Recusa(429, "Muitos envios deste endereço. Tente de novo mais tarde ou fale conosco pelo WhatsApp.");
         }
-        const b = await lerPequeno(req);
+        const b = await lerPequeno(req, 10 * 1024 * 1024);
 
         /* O campo-isca fica escondido por CSS: gente não vê e não preenche;
            robô de formulário preenche tudo o que encontra. Resposta de
@@ -463,13 +486,34 @@ function criar(ctx) {
           em: agora(), termos: true, dados: true,
           menor: U.ehMenor(a.nascimento), por: U.ehMenor(a.nascimento) ? "responsável legal" : "o próprio aluno",
         });
+        /* (1.27.0) Foto e comprovante são OBRIGATÓRIOS, e são conferidos aqui,
+           antes de o cadastro existir: uma pré-matrícula sem os dois documentos
+           é trabalho que a secretaria teria de correr atrás por fora, que é o
+           que esta mudança veio acabar. Decodificar antes de gravar também
+           garante que um arquivo recusado não deixe cadastro pela metade. */
+        if (!b.foto) throw new Recusa(400, "Envie a foto do aluno.");
+        if (!b.comprovante) throw new Recusa(400, "Envie o comprovante de pagamento.");
+        const fotoArq = lerImagem(b.foto, FOTO_MAX);
+        const compArq = lerAnexo(b.comprovante, COMPROVANTE_MAX);
+
         a.status = "pendente";
         a.origem = "site";
         a.criado_em = agora();
         a.criado_por = "formulário do site";
-        const campos = Object.keys(a);
-        const novo = roda(`INSERT INTO g_alunos(${campos.join(",")}) VALUES(${campos.map(() => "?").join(",")})`,
-          ...campos.map((c) => a[c]));
+        /* Os três INSERTs numa transação: pré-matrícula sem documento, ou
+           documento sem dono, seria lixo que ninguém encontra para apagar. */
+        const guardar = db.transaction(() => {
+          const foto = roda("INSERT INTO g_arquivos(tipo,mime,dados,criado_em,criado_por) VALUES('foto',?,?,?,?)",
+            fotoArq.mime, fotoArq.dados, agora(), "formulário do site");
+          const comp = roda("INSERT INTO g_arquivos(tipo,mime,dados,criado_em,criado_por) VALUES('comprovante',?,?,?,?)",
+            compArq.mime, compArq.dados, agora(), "formulário do site");
+          a.foto_id = Number(foto.lastInsertRowid);
+          a.comprovante_id = Number(comp.lastInsertRowid);
+          const campos = Object.keys(a);
+          return roda(`INSERT INTO g_alunos(${campos.join(",")}) VALUES(${campos.map(() => "?").join(",")})`,
+            ...campos.map((c) => a[c]));
+        });
+        const novo = guardar();
         gravarMatriculas(Number(novo.lastInsertRowid), mats);
 
         minhas.push(Date.now()); envios.set(ip, minhas);
@@ -597,9 +641,15 @@ function criar(ctx) {
         if (!atual) throw new Recusa(404, "Aluno não encontrado.");
 
         if (req.method === "GET") {
+          /* (1.27.0) A tela precisa saber se o comprovante é PDF: imagem ela
+             mostra, PDF ela oferece para abrir. O MIME mora no arquivo, e não
+             no cadastro — perguntar aqui evita um segundo pedido só para isso. */
+          const comp = atual.comprovante_id
+            ? um("SELECT mime FROM g_arquivos WHERE id=?", atual.comprovante_id) : null;
           return json(res, 200, { aluno: { ...atual, codigo_fmt: U.codigoFormatado(atual.codigo),
             idade: U.idade(atual.nascimento), menor: U.ehMenor(atual.nascimento),
             matriculas: matriculasDo(id),
+            comprovante_pdf: !!comp && comp.mime === "application/pdf",
             mensalidade_txt: atual.mensalidade ? U.reais(atual.mensalidade).replace("R$ ", "") : "" } }), true;
         }
         if (req.method === "PUT") {
@@ -642,6 +692,10 @@ function criar(ctx) {
           if (um("SELECT COUNT(*) AS n FROM g_contratos WHERE aluno_id=?", id).n)
             throw new Recusa(409, "Este cadastro tem contrato gerado e não pode ser apagado.");
           if (atual.foto_id) roda("DELETE FROM g_arquivos WHERE id=? AND tipo='foto'", atual.foto_id);
+          /* (1.27.0) O comprovante sai junto. A política de privacidade promete
+             que a pré-matrícula que não se confirma é apagada — deixar para
+             trás a foto ou o comprovante transformaria a promessa em mentira. */
+          if (atual.comprovante_id) roda("DELETE FROM g_arquivos WHERE id=? AND tipo='comprovante'", atual.comprovante_id);
           roda("DELETE FROM g_matriculas WHERE aluno_id=?", id);
           roda("DELETE FROM g_alunos WHERE id=?", id);
           return json(res, 200, { ok: true }), true;
@@ -679,6 +733,31 @@ function criar(ctx) {
         if (req.method === "DELETE") {
           roda("UPDATE g_alunos SET foto_id=NULL WHERE id=?", id);
           if (atual.foto_id) roda("DELETE FROM g_arquivos WHERE id=? AND tipo='foto'", atual.foto_id);
+          return json(res, 200, { ok: true }), true;
+        }
+      }
+
+      /* ------------------------------------------------- comprovante (1.27.0)
+         O comprovante chega com a matrícula do site, mas a secretaria também
+         precisa poder TROCAR (a pessoa mandou o print errado) e REMOVER (o
+         pagamento foi conferido e não há razão para guardar o extrato de
+         ninguém). Aceita PDF além de imagem, como o formulário. */
+      if ((r = m(/^\/alunos\/(\d+)\/comprovante$/))) {
+        const id = Number(r[1]);
+        const atual = um("SELECT id, comprovante_id FROM g_alunos WHERE id=?", id);
+        if (!atual) throw new Recusa(404, "Aluno não encontrado.");
+        if (req.method === "POST") {
+          const { mime, dados } = lerAnexo((await corpo()).dataUrl, 4 * 1024 * 1024);
+          const info = roda("INSERT INTO g_arquivos(tipo,mime,dados,criado_em,criado_por) VALUES('comprovante',?,?,?,?)",
+            mime, dados, agora(), quem);
+          roda("UPDATE g_alunos SET comprovante_id=?, atualizado_em=?, atualizado_por=? WHERE id=?",
+            Number(info.lastInsertRowid), agora(), quem, id);
+          if (atual.comprovante_id) roda("DELETE FROM g_arquivos WHERE id=? AND tipo='comprovante'", atual.comprovante_id);
+          return json(res, 200, { ok: true, comprovante_id: Number(info.lastInsertRowid), pdf: mime === "application/pdf" }), true;
+        }
+        if (req.method === "DELETE") {
+          roda("UPDATE g_alunos SET comprovante_id=NULL WHERE id=?", id);
+          if (atual.comprovante_id) roda("DELETE FROM g_arquivos WHERE id=? AND tipo='comprovante'", atual.comprovante_id);
           return json(res, 200, { ok: true }), true;
         }
       }
@@ -1199,9 +1278,18 @@ function criar(ctx) {
       const a = um("SELECT mime, dados FROM g_arquivos WHERE id=?", Number(r[1]));
       if (!a) { res.writeHead(404); res.end(); return true; }
       /* `private`: nenhum proxy ou CDN no meio do caminho guarda a foto de
-         um aluno para servir a outra pessoa. */
+         um aluno para servir a outra pessoa.
+
+         (1.27.0) O comprovante pode ser PDF, e PDF não é imagem: ele desce como
+         ANEXO, para ser aberto no leitor do sistema, e não dentro de uma aba do
+         próprio painel. PDF é formato com script, e abri-lo na nossa origem
+         seria dar a um arquivo que veio de fora um lugar dentro de casa.
+         `nosniff` fecha o outro lado: o navegador não pode "descobrir" que
+         aquele JPEG é outra coisa. */
+      const ehImagem = String(a.mime || "").startsWith("image/");
       res.writeHead(200, { "Content-Type": a.mime, "Cache-Control": "private, max-age=300",
-        "Content-Disposition": "inline", "X-Robots-Tag": "noindex, nofollow" });
+        "Content-Disposition": ehImagem ? "inline" : `attachment; filename="comprovante-${Number(r[1])}.pdf"`,
+        "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, nofollow" });
       res.end(Buffer.from(a.dados));
       return true;
     }

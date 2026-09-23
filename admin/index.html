@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap">
-  <link rel="stylesheet" href="/admin/gestao.css?v=1.26.0">
+  <link rel="stylesheet" href="/admin/gestao.css?v=1.27.0">
   <style>
     :root{--bg:#f4fafe;--surface:#fff;--line:#dcebf7;--line2:#bcd8ee;--text:#0e2a4a;--muted:#48617e;--dim:#8aa4bf;
       --blue:#0B4EA2;--blue2:#1FA8DC;--lime:#7ED321;--lime-d:#55A818;--red:#e0426b;--r:14px}
@@ -370,6 +370,15 @@
       </div>
 
       <div class="card">
+        <h3>Seção "Contato"</h3>
+        <label>Rótulo</label><input id="s_sec_contato_rotulo">
+        <label>Título</label><div id="ed_sec_contato_titulo"></div>
+        <label>Descrição</label><div id="ed_sec_contato_sub"></div>
+        <p class="hint">É a chamada acima do formulário de contato do site. O telefone, o e-mail e o
+          endereço que aparecem ao lado ficam na aba <b>Contato</b>.</p>
+      </div>
+
+      <div class="card">
         <h3>Rodapé</h3>
         <label>Frase da marca</label><div id="ed_footer_tagline"></div>
         <label>Dias e horários <span class="hint">a linha ao lado do contato</span></label><div id="ed_footer_dias"></div>
@@ -415,6 +424,8 @@
     <section class="panel" id="p-contact">
       <div class="topbar"><h1>Dados de contato</h1><button class="btn btn-navy" onclick="saveTexts()">Salvar contato</button></div>
       <div class="card">
+        <p class="hint">O título e a descrição da seção <b>Contato</b> do site ficam em <b>Textos do site</b>,
+          junto com os cabeçalhos das outras seções. Aqui ficam os dados que aparecem no cartão ao lado do formulário.</p>
         <div class="row">
           <div><label>WhatsApp (só números, com 55)</label><input id="s_whatsapp" inputmode="numeric" placeholder="5587900000000"></div>
           <div><label>WhatsApp (como aparece no site)</label><input id="s_whatsapp_display" placeholder="(87) 90000-0000"></div>
@@ -1003,7 +1014,8 @@ const CAMPOS_SIMPLES = ["hero_badge","hero_title","hero_lead","about_title","abo
   "whatsapp","whatsapp_display","contact_email","instagram","cnpj","endereco","maps_url",
   "google_url","google_nota","google_total",
   "sec_serv_rotulo","sec_serv_titulo","sec_serv_sub","sec_estr_rotulo","sec_estr_titulo","sec_estr_sub","estrutura_video",
-  "sec_taf_rotulo","sec_taf_titulo","sec_taf_lead","sec_taf_botao"];
+  "sec_taf_rotulo","sec_taf_titulo","sec_taf_lead","sec_taf_botao",
+  "sec_contato_rotulo","sec_contato_titulo","sec_contato_sub"];
 
 /* Quais deles ganham o EDITOR RICO, em vez de uma caixa de texto crua. São os
    que viram HTML na página — título com <em>, descrição com negrito ou link.
@@ -1011,7 +1023,8 @@ const CAMPOS_SIMPLES = ["hero_badge","hero_title","hero_lead","about_title","abo
    formatação não faz sentido e só atrapalharia. */
 const COM_EDITOR = ["hero_title","hero_lead","about_title","about_lead","footer_tagline","footer_dias",
   "sec_serv_titulo","sec_serv_sub","sec_estr_titulo","sec_estr_sub",
-  "sec_taf_titulo","sec_taf_lead"];
+  "sec_taf_titulo","sec_taf_lead",
+  "sec_contato_titulo","sec_contato_sub"];
 
 /* Todos eles são de UMA LINHA: no site cada um mora dentro de um <h1>, <h2> ou
    <p>. Por isso o editor aqui trabalha em modo linha — negrito, itálico e link
@@ -1343,6 +1356,6 @@ async function changePw() {
 
 boot();
 </script>
-<script src="/admin/gestao.js?v=1.26.0"></script>
+<script src="/admin/gestao.js?v=1.27.0"></script>
 </body>
 </html>

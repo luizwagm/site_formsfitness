@@ -45,12 +45,29 @@ async function entrar(usuario, senha) {
 }
 
 /* Um cadastro público válido de criança. CPF gerado pelo algoritmo, sem dono. */
+/* ==========================================================================
+   OS ARQUIVOS DA MATRÍCULA, DE MENTIRA (1.27.0)
+   O servidor decide o tipo pela ASSINATURA dos bytes, então a prova não pode
+   mandar "uma string qualquer" e dizer que é JPEG: monta o cabeçalho de
+   verdade. São os mesmos bytes que um arquivo real começa.
+   ========================================================================== */
+const b64 = (buf) => buf.toString("base64");
+const JPEG = (enchimento = 64) =>
+  "data:image/jpeg;base64," + b64(Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(enchimento, 7)]));
+const PNG = () => "data:image/png;base64," +
+  b64(Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32, 3)]));
+const PDF = (enchimento = 64) =>
+  "data:application/pdf;base64," + b64(Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(enchimento, 32)]));
+/* Um HTML com nome de imagem: é o ataque que a conferência por bytes pega. */
+const FALSO = "data:image/jpeg;base64," + b64(Buffer.from("<html><script>alert(1)</script>"));
+
 const PUB_MENOR = (extra = {}) => ({
   nome: "Zz Qa Criança Teste", nascimento: "2019-05-03", sexo: "Masculino", mae: "Zz Qa Mãe",
   fone1: "(81) 99999-0000", logradouro: "Avenida Caruaru", numero: "579", bairro: "Maria Auxiliadora",
   cidade: "Caruaru", uf: "PE", cep: "55038-270",
   resp_nome: "Zz Qa Responsável", resp_cpf: "529.982.247-25", resp_rg: "9172964", resp_fone: "(81) 99999-0001",
-  aceite_termos: true, aceite_dados: true, ...extra,
+  aceite_termos: true, aceite_dados: true,
+  foto: JPEG(), comprovante: PDF(), ...extra,
 });
 
 /* ==========================================================================
@@ -247,6 +264,24 @@ const servidorSB = require("node:http").createServer((req, res) => {
     const isca = await pedir("POST", "/api/publico/matricula", { corpo: PUB_MENOR({ turma_id: t1.j.id, site_url: "http://spam" }) });
     const antes = (await pedir("GET", "/api/gestao/alunos?status=pendente", { cookie: A })).j.alunos.length;
     certo("robô que preenche o campo-isca recebe 200 e NADA é gravado", isca.status === 200 && antes === 0, `pendentes: ${antes}`);
+    /* ------------------------------------------- foto e comprovante (1.27.0) */
+    const semFoto = await pedir("POST", "/api/publico/matricula", { corpo: PUB_MENOR({ turma_id: t1.j.id, foto: "" }) });
+    certo("sem a foto do aluno, a matrícula é recusada", semFoto.status === 400 && /foto/i.test(semFoto.j.error), JSON.stringify(semFoto.j));
+    const semComp = await pedir("POST", "/api/publico/matricula", { corpo: PUB_MENOR({ turma_id: t1.j.id, comprovante: "" }) });
+    certo("sem o comprovante, a matrícula é recusada", semComp.status === 400 && /comprovante/i.test(semComp.j.error), JSON.stringify(semComp.j));
+    const fotoDisfarcada = await pedir("POST", "/api/publico/matricula", { corpo: PUB_MENOR({ turma_id: t1.j.id, foto: FALSO }) });
+    certo("HTML com nome de imagem NÃO passa por foto (conferência por bytes)", fotoDisfarcada.status === 400, JSON.stringify(fotoDisfarcada.j));
+    const fotoPdf = await pedir("POST", "/api/publico/matricula", { corpo: PUB_MENOR({ turma_id: t1.j.id, foto: PDF() }) });
+    certo("PDF não serve de FOTO do aluno (só o comprovante aceita PDF)", fotoPdf.status === 400, JSON.stringify(fotoPdf.j));
+    const compFalso = await pedir("POST", "/api/publico/matricula", { corpo: PUB_MENOR({ turma_id: t1.j.id, comprovante: FALSO }) });
+    certo("arquivo que não é imagem nem PDF não passa por comprovante", compFalso.status === 400, JSON.stringify(compFalso.j));
+    const fotoGorda = await pedir("POST", "/api/publico/matricula", { corpo: PUB_MENOR({ turma_id: t1.j.id, foto: JPEG(3 * 1024 * 1024) }) });
+    certo("foto acima do teto é recusada com 413", fotoGorda.status === 413, String(fotoGorda.status));
+    /* O antes/depois é o que prova que a recusa não deixou cadastro pela
+       metade: sete tentativas ruins e nenhum aluno novo. */
+    const aposRecusas = (await pedir("GET", "/api/gestao/alunos?status=pendente", { cookie: A })).j.alunos.length;
+    certo("nenhuma dessas recusas gravou pré-matrícula", aposRecusas === 0, String(aposRecusas));
+
     const bom = await pedir("POST", "/api/publico/matricula", { corpo: PUB_MENOR({ turma_id: t1.j.id, horario_desejado: "zz-livre" }) });
     certo("cadastro válido de criança é aceito", bom.status === 200 && bom.j.ok, JSON.stringify(bom.j));
     const pend = (await pedir("GET", "/api/gestao/alunos?status=pendente", { cookie: A })).j.alunos;
@@ -258,6 +293,23 @@ const servidorSB = require("node:http").createServer((req, res) => {
     certo("o IP de quem enviou NÃO é guardado", !/127\.0\.0\.1|::1/.test(pCompleto.consentimento));
     certo("texto livre de horário enviado junto é descartado (vale a turma)",
       pCompleto.horario_desejado === "" && pCompleto.matriculas.length === 1 && pCompleto.matriculas[0].turma_id === t1.j.id);
+    certo("a foto e o comprovante ficaram guardados no cadastro",
+      !!pCompleto.foto_id && !!pCompleto.comprovante_id && pCompleto.comprovante_pdf === true,
+      `foto ${pCompleto.foto_id} · comp ${pCompleto.comprovante_id}`);
+    const verFoto = await pedir("GET", `/admin/arquivo/${pCompleto.foto_id}`, { cookie: A });
+    certo("a foto da matrícula é servida ao painel como imagem, dentro da página",
+      verFoto.status === 200 && String(verFoto.cab.get("content-type")).startsWith("image/")
+      && /inline/.test(verFoto.cab.get("content-disposition") || ""),
+      `${verFoto.status} ${verFoto.cab.get("content-type")}`);
+    /* PDF é formato com script. Aberto "inline" ele rodaria dentro da nossa
+       origem; como anexo, vai para o leitor do sistema. */
+    const verComp = await pedir("GET", `/admin/arquivo/${pCompleto.comprovante_id}`, { cookie: A });
+    certo("o comprovante em PDF desce como ANEXO, e não aberto na nossa origem",
+      verComp.status === 200 && verComp.cab.get("content-type") === "application/pdf"
+      && /attachment/.test(verComp.cab.get("content-disposition") || "")
+      && verComp.cab.get("x-content-type-options") === "nosniff",
+      `${verComp.cab.get("content-type")} ${verComp.cab.get("content-disposition")}`);
+
     certo("a turma do site vira matrícula com os dias da academia e a mensalidade da atividade",
       JSON.stringify(pCompleto.matriculas[0].dias) === "[2,3,5]" && pCompleto.matriculas[0].mensalidade === 11000 && pCompleto.mensalidade === 11000,
       JSON.stringify(pCompleto.matriculas[0]));
@@ -511,6 +563,24 @@ const servidorSB = require("node:http").createServer((req, res) => {
     certo("a foto com login sai como imagem, sem cache compartilhado",
       comLogin.status === 200 && comLogin.cab.get("content-type") === "image/png" && /private/.test(comLogin.cab.get("cache-control")));
     certo("nenhuma foto de aluno foi parar na pasta pública", !fs.readdirSync(path.join(__dirname, "assets", "img", "uploads")).some((f) => /zz-qa/i.test(f)));
+
+    /* ------------------------------------------- comprovante no painel (1.27.0)
+       A secretaria precisa TROCAR (veio o print errado) e REMOVER (já conferiu).
+       Trocar não pode deixar o arquivo velho no banco: seria o extrato de
+       alguém guardado para sempre sem ninguém saber. */
+    const compRuim = await pedir("POST", `/api/gestao/alunos/${pId}/comprovante`, { cookie: A, corpo: { dataUrl: `data:application/pdf;base64,${html}` } });
+    certo("HTML disfarçado de PDF é recusado pelo conteúdo", compRuim.status === 400, JSON.stringify(compRuim.j));
+    const compPng = await pedir("POST", `/api/gestao/alunos/${pId}/comprovante`, { cookie: A, corpo: { dataUrl: `data:image/png;base64,${png}` } });
+    certo("comprovante em imagem é aceito pelo painel", compPng.status === 200 && compPng.j.comprovante_id && compPng.j.pdf === false);
+    const compPdf = await pedir("POST", `/api/gestao/alunos/${pId}/comprovante`, { cookie: A, corpo: { dataUrl: PDF() } });
+    certo("trocar por um PDF funciona, e a tela é avisada de que é PDF", compPdf.status === 200 && compPdf.j.pdf === true);
+    const sobrou = await pedir("GET", `/admin/arquivo/${compPng.j.comprovante_id}`, { cookie: A });
+    certo("o comprovante trocado SAI do banco (não fica sobrando)", sobrou.status === 404, String(sobrou.status));
+    const semComprov = await pedir("DELETE", `/api/gestao/alunos/${pId}/comprovante`, { cookie: A });
+    const depoisDeTirar = (await pedir("GET", `/api/gestao/alunos/${pId}`, { cookie: A })).j.aluno;
+    certo("remover o comprovante limpa o cadastro e apaga o arquivo",
+      semComprov.status === 200 && !depoisDeTirar.comprovante_id
+      && (await pedir("GET", `/admin/arquivo/${compPdf.j.comprovante_id}`, { cookie: A })).status === 404);
 
     console.log("\n— impressos");
     const ficha = await pedir("GET", `/admin/imprimir/ficha/${pId}`, { cookie: A });
@@ -983,11 +1053,25 @@ const servidorSB = require("node:http").createServer((req, res) => {
     for (let i = 0; i < 4; i++) await pedir("POST", "/api/publico/matricula", { corpo: PUB_MENOR({ turma_id: t1.j.id, nome: `Zz Qa Repetido ${i}` }) });
     const excesso = await pedir("POST", "/api/publico/matricula", { corpo: PUB_MENOR({ turma_id: t1.j.id, nome: "Zz Qa Sexto" }) });
     certo("o 6º envio na mesma hora é freado (429)", excesso.status === 429, String(excesso.status));
-    const gordo = await pedir("POST", "/api/publico/matricula", { corpo: { ...PUB_MENOR({ turma_id: t1.j.id }), observacao: "x".repeat(40000) } });
-    certo("envio público gigante é recusado", gordo.status === 413 || gordo.status === 429);
+    /* O corpo deste endereço cresceu para 10 MB na 1.27.0 porque a matrícula
+       leva foto e comprovante. O teto continua existindo — e é ele que esta
+       prova mede. (429 também serve: o freio de 5 por hora já pegou o IP.) */
+    const gordo = await pedir("POST", "/api/publico/matricula", { corpo: { ...PUB_MENOR({ turma_id: t1.j.id }), observacao: "x".repeat(11 * 1024 * 1024) } });
+    certo("envio público gigante é recusado", gordo.status === 413 || gordo.status === 429, String(gordo.status));
     const pendentes = (await pedir("GET", "/api/gestao/alunos?status=pendente", { cookie: A })).j.alunos;
+    /* Os ids dos arquivos ANTES de apagar: depois do DELETE não há de onde
+       tirá-los, e é justamente o sumiço deles que precisa ser provado. */
+    const aApagar = (await pedir("GET", `/api/gestao/alunos/${pendentes[0].id}`, { cookie: A })).j.aluno;
     const apagar = await pedir("DELETE", `/api/gestao/alunos/${pendentes[0].id}`, { cookie: A });
     certo("pré-matrícula repetida pode ser apagada", apagar.status === 200);
+    /* A política de privacidade promete que a pré-matrícula que não se
+       confirma é apagada. Deixar para trás a foto da criança e o comprovante
+       do responsável transformaria a promessa em mentira. */
+    const fotoOrfa = await pedir("GET", `/admin/arquivo/${aApagar.foto_id}`, { cookie: A });
+    const compOrfo = await pedir("GET", `/admin/arquivo/${aApagar.comprovante_id}`, { cookie: A });
+    certo("apagar a pré-matrícula leva a foto e o comprovante junto",
+      aApagar.foto_id && aApagar.comprovante_id && fotoOrfa.status === 404 && compOrfo.status === 404,
+      `foto ${fotoOrfa.status} · comprovante ${compOrfo.status}`);
     const apagouPre = (await pedir("GET", "/api/gestao/auditoria?q=Apagou", { cookie: A })).j.itens.find((l) => l.acao === "Apagou pré-matrícula");
     certo("apagar uma pré-matrícula não deixa o nome dela na auditoria",
       apagouPre && apagouPre.alvo === `pré-matrícula nº ${pendentes[0].id}` && !/Zz Qa/.test(apagouPre.alvo), JSON.stringify(apagouPre));

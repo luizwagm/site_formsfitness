@@ -340,8 +340,13 @@ async function initSearchResults() {
    efetiva — só aí o aluno ganha o código. Um formulário aberto na internet não
    pode gastar número de matrícula nem virar aluno sozinho.
 
-   A foto e o comprovante continuam indo pelo WhatsApp (o número vem do painel,
-   pelo config.js): o botão aparece depois do envio, com o nome do aluno.
+   (1.27.0) A foto do aluno e o comprovante de pagamento vão JUNTO com a ficha,
+   e sem eles não há envio. A foto é reduzida aqui no aparelho antes de subir:
+   a do celular tem 4 MB e 12 megapixels para ocupar 3×4 cm na ficha, e
+   redesenhá-la também descarta os metadados EXIF — que numa foto de celular
+   incluem a localização GPS de onde foi tirada, muitas vezes a casa da criança.
+   O comprovante sobe como veio: PDF não é imagem, e reduzir um print apaga
+   justamente o valor e a data em letra pequena.
 
    Toda regra aqui é conforto de quem digita. Quem decide é o servidor, que
    confere tudo de novo — este arquivo qualquer um pode editar no navegador.
@@ -466,6 +471,56 @@ function initMatricula() {
     el.addEventListener("blur", () => el.setCustomValidity(el.value && !cpfOk(el.value) ? "CPF inválido" : ""));
   });
 
+  /* Nome do arquivo escolhido, embaixo do campo. Num celular, o seletor de
+     arquivos some sem dizer o que ficou selecionado, e a pessoa não sabe se o
+     toque funcionou. */
+  const TETO_ARQUIVO = 4 * 1024 * 1024;
+  function ligarArquivo(campoId, saidaId) {
+    const campo = $(campoId), saida = $(saidaId);
+    if (!campo || !saida) return;
+    campo.addEventListener("change", () => {
+      const arq = campo.files[0];
+      campo.setCustomValidity("");
+      if (!arq) { saida.hidden = true; return; }
+      saida.textContent = `${arq.name} · ${(arq.size / 1024 / 1024).toFixed(1)} MB`;
+      saida.hidden = false;
+      /* O teto é conferido aqui e de novo no servidor. Aqui é conforto: dizer
+         "grande demais" agora é melhor do que depois de um envio que demorou. */
+      if (arq.size > TETO_ARQUIVO) campo.setCustomValidity("Arquivo grande demais (máx. 4 MB).");
+    });
+  }
+  ligarArquivo("#m-foto", "#mat-foto-nome");
+  ligarArquivo("#m-comprovante", "#mat-comp-nome");
+
+  /* Imagem redesenhada num canvas: menor, sem EXIF e sempre JPEG. Lê por
+     FileReader (data:) porque é o mesmo formato que o servidor espera. */
+  function reduzirFoto(arq, max = 1024, qualidade = 0.85) {
+    return new Promise((ok, falha) => {
+      const leitor = new FileReader();
+      leitor.onerror = () => falha(new Error("Não foi possível ler a foto."));
+      leitor.onload = () => {
+        const img = new Image();
+        img.onerror = () => falha(new Error("A foto parece estar corrompida. Tente outra."));
+        img.onload = () => {
+          const k = Math.min(1, max / Math.max(img.width, img.height));
+          const c = document.createElement("canvas");
+          c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+          ok(c.toDataURL("image/jpeg", qualidade));
+        };
+        img.src = leitor.result;
+      };
+      leitor.readAsDataURL(arq);
+    });
+  }
+
+  const lerCru = (arq) => new Promise((ok, falha) => {
+    const leitor = new FileReader();
+    leitor.onerror = () => falha(new Error("Não foi possível ler o arquivo."));
+    leitor.onload = () => ok(leitor.result);
+    leitor.readAsDataURL(arq);
+  });
+
   function mostrarErro(texto, alvo) {
     erro.textContent = texto;
     erro.hidden = false;
@@ -498,6 +553,10 @@ function initMatricula() {
     }
 
     const d = Object.fromEntries(new FormData(form).entries());
+    /* FormData devolve OBJETO de arquivo nestes dois campos, e JSON.stringify
+       transformaria cada um num "{}" vazio — a ficha chegaria sem documento e
+       sem erro nenhum. Eles saem daqui e voltam como data URL, mais abaixo. */
+    delete d.foto; delete d.comprovante;
     const menor = (idadeEm(d.nascimento) ?? 99) < 18;
     /* O que não vale para a idade não viaja: CPF de adulto escondido num
        cadastro de criança (ou o contrário) iria para o banco sem ninguém ver. */
@@ -514,6 +573,15 @@ function initMatricula() {
     const rotulo = botao.textContent;
     botao.textContent = "Enviando…";
     try {
+      /* Preparar os arquivos ANTES do pedido: se a foto estiver corrompida, a
+         pessoa descobre agora, com tudo ainda preenchido na tela. */
+      const arqFoto = $("#m-foto").files[0];
+      const arqComp = $("#m-comprovante").files[0];
+      if (!arqFoto) { mostrarErro("Escolha a foto do aluno.", $("#m-foto")); return; }
+      if (!arqComp) { mostrarErro("Escolha o comprovante de pagamento.", $("#m-comprovante")); return; }
+      d.foto = await reduzirFoto(arqFoto);
+      d.comprovante = arqComp.type === "application/pdf" ? await lerCru(arqComp) : await reduzirFoto(arqComp, 1600, 0.9);
+      botao.textContent = "Enviando documentos…";
       const r = await fetch("/api/publico/matricula", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -526,7 +594,7 @@ function initMatricula() {
         return;
       }
       const ok = $("#mat-ok");
-      const msg = `Olá! Acabei de enviar pelo site a matrícula de *${d.nome.trim()}*. Segue a foto do aluno e o comprovante de pagamento.`;
+      const msg = `Olá! Acabei de enviar pelo site a matrícula de *${d.nome.trim()}*, com a foto e o comprovante.`;
       $("#mat-ok-zap").href = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
       form.hidden = true;
       ok.hidden = false;

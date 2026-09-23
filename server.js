@@ -44,7 +44,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.26.0";
+const APP_VERSION = "1.27.0";
 /* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
    deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
    num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento
@@ -274,6 +274,13 @@ function seed() {
     sec_taf_titulo: "Vai encarar o TAF? Treine com <em>quem mais aprova</em>.",
     sec_taf_lead: "PM, Bombeiros, Forças Armadas: cada edital tem sua prova — e nós temos o treino certo para ela. Técnica para economizar energia, ritmo de prova e simulados reais.",
     sec_taf_botao: "Começar minha preparação",
+    /* (1.27.0) Cabeçalho da seção Contato. Ficou de fora quando as outras
+       seções viraram campos, e era a única cujo texto muda com a campanha do
+       mês ("aula experimental", "matrícula aberta", "turma de férias") — ou
+       seja, justamente a que o cliente mais precisa mexer sozinho. */
+    sec_contato_rotulo: "Contato",
+    sec_contato_titulo: "Bora <em>cair na água</em>?",
+    sec_contato_sub: "Agende sua aula experimental — a primeira braçada é por nossa conta.",
     taf_itens: JSON.stringify([
       "Simulado no formato do seu edital",
       "Correção técnica dos 4 nados",
@@ -895,6 +902,9 @@ function publish() {
   html = setMarker(html, "TESTIMONIALS", "          " + depsHtml);
   html = setMarker(html, "SELO_GOOGLE", "          " + seloGoogle(S));
   html = setMarker(html, "BLOG", "          " + blogHome);
+  html = setMarker(html, "SEC_CONTATO_ROTULO", S.sec_contato_rotulo);
+  html = setMarker(html, "SEC_CONTATO_TITULO", S.sec_contato_titulo);
+  html = setMarker(html, "SEC_CONTATO_SUB", S.sec_contato_sub);
   html = setMarker(html, "CONTACT_INFO", "            " + contactInfo);
 
   /* Cartão de endereço. O link do Maps sai do campo do painel; se estiver
@@ -1185,6 +1195,7 @@ const KEYS = ["hero_badge", "hero_title", "hero_lead", "stats", "about_title", "
   "sec_estr_rotulo", "sec_estr_titulo", "sec_estr_sub",
   "estrutura_video", "footer_dias",
   "sec_taf_rotulo", "sec_taf_titulo", "sec_taf_lead", "sec_taf_botao", "taf_itens",
+  "sec_contato_rotulo", "sec_contato_titulo", "sec_contato_sub",
   /* Selo do Google. Esta lista é de PERMISSÃO: chave que não está aqui é
      descartada em silêncio pelo PUT — o campo aparece no painel, a pessoa
      salva, o aviso diz "salvo" e nada muda. Acrescentar campo no painel sem

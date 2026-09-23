@@ -161,7 +161,7 @@ function instalar({ db, getS, setS, hashSenha }) {
        que exige login — e vão junto no backup diário sem linha nova. */
     CREATE TABLE IF NOT EXISTS g_arquivos (
       id        INTEGER PRIMARY KEY AUTOINCREMENT,
-      tipo      TEXT NOT NULL,                     -- 'foto' | 'assinatura'
+      tipo      TEXT NOT NULL,                     -- 'foto' | 'assinatura' | 'comprovante'
       mime      TEXT NOT NULL,
       dados     BLOB NOT NULL,
       criado_em TEXT NOT NULL,
@@ -260,6 +260,15 @@ function instalar({ db, getS, setS, hashSenha }) {
        recusado     o banco disse não (dado inválido); pode ser tentado de novo
      ========================================================================== */
   if (!temColuna("g_alunos", "dia_vencimento")) db.exec("ALTER TABLE g_alunos ADD COLUMN dia_vencimento INTEGER NOT NULL DEFAULT 0");
+
+  /* (1.27.0) O comprovante de pagamento que vem com a matrícula do site.
+     Coluna separada de `foto_id` de propósito: são dois documentos com vidas
+     diferentes — a foto identifica o aluno e fica enquanto ele for aluno; o
+     comprovante prova UM pagamento e a secretaria troca ou tira quando
+     confere. Guardá-los na mesma coluna obrigaria a escolher qual perder.
+     Como a foto, o arquivo mora em g_arquivos (BLOB no banco) e nunca no
+     disco público: nada em /var/www vira endereço que alguém adivinha. */
+  if (!temColuna("g_alunos", "comprovante_id")) db.exec("ALTER TABLE g_alunos ADD COLUMN comprovante_id INTEGER");
   db.exec(`
     CREATE TABLE IF NOT EXISTS g_boletos (
       id                INTEGER PRIMARY KEY AUTOINCREMENT,

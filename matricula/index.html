@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Nunito+Sans:wght@300;400;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/styles.css?v=1.21.0">
+  <link rel="stylesheet" href="/assets/css/styles.css?v=1.27.0">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
     {"@type":"ListItem","position":1,"name":"Início","item":"https://formsfitness.com/"},
@@ -329,15 +329,33 @@
           <!-- =========================== DOCUMENTOS ========================= -->
           <fieldset class="mat-bloco">
             <legend><span class="mat-bloco__n">6</span> Foto e comprovante</legend>
-            <!-- Foto e comprovante continuam FORA desta página, de propósito:
-                 um formulário aberto na internet recebendo foto de criança vira
-                 guarda de dado sensível sem saber quem mandou. Vão pela
-                 conversa, e a secretaria anexa a foto ao cadastro. -->
-            <ul class="mat-docs">
-              <li>📸 <b>Foto do aluno</b> — envie pelo WhatsApp depois de enviar esta ficha.</li>
-              <li>📄 <b>Comprovante de pagamento</b> — também pelo WhatsApp.</li>
-            </ul>
-            <p class="mat-bloco__nota">Ao terminar, aparece um botão que abre a conversa com a academia já com o nome do aluno.</p>
+            <!-- (1.27.0) Os dois documentos passaram a vir AQUI. Iam pelo
+                 WhatsApp, e o que chegava pela conversa se perdia no meio do
+                 dia: a secretaria terminava correndo atrás de foto e de
+                 comprovante de quem já tinha preenchido a ficha inteira.
+                 Chegando junto, a matrícula chega completa ou não chega.
+
+                 O arquivo não fica em pasta nenhuma do site: vai para o banco
+                 de dados da academia e só é aberto por quem entra no painel
+                 com senha. A foto ainda é reduzida no próprio aparelho antes
+                 de subir — o que também descarta a localização GPS que o
+                 celular grava dentro da imagem. -->
+            <p class="mat-bloco__nota">Os dois são <b>obrigatórios</b>: a foto identifica o aluno na ficha e o
+              comprovante confirma o pagamento da matrícula.</p>
+
+            <div class="field">
+              <label for="m-foto">Foto do aluno <span class="req">*</span></label>
+              <input id="m-foto" name="foto" type="file" accept="image/jpeg,image/png,image/webp" required>
+              <p class="mat-bloco__nota">Rosto visível, em JPG, PNG ou WEBP. Dá para tirar a foto agora pelo celular.</p>
+              <p class="mat-arquivo" id="mat-foto-nome" hidden></p>
+            </div>
+
+            <div class="field">
+              <label for="m-comprovante">Comprovante de pagamento <span class="req">*</span></label>
+              <input id="m-comprovante" name="comprovante" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" required>
+              <p class="mat-bloco__nota">Print do aplicativo, foto do recibo ou o PDF do banco — até 4 MB.</p>
+              <p class="mat-arquivo" id="mat-comp-nome" hidden></p>
+            </div>
           </fieldset>
 
           <!-- ========================== AUTORIZAÇÃO ========================= -->
@@ -377,14 +395,14 @@
           </p>
         </form>
 
-        <!-- O que aparece depois de enviar: o formulário some e fica o próximo
-             passo, que é mandar a foto e o comprovante. -->
+        <!-- O que aparece depois de enviar. Desde a 1.27.0 não falta mais nada:
+             a foto e o comprovante foram junto, e a conversa é opcional. -->
         <div class="mat-ok" id="mat-ok" hidden tabindex="-1">
           <p class="mat-ok__icone" aria-hidden="true">✅</p>
           <h2 class="mat-ok__titulo">Matrícula recebida!</h2>
-          <p>A secretaria vai conferir os dados e confirmar a vaga com você pelo WhatsApp.</p>
-          <p><b>Falta só enviar a foto do aluno e o comprovante de pagamento.</b></p>
-          <a class="btn btn--lime btn--lg" id="mat-ok-zap" href="#" target="_blank" rel="noopener">Enviar foto e comprovante pelo WhatsApp</a>
+          <p>A secretaria vai conferir os dados, a foto e o comprovante, e confirma a vaga com você pelo WhatsApp.</p>
+          <p><b>Não falta nada: a ficha, a foto e o comprovante já chegaram.</b></p>
+          <a class="btn btn--lime btn--lg" id="mat-ok-zap" href="#" target="_blank" rel="noopener">Falar com a academia pelo WhatsApp</a>
         </div>
       </div>
     </section>
@@ -404,6 +422,6 @@
     </div>
   </footer>
 
-  <script type="module" src="/assets/js/main.js?v=1.21.0"></script>
+  <script type="module" src="/assets/js/main.js?v=1.27.0"></script>
 </body>
 </html>
