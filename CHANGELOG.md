@@ -5,6 +5,48 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.29.0 — 2026-09-25 · "Faça sua matrícula" e os dados do Pix na ficha
+
+### A chamada virou "Faça sua matrícula — clique aqui"
+
+Os 18 botões que diziam "Garanta sua vaga" — no menu de todas as páginas, no
+topo da home e no fim de cada matéria — agora dizem **"Faça sua matrícula —
+clique aqui"**, pedido da academia.
+
+- **Onde não há o que clicar, fica só "Faça sua matrícula".** O título da aba e
+  do compartilhamento da página de matrícula, o título grande dela e o índice
+  da busca interna: "clique aqui" num resultado do Google parece erro, e no
+  título da própria página não leva a lugar nenhum.
+- **O botão do menu encurta numa faixa só.** Com o texto inteiro ele tem 304px;
+  entre 981px e 1180px de tela — notebook comum — não cabia na linha dos outros
+  seis itens, quebrava em duas e empurrava o menu inteiro para baixo (medido na
+  tela, em 1024px). Nessa faixa aparece "Faça sua matrícula"; no celular (menu
+  em gaveta) e na tela larga, o texto inteiro.
+- O link de cada cartão de modalidade ("Garantir vaga →") não mudou: é outro
+  texto, num espaço pequeno. Se quiser, troca-se também.
+
+### Os dados do Pix, embaixo do comprovante
+
+Na ficha de matrícula, logo abaixo do campo do comprovante, um cartão com a
+**chave Pix (CNPJ 02.192.745/0001-25)**, o **banco (Nubank)** e os **nomes que
+aparecem no Pix: Ronaldo José de Menezes ou BemEstarClinic&FormsFitness**.
+
+- **A chave foi conferida** antes de ir ao ar: os dígitos verificadores do CNPJ
+  batem. Chave com um dígito trocado é dinheiro que não chega — ou que chega a
+  outra pessoa —, e o site não teria como perceber. Uma prova refaz essa conta
+  a cada rodada, para o dia em que alguém trocar a chave.
+- **"Nome que aparece no Pix" existe para tranquilizar.** Quem paga vê no
+  aplicativo o nome de uma pessoa, e não o da academia; sem aviso, isso parece
+  golpe. O cartão diz que os dois nomes são da academia.
+- **Botão "Copiar chave"**, que copia só os números — o formato que todo
+  aplicativo de banco aceita. Digitar 14 números é onde se erra. Se o
+  navegador não deixar copiar, a chave fica **selecionada** para a pessoa
+  copiar pelo menu, em vez de falhar em silêncio.
+- No celular, rótulo em cima e valor embaixo, e o botão com 44px de altura — o
+  tamanho de um toque de dedo.
+
+---
+
 ## 1.28.0 — 2026-09-23 · CEP na matrícula, blog que abre fechado e a ficha sem buraco
 
 ### O CEP preenche o endereço, também no site

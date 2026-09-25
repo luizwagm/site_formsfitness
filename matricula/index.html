@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Garanta sua vaga — Matrícula online | Forms Fitness</title>
+  <title>Faça sua matrícula online | Forms Fitness</title>
   <meta name="description" content="Faça sua matrícula online na Forms Fitness Academia Aquática, em Caruaru-PE. Escolha a turma, preencha os dados do aluno e a secretaria confirma pelo WhatsApp.">
   <link rel="canonical" href="https://formsfitness.com/matricula/">
   <meta name="robots" content="index, follow">
@@ -13,7 +13,7 @@
   <meta property="og:type" content="website">
   <meta property="og:locale" content="pt_BR">
   <meta property="og:site_name" content="Forms Fitness Academia Aquática">
-  <meta property="og:title" content="Garanta sua vaga — Forms Fitness">
+  <meta property="og:title" content="Faça sua matrícula — Forms Fitness">
   <meta property="og:description" content="Matrícula online na Forms Fitness: escolha a turma e envie os dados do aluno.">
   <meta property="og:url" content="https://formsfitness.com/matricula/">
   <meta property="og:image" content="https://formsfitness.com/assets/img/og-image.png">
@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Nunito+Sans:wght@300;400;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/styles.css?v=1.28.0">
+  <link rel="stylesheet" href="/assets/css/styles.css?v=1.29.0">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
     {"@type":"ListItem","position":1,"name":"Início","item":"https://formsfitness.com/"},
@@ -47,7 +47,7 @@
         <a href="/#estrutura">Estrutura</a>
         <a href="/blog/">Feed</a>
         <a href="/#contato">Contato</a>
-        <a class="btn btn--lime nav__cta" href="/matricula/" aria-current="page">Garanta sua vaga</a>
+        <a class="btn btn--lime nav__cta" href="/matricula/" aria-current="page"><span>Faça sua matrícula<span class="nav__cta-extra"> — clique aqui</span></span></a>
       </nav>
       <button class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" aria-label="Abrir menu">
         <span></span><span></span><span></span>
@@ -59,7 +59,7 @@
     <section class="page-hero">
       <div class="container container--narrow">
         <nav class="breadcrumb" aria-label="Você está aqui"><a href="/">Início</a> <span>›</span> <b>Matrícula</b></nav>
-        <h1 class="page-hero__title">Garanta sua <em>vaga</em></h1>
+        <h1 class="page-hero__title">Faça sua <em>matrícula</em></h1>
         <p class="page-hero__lead">Escolha a turma e preencha os dados abaixo. A secretaria confere a matrícula e confirma com você pelo WhatsApp.</p>
       </div>
     </section>
@@ -362,6 +362,29 @@
               <p class="mat-bloco__nota">Print do aplicativo, foto do recibo ou o PDF do banco — até 4 MB.</p>
               <p class="mat-arquivo" id="mat-comp-nome" hidden></p>
             </div>
+
+            <!-- (1.29.0) OS DADOS DO PIX, logo abaixo do comprovante: é o
+                 pagamento que ele comprova. A chave está CONFERIDA (dígitos
+                 verificadores do CNPJ batem) — chave errada é dinheiro que não
+                 chega, e o site não tem como perceber.
+
+                 O "nome que aparece" existe para tranquilizar: quem paga vê no
+                 aplicativo o nome de uma pessoa, e não o da academia, e sem
+                 aviso isso parece golpe. O botão copia só os NÚMEROS — é o
+                 formato que todo aplicativo de banco aceita. -->
+            <div class="mat-pix" aria-labelledby="mat-pix-tit">
+              <p class="mat-pix__tit" id="mat-pix-tit">💠 Dados para pagamento por Pix</p>
+              <dl class="mat-pix__dados">
+                <dt>Chave Pix (CNPJ)</dt>
+                <dd><span class="mat-pix__chave">02.192.745/0001-25</span>
+                  <button type="button" class="mat-pix__copiar" data-copiar="02192745000125">Copiar chave</button></dd>
+                <dt>Banco</dt>
+                <dd>Nubank</dd>
+                <dt>Nome que aparece no Pix</dt>
+                <dd>Ronaldo José de Menezes <span class="mat-pix__ou">ou</span> BemEstarClinic&amp;FormsFitness</dd>
+              </dl>
+              <p class="mat-pix__nota">Os dois nomes são da academia. Depois de pagar, anexe o comprovante no campo acima.</p>
+            </div>
           </fieldset>
 
           <!-- ========================== AUTORIZAÇÃO ========================= -->
@@ -428,6 +451,6 @@
     </div>
   </footer>
 
-  <script type="module" src="/assets/js/main.js?v=1.28.0"></script>
+  <script type="module" src="/assets/js/main.js?v=1.29.0"></script>
 </body>
 </html>

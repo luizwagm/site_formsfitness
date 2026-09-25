@@ -523,6 +523,36 @@ function initMatricula() {
     }
   });
 
+  /* ------------------------------------------------ copiar a chave Pix
+     (1.29.0) Digitar 14 números de um CNPJ no aplicativo do banco é onde
+     a pessoa erra — e Pix para chave errada não volta sozinho. O botão copia
+     só os NÚMEROS, que é o formato que todo aplicativo aceita.
+
+     Sem a API de área de transferência (navegador antigo, página fora de
+     HTTPS), o texto da chave é SELECIONADO: o toque seguinte já é "copiar"
+     no menu do celular. Falhar em silêncio deixaria a pessoa colando o que
+     estava antes na área de transferência. */
+  document.querySelectorAll(".mat-pix__copiar").forEach((bt) => {
+    const rotulo = bt.textContent;
+    bt.addEventListener("click", async () => {
+      const chave = bt.dataset.copiar || "";
+      try {
+        await navigator.clipboard.writeText(chave);
+        bt.textContent = "Chave copiada ✓";
+        bt.classList.add("copiado");
+        setTimeout(() => { bt.textContent = rotulo; bt.classList.remove("copiado"); }, 2500);
+      } catch {
+        const alvo = bt.parentElement.querySelector(".mat-pix__chave");
+        if (alvo) {
+          const faixa = document.createRange(); faixa.selectNodeContents(alvo);
+          const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(faixa);
+        }
+        bt.textContent = "Chave selecionada — copie";
+        setTimeout(() => { bt.textContent = rotulo; }, 3500);
+      }
+    });
+  });
+
   /* Nome do arquivo escolhido, embaixo do campo. Num celular, o seletor de
      arquivos some sem dizer o que ficou selecionado, e a pessoa não sabe se o
      toque funcionou. */

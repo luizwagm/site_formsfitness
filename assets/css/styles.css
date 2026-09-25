@@ -722,6 +722,33 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
   background: var(--bg-soft); font-size: .85rem; color: var(--ink-soft); word-break: break-all;
 }
 
+/* Dados do Pix (1.29.0). Um cartão próprio, e não mais uma nota cinza: é a
+   informação que a pessoa vai COPIAR para outro aplicativo, e precisa ser
+   achada de relance. Ciano claro, a cor de "informação" do site, e não o
+   verde do botão de ação — aqui ninguém vai clicar para enviar nada. */
+.mat-pix {
+  margin: 1rem 0 0; padding: 1rem 1.1rem; border-radius: 14px;
+  background: var(--cyan-soft); border: 1px solid rgba(31, 168, 220, .35);
+}
+.mat-pix__tit { margin: 0 0 .6rem; font-weight: 800; color: var(--blue-ink); font-size: .98rem; }
+/* Rótulo e valor lado a lado na tela larga; um embaixo do outro no celular,
+   onde o nome da conta não cabe ao lado do rótulo. */
+.mat-pix__dados { display: grid; grid-template-columns: max-content 1fr; gap: .45rem 1rem; margin: 0; }
+.mat-pix__dados dt { font-size: .85rem; color: var(--ink-soft); font-weight: 600; }
+.mat-pix__dados dd { margin: 0; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+/* A chave em fonte de números alinhados: é para conferir dígito a dígito. */
+.mat-pix__chave { font-variant-numeric: tabular-nums; letter-spacing: .02em; font-size: 1.05rem; }
+.mat-pix__ou { font-weight: 500; color: var(--ink-soft); }
+.mat-pix__copiar {
+  margin-left: .5rem; padding: .35rem .8rem; border-radius: 999px; cursor: pointer;
+  border: 1.5px solid var(--blue); background: var(--surface); color: var(--blue);
+  font: inherit; font-size: .82rem; font-weight: 700; vertical-align: middle;
+}
+.mat-pix__copiar:hover { background: var(--blue); color: #fff; }
+.mat-pix__copiar:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+.mat-pix__copiar.copiado { background: var(--lime-d); border-color: var(--lime-d); color: #fff; }
+.mat-pix__nota { margin: .7rem 0 0; font-size: .85rem; color: var(--ink-soft); }
+
 /* Alvo de toque grande e a linha inteira clicável: são três caixas que a
    pessoa precisa marcar no celular, e um quadradinho de 13px erra o dedo. */
 .mat-check {
@@ -1096,3 +1123,27 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
   aspect-ratio: auto 16 / 9;
 }
 @media (max-width: 640px) { .post__cover--video video { border-radius: 12px; } }
+
+/* Pix no celular (1.29.0): rótulo em cima, valor embaixo — o nome da conta
+   não cabe ao lado do rótulo numa tela de 375px. No FIM do arquivo de
+   propósito: uma regra de celular escrita antes perde por ordem para a regra
+   de tela larga com a mesma especificidade. */
+@media (max-width: 560px) {
+  .mat-pix__dados { grid-template-columns: 1fr; gap: .1rem; }
+  .mat-pix__dados dd { margin-bottom: .45rem; }
+  /* No celular o botão é A ação do cartão, e 35px de altura erra o dedo:
+     alvo de toque de 44px, como o resto dos botões do formulário. */
+  .mat-pix__copiar { margin: .4rem 0 0; display: inline-block; min-height: 44px; padding: .55rem 1.1rem; font-size: .9rem; }
+}
+
+/* Botão do menu com o texto longo (1.29.0). "Faça sua matrícula — clique
+   aqui" tem 304px; entre 981px (quando o menu deixa de ser gaveta) e 1180px
+   ele não cabe na mesma linha dos outros seis itens, quebrava em duas e
+   empurrava o menu inteiro para baixo. Nessa faixa, só a parte "— clique aqui"
+   sai; na gaveta do celular e na tela larga o texto inteiro aparece.
+   No FIM do arquivo, como toda regra de largura: escrita antes, perderia por
+   ordem. */
+.nav__cta { white-space: nowrap; }
+@media (min-width: 981px) and (max-width: 1180px) {
+  .nav__cta-extra { display: none; }
+}

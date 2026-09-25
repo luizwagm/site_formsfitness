@@ -44,7 +44,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.28.0";
+const APP_VERSION = "1.29.0";
 /* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
    deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
    num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento
@@ -1004,7 +1004,7 @@ function publish() {
     { t: "Contato e aula experimental", u: "/#contato", tipo: "Página", d: `Fale com a Forms Fitness pelo WhatsApp ${S.whatsapp_display || ""} ou pelo e-mail ${S.contact_email || ""}.` },
     ...services.map((x) => ({ t: x.title, u: "/#modalidades", tipo: "Modalidade", d: semTags(x.text) })),
     ...posts.map((p) => ({ t: p.title, u: `/blog/${p.slug}/`, tipo: "Blog", d: semTags(p.excerpt) + " " + semTags(p.content).slice(0, 300) })),
-    { t: "Matrícula online — Garanta sua vaga", u: "/matricula/", tipo: "Matrícula", d: "Faça a matrícula pela internet: escolha a turma, preencha os dados do aluno e do responsável e envie. A secretaria confirma pelo WhatsApp. Horário limite às 17h." },
+    { t: "Matrícula online — Faça sua matrícula", u: "/matricula/", tipo: "Matrícula", d: "Faça a matrícula pela internet: escolha a turma, preencha os dados do aluno e do responsável e envie. A secretaria confirma pelo WhatsApp. Horário limite às 17h." },
     { t: "Política de Privacidade", u: "/privacidade/", tipo: "Institucional", d: "Como tratamos os seus dados pessoais: o que coletamos, por quê, com quem compartilhamos, prazos de guarda e como exercer os seus direitos pela LGPD." },
   ];
   fs.mkdirSync(path.join(ROOT, "assets", "data"), { recursive: true });

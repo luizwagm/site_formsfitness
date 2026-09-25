@@ -527,6 +527,29 @@ function pngEmPe() {
       /id="m-comprovante"[^>]*accept="[^"]*application[/]pdf/.test(mat.corpo));
     certo("a foto NÃO aceita PDF (é retrato, não documento)",
       !/id="m-foto"[^>]*accept="[^"]*pdf/.test(mat.corpo));
+    /* (1.29.0) Os dados do Pix, embaixo do comprovante que eles comprovam. */
+    const pix = mat.corpo.indexOf('class="mat-pix"');
+    certo("os dados do Pix estão na página", pix > 0);
+    certo("…logo abaixo do campo do comprovante",
+      pix > mat.corpo.indexOf('id="m-comprovante"') && pix < mat.corpo.indexOf("</fieldset>", mat.corpo.indexOf('id="m-comprovante"')));
+    certo("com a chave, o banco e os dois nomes que aparecem no Pix",
+      mat.corpo.includes("02.192.745/0001-25") && mat.corpo.includes("Nubank")
+      && mat.corpo.includes("Ronaldo José de Menezes") && mat.corpo.includes("BemEstarClinic&amp;FormsFitness"));
+    /* A CHAVE TEM DE SER UM CNPJ VÁLIDO. Chave com um dígito trocado é
+       dinheiro que não chega — ou que chega a outra pessoa —, e o site não
+       tem como perceber. Esta prova pega o erro de digitação no dia em que
+       alguém trocar a chave. */
+    const cnpj = ((mat.corpo.match(/data-copiar="([0-9]+)"/) || [])[1] || "").split("").map(Number);
+    const dvCnpj = (n) => { const p = n === 12 ? [5,4,3,2,9,8,7,6,5,4,3,2] : [6,5,4,3,2,9,8,7,6,5,4,3,2];
+      const r = p.reduce((a, x, k) => a + x * cnpj[k], 0) % 11; return r < 2 ? 0 : 11 - r; };
+    certo("a chave Pix copiada é um CNPJ com dígitos que conferem",
+      cnpj.length === 14 && dvCnpj(12) === cnpj[12] && dvCnpj(13) === cnpj[13], cnpj.join(""));
+    certo("a chave copiada é a MESMA que aparece escrita na tela",
+      cnpj.join("") === "02.192.745/0001-25".split("").filter((c) => c >= "0" && c <= "9").join(""));
+    /* Dentro do <form>, um botão sem type é um botão de ENVIAR: copiar a
+       chave mandaria a matrícula pela metade. */
+    certo("o botão de copiar não envia o formulário",
+      /<button type="button" class="mat-pix__copiar"/.test(mat.corpo));
     /* Desde a 1.20.0 a ficha é guardada. Texto de privacidade dizendo o
        contrário seria a primeira coisa que uma fiscalização confere. */
     certo('a página não diz mais que "nada é guardado"', !/nada é guardado/i.test(mat.corpo));
@@ -587,7 +610,24 @@ function pngEmPe() {
       js.includes("await lerCru(arqComp)"));
 
     const home = await pedir("GET", "/");
-    certo('o botão agora é "Garanta sua vaga"', /Garanta sua vaga/.test(home.corpo));
+    /* (1.29.0) A chamada virou "Faça sua matrícula — clique aqui", pedido do
+       cliente. O texto antigo não pode sobrar em canto nenhum: dois nomes
+       para o mesmo botão fazem parecer que são duas coisas diferentes. */
+    certo('o botão agora é "Faça sua matrícula — clique aqui"', home.corpo.includes(">Faça sua matrícula — clique aqui</a>"));
+    certo('"Garanta sua vaga" não sobrou na home', !home.corpo.includes("Garanta sua vaga"));
+    /* O botão do MENU disputa a linha com outros seis itens. Com 304px de
+       texto, entre 981px e 1180px ele quebrava em duas linhas e empurrava o
+       menu para baixo (medido na tela, em 1024px). Ali só a parte final sai;
+       na gaveta do celular e na tela larga o texto inteiro aparece. */
+    certo("o botão do menu separa a parte final do texto",
+      home.corpo.includes('<span>Faça sua matrícula<span class="nav__cta-extra"> — clique aqui</span></span>'));
+    const cssSite = fs.readFileSync(path.join(__dirname, "assets", "css", "styles.css"), "utf8");
+    certo("…e ela some só na faixa em que o menu não caberia",
+      cssSite.includes("@media (min-width: 981px) and (max-width: 1180px)") && cssSite.includes(".nav__cta-extra { display: none; }"));
+    /* Com dois pedaços de texto, o botão (que é flex) punha o gap de 8,8px
+       antes do travessão e um espaço comum depois — o travessão ficava torto. */
+    certo("o rótulo do menu é UM item só dentro do botão",
+      !home.corpo.includes('/">Faça sua matrícula<span class="nav__cta-extra">'));
     certo("e leva para a matrícula", /href="\/matricula\/"/.test(home.corpo));
     certo('"aula experimental" saiu dos botões', !/>\s*(Agendar )?[Aa]ula experimental\s*</.test(home.corpo));
 
