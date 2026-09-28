@@ -1062,6 +1062,111 @@ const servidorSB = require("node:http").createServer((req, res) => {
       certo("o .env.exemplo (e qualquer .env) não sai pela web", exemplo.status === 404);
     }
 
+    console.log("\n— data da matrícula, vencimento pela regra e autorizações (1.30.0)");
+    {
+      const U = require("./gestao/util");
+      /* A REGRA, dia a dia. As fronteiras são onde se erra: 7→5 e 8→10, 27→25
+         e 28→28. O 28 não estava na tabela da academia (ia de "23 a 27" a "29
+         a 31"); ficou no grupo do 28, e esta prova é o lugar de mudar se a
+         direção decidir outra coisa. */
+      const esperado = (d) => d <= 7 ? 5 : d <= 12 ? 10 : d <= 17 ? 15 : d <= 22 ? 20 : d <= 27 ? 25 : 28;
+      const erradas = [];
+      for (let d = 1; d <= 31; d++) {
+        const r = U.diaVencimentoPelaRegra("2026-10-" + String(d).padStart(2, "0"));
+        if (r !== esperado(d)) erradas.push(d + "→" + r);
+      }
+      certo("a regra do vencimento acerta os 31 dias do mês", !erradas.length, erradas.join(", "));
+      certo("matrícula no dia 28 vence no dia 28", U.diaVencimentoPelaRegra("2026-02-28") === 28);
+      certo("sem data, a regra não inventa dia", U.diaVencimentoPelaRegra("") === 0 && U.diaVencimentoPelaRegra("28/09/2026") === 0);
+
+      /* A tabela que o PAINEL usa vem do servidor — é a mesma, e não uma cópia. */
+      const resumo = (await pedir("GET", "/api/gestao/resumo", { cookie: A })).j;
+      certo("o painel recebe a regra do servidor, igual à do sistema",
+        JSON.stringify(resumo.regra_vencimento) === JSON.stringify(U.REGRA_VENCIMENTO), JSON.stringify(resumo.regra_vencimento));
+
+      /* MATRÍCULA ONLINE: a data é a do ENVIO, e o dia sai dela pela regra. A
+         pré-matrícula "bom" desta suíte foi enviada pelo site, hoje. */
+      const online = (await pedir("GET", `/api/gestao/alunos/${pId}`, { cookie: A })).j.aluno;
+      certo("a matrícula online já nasce com a data do envio", online.data_matricula === U.hojeLocal(), online.data_matricula);
+      certo("…e com o dia do vencimento pela regra",
+        online.dia_vencimento === U.diaVencimentoPelaRegra(online.data_matricula), String(online.dia_vencimento));
+      const consent = JSON.parse(online.consentimento || "{}");
+      certo("o consentimento guarda os TEXTOS que a pessoa aceitou",
+        Array.isArray(consent.textos) && consent.textos.length === 4
+        && JSON.stringify(consent.textos) === JSON.stringify(U.termosDaMatricula(true)),
+        JSON.stringify(consent.textos));
+      certo("…e, para criança, o 4º texto é o do responsável legal", /responsável legal/.test((consent.textos || [])[3] || ""));
+
+      /* CADASTRO PELO PAINEL: sem dia, a regra; com dia, o combinado. */
+      const semDia = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Regra Painel", nascimento: "1990-01-01", data_matricula: "2026-10-09" } });
+      const semDiaA = (await pedir("GET", `/api/gestao/alunos/${semDia.j.id}`, { cookie: A })).j.aluno;
+      certo("cadastro pelo painel sem dia: 9 de outubro vence no dia 10", semDiaA.dia_vencimento === 10, String(semDiaA.dia_vencimento));
+      const comDia = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Dia Combinado", nascimento: "1990-01-01", data_matricula: "2026-10-09", dia_vencimento: "3" } });
+      const comDiaA = (await pedir("GET", `/api/gestao/alunos/${comDia.j.id}`, { cookie: A })).j.aluno;
+      certo("…e um dia digitado (combinado com o aluno) é respeitado", comDiaA.dia_vencimento === 3, String(comDiaA.dia_vencimento));
+
+      /* A COBRANÇA: aluno sem dia no cadastro cai na REGRA, e não mais no dia
+         da própria matrícula (antes: 24 de setembro vencia dia 24). */
+      await pedir("PUT", `/api/gestao/alunos/${semDia.j.id}`, { cookie: A, corpo: { data_matricula: "2026-09-24", dia_vencimento: "" } });
+      const cobr = (await pedir("GET", `/api/gestao/alunos/${semDia.j.id}/boletos`, { cookie: A })).j;
+      certo("sem dia no cadastro, o boleto vence pela regra (24 → dia 25)", cobr.dia === 25, String(cobr.dia));
+
+      /* A FICHA: a online mostra as autorizações marcadas; a do balcão não —
+         o 1º texto diz "realizei a matrícula online", e imprimi-lo numa ficha
+         de balcão seria pôr uma declaração falsa no papel que se assina. */
+      const fichaOnline = await pedir("GET", `/admin/imprimir/ficha/${pId}`, { cookie: A });
+      certo("a ficha da matrícula online traz as autorizações marcadas",
+        /Autorizações marcadas na matrícula online/.test(fichaOnline.texto)
+        && U.termosDaMatricula(true).every((t) => fichaOnline.texto.includes(t.replace(/&/g, "&amp;"))));
+      certo("…com quem marcou e quando", /Marcadas pelo responsável legal em [0-9]{2}\/[0-9]{2}\/[0-9]{4}/.test(fichaOnline.texto));
+      certo("…e o dia do vencimento no topo", /todo dia [0-9]{2}/.test(fichaOnline.texto));
+      const fichaBalcao = await pedir("GET", `/admin/imprimir/ficha/${semDia.j.id}`, { cookie: A });
+      certo("a ficha do balcão NÃO traz o bloco da matrícula online",
+        fichaBalcao.status === 200 && !/Autorizações marcadas/.test(fichaBalcao.texto) && !/realizei a matrícula online/.test(fichaBalcao.texto));
+
+      /* O FORMULÁRIO DO SITE DIZ O MESMO QUE O SISTEMA GRAVA. Se alguém mudar
+         o texto de um quadrinho sem mudar a lista do servidor, a ficha passaria
+         a imprimir palavras que a pessoa não viu. */
+      const semTag = (x) => x.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      const formulario = semTag(fs.readFileSync(path.join(__dirname, "src", "matricula.html"), "utf8"));
+      certo("os quadrinhos do site têm exatamente os textos que o sistema grava (adulto)",
+        U.termosDaMatricula(false).every((t) => formulario.includes(t)),
+        U.termosDaMatricula(false).filter((t) => !formulario.includes(t)).join(" | "));
+      const scriptSite = fs.readFileSync(path.join(__dirname, "assets", "js", "main.js"), "utf8").replace(/\$\{linkPriv\}/g, "Política de Privacidade");
+      certo("…e o texto do responsável, que o site troca para criança, também",
+        scriptSite.includes(U.termosDaMatricula(true)[3]));
+
+      /* AS PRÉ-MATRÍCULAS QUE JÁ ESTAVAM ESPERANDO ganham a data do envio na
+         próxima subida do sistema. O caso escolhido é o da BEIRADA DO FUSO:
+         enviada num sábado às 22h30 de Caruaru — que já é domingo em UTC, o
+         relógio do servidor. A data certa é a de sábado. */
+      let banco;
+      try { banco = new (require("better-sqlite3"))(path.join(TMP, "data", "site.db")); }
+      catch { const { DatabaseSync } = require("node:sqlite"); banco = new DatabaseSync(path.join(TMP, "data", "site.db")); }
+      const velha = banco.prepare("INSERT INTO g_alunos(nome, status, origem, data_matricula, dia_vencimento, criado_em, criado_por) VALUES(?,?,?,?,?,?,?)")
+        .run("Zz Qa Pre Antiga", "pendente", "site", "", 0, "2026-09-27T01:30:00.000Z", "formulário do site");
+      const idVelha = Number(velha.lastInsertRowid);
+      /* Um SEGUNDO servidor sobre o mesmo banco: é na subida que a data das
+         antigas é preenchida. Ele sobe, preenche e é desligado. */
+      const segundo = spawn(process.execPath, ["server.js"], {
+        cwd: __dirname,
+        env: { ...process.env, PORT: String(PORTA + 11), FF_DATA: path.join(TMP, "data"), FF_BACKUPS: path.join(TMP, "backups"),
+          BACKUP_HORAS: "100000", FF_ENV: ENV },
+        stdio: "ignore",
+      });
+      for (let i = 0; i < 40; i++) {
+        try { await new Promise((ok, falha) => require("node:http").get({ host: "127.0.0.1", port: PORTA + 11, path: "/" }, (r) => { r.resume(); ok(); }).on("error", falha)); break; }
+        catch { await new Promise((r) => setTimeout(r, 250)); }
+      }
+      segundo.kill();
+      const depois = banco.prepare("SELECT data_matricula, dia_vencimento FROM g_alunos WHERE id=?").get(idVelha);
+      certo("a pré-matrícula antiga ganha a data do envio ao subir o sistema", depois.data_matricula === "2026-09-26", depois.data_matricula);
+      certo("…no fuso da academia: sábado 22h30 é sábado, e não o domingo do UTC", depois.data_matricula !== "2026-09-27");
+      certo("…e o dia do vencimento pela regra (26 → dia 25)", depois.dia_vencimento === 25, String(depois.dia_vencimento));
+      banco.prepare("DELETE FROM g_alunos WHERE id=?").run(idVelha);
+      try { banco.close(); } catch {}
+    }
+
     console.log("\n— o que não pode escapar");
     const codigo = await pedir("GET", "/gestao/rotas.js");
     certo("o código da gestão não é servido pela web", codigo.status === 404);

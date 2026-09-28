@@ -301,7 +301,57 @@ function mesDaAgenda(regras, diasAula, ano, mes) {
   return dias;
 }
 
+/* ==========================================================================
+   O DIA DO VENCIMENTO PELA REGRA DA ACADEMIA (1.30.0)
+
+   Quem se matricula entre os dias 1 e 7 paga todo dia 5; entre 8 e 12, todo
+   dia 10; e assim por diante. É a regra da secretaria, passada pela direção:
+
+        matrícula   01–07 → 05    08–12 → 10    13–17 → 15
+                    18–22 → 20    23–27 → 25    28–31 → 28
+
+   ⚠ O DIA 28 NÃO ESTAVA NA TABELA ORIGINAL ("23 a 27 → 25" e "29 a 31 →
+   28"). Ficou no grupo do 28, que é o que a própria tabela sugere — e é
+   uma linha para trocar aqui, se a direção decidir outra coisa.
+
+   A tabela é a ÚNICA fonte: o servidor grava o dia com ela, a cobrança cai
+   nela quando o aluno não tem dia definido, e o painel preenche o campo com
+   ela (a cópia de lá é conferida contra esta por prova). */
+const REGRA_VENCIMENTO = [
+  [7, 5], [12, 10], [17, 15], [22, 20], [27, 25], [31, 28],
+];
+function diaVencimentoPelaRegra(dataISO) {
+  const m = /^[0-9]{4}-[0-9]{2}-([0-9]{2})$/.exec(String(dataISO || ""));
+  if (!m) return 0;
+  const dia = Number(m[1]);
+  const faixa = REGRA_VENCIMENTO.find(([ate]) => dia <= ate);
+  return faixa ? faixa[1] : 0;
+}
+
+/* ==========================================================================
+   AS AUTORIZAÇÕES DA MATRÍCULA ONLINE (1.30.0)
+
+   Os quatro quadrinhos que a pessoa marca no fim do formulário do site. O
+   texto EXATO fica gravado junto do consentimento de cada matrícula, para a
+   ficha impressa mostrar o que ELA aceitou — e não o texto de hoje, se um
+   dia ele mudar. Uma prova confere que o formulário do site diz exatamente
+   isto.
+
+   O quarto muda com a idade: para criança, quem autoriza o tratamento dos
+   dados é o responsável legal (LGPD, art. 14). */
+function termosDaMatricula(menor) {
+  return [
+    "Declaro que realizei a matrícula online e sou responsável pelas informações fornecidas.",
+    "Reconheço que devo cumprir com os pagamentos e com o horário fixo escolhido, conforme contrato.",
+    "Autorizo a efetivação da matrícula.",
+    menor
+      ? "Como responsável legal pelo aluno, autorizo a Forms Fitness a guardar os dados dele e os meus para a gestão da matrícula, conforme a Política de Privacidade."
+      : "Autorizo a Forms Fitness a guardar estes dados para a gestão da matrícula, conforme a Política de Privacidade.",
+  ];
+}
+
 module.exports = {
+  REGRA_VENCIMENTO, diaVencimentoPelaRegra, termosDaMatricula,
   FUSO, hojeLocal, dataHoraBR, dataBR, dataExtenso, MESES, idade, ehMenor,
   reais, paraCentavos, extensoReais, cpfValido, formatarCpf, codigoFormatado,
   DIAS_NOME, DIAS_PLURAL, DIAS_CURTO, diasPorExtenso,

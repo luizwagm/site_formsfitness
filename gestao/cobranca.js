@@ -78,12 +78,18 @@ function criarCobranca({ db, cfg, sicredi, hoje = U.hojeLocal, agora = () => new
     };
   }
 
-  /* O dia do mês: o do cadastro; sem ele, o da matrícula; sem os dois, 10. */
+  /* O dia do mês: o do cadastro; sem ele, o da REGRA da academia aplicada à
+     data da matrícula (1.30.0 — antes era o próprio dia da matrícula); sem
+     data nenhuma, 10.
+
+     Mudar este padrão não moveu boleto nenhum: em 28/09/2026 a cobrança do
+     Sicredi ainda não estava ligada (a academia não tinha as credenciais), e
+     nenhum carnê tinha sido emitido. Daqui em diante, o boleto já nasce no
+     dia da regra. */
   function diaDe(a) {
     const d = Number(a.dia_vencimento);
     if (d >= 1 && d <= 31) return d;
-    const m = /^\d{4}-\d{2}-(\d{2})$/.exec(a.data_matricula || "");
-    return m ? Number(m[1]) : 10;
+    return U.diaVencimentoPelaRegra(a.data_matricula || "") || 10;
   }
 
   const vivosDo = (alunoId) => todos(`SELECT * FROM g_boletos WHERE ambiente=? AND aluno_id=? AND situacao <> 'baixado'`,

@@ -84,6 +84,22 @@ function criar(ctx) {
   const todos = (sql, ...a) => db.prepare(sql).all(...a);
   const roda = (sql, ...a) => db.prepare(sql).run(...a);
 
+  /* (1.30.0) Pré-matrículas do site que chegaram antes desta versão estão com
+     a data EM BRANCO — foi o que motivou a mudança: a do sábado ficava para
+     ser digitada na segunda. O momento do envio sempre esteve gravado em
+     criado_em; a data dele, no fuso da academia, é a data da matrícula. Só
+     toca em quem está sem data: rodar de novo não muda ninguém. */
+  try {
+    for (const p of db.prepare(`SELECT id, criado_em, dia_vencimento FROM g_alunos
+        WHERE status='pendente' AND origem='site' AND (data_matricula IS NULL OR data_matricula='')`).all()) {
+      const quando = new Date(p.criado_em);
+      if (isNaN(quando)) continue;
+      const data = U.hojeLocal(quando);
+      db.prepare("UPDATE g_alunos SET data_matricula=?, dia_vencimento=? WHERE id=?")
+        .run(data, Number(p.dia_vencimento) > 0 ? Number(p.dia_vencimento) : U.diaVencimentoPelaRegra(data), p.id);
+    }
+  } catch (e) { console.error("  ✖ data das pré-matrículas antigas:", e.message); }
+
   /* O "alvo" da auditoria: de QUEM era o cadastro que mudou. Resolvido ANTES
      de a rota agir — depois de apagar uma pré-matrícula não há mais nome
      para ler. */
@@ -521,10 +537,22 @@ function criar(ctx) {
            quando. A LGPD pede consentimento específico de quem responde por
            uma criança — e consentimento que não se consegue mostrar depois
            não existe. O IP NÃO é guardado: não é necessário para a matrícula. */
+        /* (1.30.0) Os TEXTOS aceitos vão junto: a ficha impressa mostra o que
+           a pessoa marcou, com as palavras de quando marcou — e não as de hoje,
+           se um dia o formulário mudar. */
         a.consentimento = JSON.stringify({
           em: agora(), termos: true, dados: true,
           menor: U.ehMenor(a.nascimento), por: U.ehMenor(a.nascimento) ? "responsável legal" : "o próprio aluno",
+          textos: U.termosDaMatricula(U.ehMenor(a.nascimento)),
         });
+        /* (1.30.0) A DATA DA MATRÍCULA É A DO ENVIO. Antes ficava em branco
+           até alguém efetivar — e quem se matriculava no sábado aparecia
+           matriculado na segunda, com a data que a secretaria digitasse. O dia
+           do vencimento sai da mesma data, pela regra da academia. O dia é o
+           do FUSO da academia: um envio às 22h de domingo em Caruaru já é
+           segunda-feira no relógio do servidor, em UTC. */
+        a.data_matricula = U.hojeLocal();
+        a.dia_vencimento = U.diaVencimentoPelaRegra(a.data_matricula);
         /* (1.27.0) Foto e comprovante são OBRIGATÓRIOS, e são conferidos aqui,
            antes de o cadastro existir: uma pré-matrícula sem os dois documentos
            é trabalho que a secretaria teria de correr atrás por fora, que é o
@@ -594,6 +622,9 @@ function criar(ctx) {
         ativos: um("SELECT COUNT(*) AS n FROM g_alunos WHERE status='ativo'").n,
         inativos: um("SELECT COUNT(*) AS n FROM g_alunos WHERE status='inativo'").n,
         proximo_codigo: proximoCodigo(), dias_aula: diasAula(),
+        /* (1.30.0) a regra do dia do vencimento: o painel preenche o campo com
+           ela, e a tabela vem DAQUI — uma cópia no navegador envelheceria. */
+        regra_vencimento: U.REGRA_VENCIMENTO,
         estados_civis: ESTADOS_CIVIS, sexos: SEXOS, ufs: UFS,
         usuario: { id: usuario.id, nome: usuario.nome, login: usuario.login, admin: !!usuario.admin },
       }), true;
@@ -663,6 +694,8 @@ function criar(ctx) {
         a.status = ["ativo", "inativo"].includes(b.status) ? b.status : "ativo";
         a.origem = "sistema";
         a.data_matricula = a.data_matricula || U.hojeLocal();
+        /* (1.30.0) Sem dia informado, o do vencimento sai da regra. */
+        if (!a.dia_vencimento) a.dia_vencimento = U.diaVencimentoPelaRegra(a.data_matricula);
         a.criado_em = agora(); a.criado_por = quem;
         const campos = Object.keys(a);
         const info = roda(`INSERT INTO g_alunos(${campos.join(",")}) VALUES(${campos.map(() => "?").join(",")})`,
@@ -748,8 +781,12 @@ function criar(ctx) {
         if (!atual) throw new Recusa(404, "Aluno não encontrado.");
         if (atual.status !== "pendente") throw new Recusa(409, "Esta matrícula já foi efetivada.");
         const codigo = await definirCodigo(b.codigo);
-        roda(`UPDATE g_alunos SET codigo=?, status='ativo', data_matricula=?, atualizado_em=?, atualizado_por=? WHERE id=?`,
-          codigo, atual.data_matricula || U.hojeLocal(), agora(), quem, id);
+        const dataMat = atual.data_matricula || U.hojeLocal();
+        /* (1.30.0) O dia do vencimento que já estiver no cadastro é
+           respeitado; sem ele, sai da regra com a data da matrícula. */
+        const diaVenc = Number(atual.dia_vencimento) > 0 ? Number(atual.dia_vencimento) : U.diaVencimentoPelaRegra(dataMat);
+        roda(`UPDATE g_alunos SET codigo=?, status='ativo', data_matricula=?, dia_vencimento=?, atualizado_em=?, atualizado_por=? WHERE id=?`,
+          codigo, dataMat, diaVenc, agora(), quem, id);
         res.auditoria = { alvo: `${atual.nome} (${U.codigoFormatado(codigo)}) — era a pré-matrícula nº ${id}` };
         return json(res, 200, { ok: true, codigo, codigo_fmt: U.codigoFormatado(codigo), avisos: avisosDeVagas(id) }), true;
       }

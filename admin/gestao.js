@@ -71,6 +71,17 @@
 
   const cab = (titulo) => `<div class="g-dlg-cab"><h2>${e(titulo)}</h2><button type="button" class="g-fechar" data-fechar aria-label="Fechar">×</button></div>`;
   const imprimirEm = (url) => window.open(url, "_blank", "noopener");
+  /* (1.30.0) O dia do vencimento pela regra da academia. A TABELA vem do
+     servidor, no resumo (G.resumo.regra_vencimento): uma cópia aqui envelheceria no
+     dia em que a direção mudasse a regra. */
+  const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const diaPelaRegra = (iso) => {
+    const m = /^[0-9]{4}-[0-9]{2}-([0-9]{2})$/.exec(String(iso || ""));
+    if (!m) return 0;
+    const faixa = ((G.resumo && G.resumo.regra_vencimento) || []).find(([ate]) => Number(m[1]) <= ate);
+    return faixa ? faixa[1] : 0;
+  };
+  const rotuloDiaRegra = (iso) => { const d = diaPelaRegra(iso); return d ? `dia ${String(d).padStart(2, "0")} (pela regra)` : "pela regra"; };
 
   /* Dinheiro na tela: "R$ 1.234,56". O servidor aceita esse formato como
      está (paraCentavos tira o "R$" e os pontos de milhar). */
@@ -218,12 +229,15 @@
             ${campo("data_matricula", "Data da matrícula", "c3", 'type="date"')}
             <div class="c3"><label for="fa-total">Mensalidade total</label>
               <input id="fa-total" value="${a.mensalidade ? moeda(a.mensalidade) : ""}" disabled title="A soma das mensalidades das atividades, lá embaixo"></div>
-            <!-- O dia em que vencem os boletos DESTE aluno (1.26.0). Em branco,
-                 vale o dia da matrícula — o placeholder mostra qual é. -->
+            <!-- O dia em que vencem os boletos DESTE aluno. Desde a 1.30.0 ele
+                 sai da REGRA da academia (matrícula de 1 a 7 → dia 5, de 8 a
+                 12 → dia 10…) e vem preenchido; digitar outro dia vale só para
+                 este aluno. Em branco, vale a regra — o placeholder mostra qual. -->
             <div class="c3"><label for="fa-dia_vencimento">Vencimento (dia)</label>
               <input id="fa-dia_vencimento" name="dia_vencimento" inputmode="numeric" maxlength="2"
-                value="${a.dia_vencimento ? e(a.dia_vencimento) : ""}"
-                placeholder="${/^\d{4}-\d{2}-\d{2}$/.test(a.data_matricula || "") ? `dia ${Number(a.data_matricula.slice(8))} (da matrícula)` : "dia da matrícula"}"></div>
+                value="${a.dia_vencimento ? e(String(a.dia_vencimento).padStart(2, "0")) : ""}"
+                placeholder="${rotuloDiaRegra(a.data_matricula || hojeISO())}"
+                title="Sai da regra da academia pela data da matrícula. Digite outro dia só se este aluno tiver combinado diferente."></div>
           </div>
         </div>
         <!-- Os dois documentos LADO A LADO (1.28.0). Empilhados, a coluna da
@@ -390,6 +404,21 @@
         avisarCep(err.message || "Não foi possível consultar o CEP.", true);
       }
     });
+    /* ------------------------------------------ vencimento pela regra (1.30.0)
+       Trocou a data da matrícula? O dia do vencimento acompanha — MAS só se o
+       que está no campo é o que a regra dava para a data anterior (ou está
+       vazio). Um dia digitado à mão é combinado com o aluno e não se mexe. */
+    const dataMatEl = $("#fa-data_matricula", F), vencEl = $("#fa-dia_vencimento", F);
+    if (dataMatEl && vencEl) {
+      let dataAntes = dataMatEl.value || hojeISO();
+      dataMatEl.addEventListener("change", () => {
+        const dataNova = dataMatEl.value || hojeISO();
+        const eraDaRegra = !vencEl.value.trim() || Number(vencEl.value) === diaPelaRegra(dataAntes);
+        vencEl.placeholder = rotuloDiaRegra(dataNova);
+        if (eraDaRegra && vencEl.value.trim()) vencEl.value = String(diaPelaRegra(dataNova)).padStart(2, "0");
+        dataAntes = dataNova;
+      });
+    }
     const nasc = $("#fa-nascimento", F);
     const menorOuNao = () => {
       const i = idadeDe(nasc.value);

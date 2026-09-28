@@ -5,6 +5,62 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.30.0 — 2026-09-28 · Data e vencimento automáticos, e a ficha com as autorizações
+
+### A matrícula online já chega com a data
+
+A pré-matrícula enviada pelo site passa a chegar **com a data do envio** na
+"Data da matrícula". Antes o campo ficava em branco até alguém efetivar — quem
+se matriculava no sábado aparecia com a data que a secretaria digitasse na
+segunda.
+
+- A data é a do **fuso da academia**: um envio às 22h30 de sábado em Caruaru
+  já é domingo no relógio do servidor, e a data certa é a de sábado.
+- **As pré-matrículas que já estavam esperando** também ganham a data: ela sai
+  do momento do envio, que sempre ficou gravado. Acontece sozinho, na primeira
+  subida do sistema depois da entrega.
+
+### O dia do vencimento sai da regra da academia
+
+| Matrícula nos dias | Vence todo dia |
+|---|---|
+| 01 a 07 | 05 |
+| 08 a 12 | 10 |
+| 13 a 17 | 15 |
+| 18 a 22 | 20 |
+| 23 a 27 | 25 |
+| 28 a 31 | 28 |
+
+- **O dia 28 não estava na tabela que a academia mandou** (ela ia de "23 a 27"
+  para "29 a 31"). Ficou no grupo do 28, que é o que a própria tabela sugere —
+  e é uma linha só para trocar, se a direção decidir outra coisa.
+- O dia vem **preenchido** na matrícula online, no cadastro pelo painel e na
+  efetivação. No painel, trocar a data da matrícula muda o dia junto — **a não
+  ser que alguém tenha digitado outro dia**, que é combinado com o aluno e fica.
+- A cobrança também passou a seguir a regra para quem não tem dia no cadastro
+  (antes, era o próprio dia da matrícula). **Nenhum boleto mudou**: a cobrança
+  do Sicredi ainda não foi ligada, e nenhum carnê tinha sido emitido.
+
+### A ficha impressa mostra as autorizações marcadas no site
+
+Na ficha de quem se matriculou pelo site aparece o bloco **"Autorizações
+marcadas na matrícula online"**, com os quatro quadrinhos marcados, as palavras
+exatas e quem marcou e quando ("Marcadas pelo responsável legal em 27/09/2026
+14:32, no envio pelo site").
+
+- **As palavras são as do dia do envio**: ficam gravadas junto da matrícula,
+  para a ficha não imprimir um texto que a pessoa não viu, se um dia o
+  formulário mudar.
+- **Na matrícula feita no balcão o bloco não aparece**, de propósito: o primeiro
+  texto diz "realizei a matrícula online", e imprimi-lo numa ficha de balcão,
+  mesmo em branco, seria uma declaração falsa no papel que a pessoa assina.
+- **A letra da tabela ficou menor**, para caber tudo sem o ajuste automático
+  encolher também as condições da matrícula. Conferido imprimindo: **uma folha**
+  em retrato (sem precisar encolher nada) e em paisagem.
+- O topo da ficha ganhou o **dia do vencimento** ("todo dia 05").
+
+---
+
 ## 1.29.0 — 2026-09-25 · "Faça sua matrícula" e os dados do Pix na ficha
 
 ### A chamada virou "Faça sua matrícula — clique aqui"

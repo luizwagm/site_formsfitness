@@ -350,10 +350,14 @@ const CSS_FICHA = `
   /* Alturas em em, não em px: acompanham a letra quando o ajuste de uma
      folha a reduz — na horizontal, com px, as caixas não encolhiam e a
      ficha não cabia nem com a letra no mínimo. */
-  .c{border:1px solid #9aa;border-top:0;margin-left:-1px;padding:2px 5px 3px;min-height:2.6em}
+  /* (1.30.0) Letra da tabela MENOR, a pedido da academia: é o que abre espaço
+     para as autorizações caberem na mesma folha sem o ajuste automático
+     encolher também as condições da matrícula, que são o texto que a pessoa
+     assina e precisa continuar legível. */
+  .c{border:1px solid #9aa;border-top:0;margin-left:-1px;padding:1px 4px 2px;min-height:2.3em}
   .c:first-child{margin-left:0}
-  .c small{display:block;font-size:.7em;color:#445;text-transform:none;letter-spacing:.01em}
-  .c b{display:block;font-size:.95em;font-weight:600;min-height:1.2em;text-transform:uppercase;word-break:break-word}
+  .c small{display:block;font-size:.64em;color:#445;text-transform:none;letter-spacing:.01em}
+  .c b{display:block;font-size:.86em;font-weight:600;min-height:1.15em;text-transform:uppercase;word-break:break-word}
   .c.alto{min-height:4em}
   .foto{width:30mm;height:40mm;border:1px solid #9aa;display:flex;align-items:center;justify-content:center;
     overflow:hidden;background:#f3f6f9;color:#789;font-size:.75em;text-align:center}
@@ -367,12 +371,20 @@ const CSS_FICHA = `
   .condicoes ol{margin:0;padding-left:1.4em}
   .condicoes li{margin:0 0 2px}
   .condicoes p{margin:4px 0}
+  /* As autorizações do site (1.30.0): um quadrinho marcado por linha, como a
+     pessoa viu no formulário. O quadrinho é desenhado com borda, e não com um
+     caractere (☒), que muda de fonte para fonte e às vezes nem imprime. */
+  .f-aut{list-style:none;margin:3px 0 0;padding:0;font-size:.8em}
+  .f-aut li{display:flex;gap:6px;align-items:flex-start;margin:0 0 2px;line-height:1.25}
+  .f-aut .qd{flex:0 0 auto;width:1.05em;height:1.05em;border:1px solid #223;display:inline-flex;
+    align-items:center;justify-content:center;font-weight:800;font-size:.95em;line-height:1}
+  .f-aut-quando{margin:2px 0 0;font-size:.72em;color:#445}
   .ass-ficha{margin-top:26px;width:60%}
   .ass-ficha .traco{display:block;border-top:1px solid #111;margin-bottom:3px}
   .ass-ficha small{font-size:.8em}
   /* As atividades como na ficha do sistema antigo: atividade, os dias
      marcados e o horário. */
-  table.f-ativ{width:100%;border-collapse:collapse;margin-top:6px;font-size:.9em}
+  table.f-ativ{width:100%;border-collapse:collapse;margin-top:6px;font-size:.82em}
   table.f-ativ th{font-size:.78em;font-weight:700;color:#445;text-align:left;border:1px solid #9aa;padding:2px 5px;background:#f3f6f9}
   table.f-ativ td{border:1px solid #9aa;padding:3px 5px;text-transform:uppercase}
   table.f-ativ th.d,table.f-ativ td.d{text-align:center;width:9mm;padding:2px}
@@ -383,15 +395,19 @@ function fichaHTML({ aluno, matriculas = [], condicoes, agora, temFoto }) {
     `<div class="c ${span}${extra}"><small>${esc(rotulo)}</small><b>${esc(valor ?? "")}</b></div>`;
   const idade = U.idade(aluno.nascimento);
   const menor = U.ehMenor(aluno.nascimento);
+  /* O dia do cadastro; sem ele, o da regra — o mesmo que a cobrança usa. */
+  const diaVenc = Number(aluno.dia_vencimento) > 0 ? Number(aluno.dia_vencimento)
+    : U.diaVencimentoPelaRegra(aluno.data_matricula);
 
   const corpo = `${cabecalho("Ficha do Aluno", agora)}
   <div class="f-topo">
     <div class="f-grade">
       ${c("Código", U.codigoFormatado(aluno.codigo) || "pré-matrícula", "s2")}
       ${c("Nome", aluno.nome, "s10")}
-      ${c("Dt. matrícula", U.dataBR(aluno.data_matricula), "s4")}
-      ${c("Status", aluno.status === "pendente" ? "Pré-matrícula" : aluno.status, "s4")}
-      ${c("Mensalidade", aluno.mensalidade ? U.reais(aluno.mensalidade) : "", "s4")}
+      ${c("Dt. matrícula", U.dataBR(aluno.data_matricula), "s3")}
+      ${c("Status", aluno.status === "pendente" ? "Pré-matrícula" : aluno.status, "s3")}
+      ${c("Mensalidade", aluno.mensalidade ? U.reais(aluno.mensalidade) : "", "s3")}
+      ${c("Vencimento", diaVenc ? "todo dia " + String(diaVenc).padStart(2, "0") : "", "s3")}
       ${c("Dt. nasc.", U.dataBR(aluno.nascimento), "s3")}
       ${c("Idade", idade === null ? "" : String(idade), "s2")}
       ${c("Sexo", aluno.sexo, "s3")}
@@ -430,10 +446,31 @@ function fichaHTML({ aluno, matriculas = [], condicoes, agora, temFoto }) {
     ${c("End. trabalho", aluno.resp_end_trabalho, "s4")}
     ${c("Fone trabalho", aluno.resp_fone_trabalho, "s3")}
   </div>
+  ${autorizacoes(aluno)}
   <div class="condicoes">${condicoes || ""}</div>
   <div class="ass-ficha"><span class="traco"></span><small>Assinatura do(a) aluno(a) ou responsável legal</small></div>`;
 
   return pagina({ titulo: `Ficha — ${aluno.nome}`, corpo, css: CSS_FICHA, umaFolha: true, tipo: "ficha" });
+}
+
+/* AS AUTORIZAÇÕES MARCADAS NO SITE (1.30.0)
+
+   Só existem na matrícula ONLINE, que é onde há quadrinho para marcar. Na
+   feita no balcão o bloco não aparece — e de propósito: o primeiro texto diz
+   "realizei a matrícula online", e imprimi-lo numa ficha de balcão, mesmo em
+   branco, seria pôr uma declaração falsa no papel que a pessoa assina.
+
+   O texto impresso é o que ficou gravado no dia do envio. As matrículas de
+   antes desta versão não guardaram o texto — só "aceitou"; para elas vale o
+   texto atual, que é o mesmo desde a 1.20.0, quando os quadrinhos surgiram. */
+function autorizacoes(aluno) {
+  let c = null;
+  try { c = JSON.parse(aluno.consentimento || "null"); } catch { c = null; }
+  if (!c || !c.termos || !c.dados) return "";
+  const textos = Array.isArray(c.textos) && c.textos.length ? c.textos : U.termosDaMatricula(!!c.menor);
+  return `<p class="f-sec">Autorizações marcadas na matrícula online</p>
+  <ul class="f-aut">${textos.map((t) => `<li><span class="qd">X</span><span>${esc(t)}</span></li>`).join("")}</ul>
+  <p class="f-aut-quando">Marcadas ${c.por === "responsável legal" ? "pelo responsável legal" : "pelo próprio aluno"} em ${esc(U.dataHoraBR(c.em))}, no envio pelo site.</p>`;
 }
 
 /* Seg a Sáb, como na ficha antiga; domingo só aparece se alguém tiver aula
