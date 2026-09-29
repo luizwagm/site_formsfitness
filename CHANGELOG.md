@@ -5,6 +5,32 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.30.1 — 2026-09-29 · A foto do celular travava a matrícula
+
+Chegou em vídeo: uma pessoa preenchia a ficha inteira, marcava os quatro
+quadrinhos, apertava **Enviar matrícula** e recebia **"Falta preencher um campo
+obrigatório."** — com tudo preenchido. Ninguém conseguia se matricular com uma
+foto grande.
+
+- **A causa (introduzida na 1.27.0):** um teto de 4 MB conferido no navegador
+  **antes** de a foto ser reduzida. A foto do vídeo tinha 8,2 MB — tamanho comum
+  de foto de celular — e o campo ficava inválido. Só que a foto é **reduzida no
+  próprio aparelho** antes de subir (8 MB viram uns 200 KB): o tamanho original
+  dela nunca importou.
+- **Agora o teto de 4 MB vale só para o PDF**, que sobe como veio. Imagem pode ter
+  até 30 MB — um limite largo, só para barrar o que claramente não é foto.
+- **A mensagem diz o problema de verdade.** Campo preenchido mas recusado não é
+  "falta preencher": o aviso aparece ao lado do arquivo, em vermelho, e repete no
+  envio (ex.: *"O PDF tem 5.0 MB e o limite é 4 MB. Mande um print ou uma foto do
+  comprovante"*).
+- **Foto que o aparelho não consegue abrir** não aparece mais como "sem conexão
+  com a academia" — a pessoa ficava tentando de novo à toa.
+- Nova suíte `testar-matricula-navegador.js`: abre a matrícula num Chrome de
+  verdade, põe uma foto de mais de 8 MB, preenche e envia. Rodada contra o código
+  que estava no ar, ela reproduz o vídeo exatamente.
+
+---
+
 ## 1.30.0 — 2026-09-28 · Data e vencimento automáticos, e a ficha com as autorizações
 
 ### A matrícula online já chega com a data

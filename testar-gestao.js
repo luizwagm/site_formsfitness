@@ -1148,17 +1148,27 @@ const servidorSB = require("node:http").createServer((req, res) => {
       const idVelha = Number(velha.lastInsertRowid);
       /* Um SEGUNDO servidor sobre o mesmo banco: é na subida que a data das
          antigas é preenchida. Ele sobe, preenche e é desligado. */
+      /* ⚠ Espera o PRÓPRIO segundo servidor dizer que subiu — e não "alguém
+         responder na porta". A primeira versão só batia na porta: com outro
+         processo ocupando-a (uma cópia de ensaio esquecida), o segundo morria
+         com EADDRINUSE, a prova conversava com o vizinho e acusava a
+         migração, que estava certa. */
       const segundo = spawn(process.execPath, ["server.js"], {
         cwd: __dirname,
         env: { ...process.env, PORT: String(PORTA + 11), FF_DATA: path.join(TMP, "data"), FF_BACKUPS: path.join(TMP, "backups"),
           BACKUP_HORAS: "100000", FF_ENV: ENV },
-        stdio: "ignore",
+        stdio: ["ignore", "pipe", "pipe"],
       });
-      for (let i = 0; i < 40; i++) {
-        try { await new Promise((ok, falha) => require("node:http").get({ host: "127.0.0.1", port: PORTA + 11, path: "/" }, (r) => { r.resume(); ok(); }).on("error", falha)); break; }
-        catch { await new Promise((r) => setTimeout(r, 250)); }
-      }
+      let saidaSegundo = "";
+      const subiu = await new Promise((ok) => {
+        const fim = setTimeout(() => ok(false), 15000);
+        const olhar = (d) => { saidaSegundo += d; if (/Painel:/.test(saidaSegundo)) { clearTimeout(fim); ok(true); } };
+        segundo.stdout.on("data", olhar); segundo.stderr.on("data", olhar);
+        segundo.on("exit", () => { clearTimeout(fim); ok(false); });
+      });
       segundo.kill();
+      certo("o segundo servidor subiu de verdade (porta livre)", subiu,
+        /EADDRINUSE/.test(saidaSegundo) ? `a porta ${PORTA + 11} está ocupada por outro processo` : saidaSegundo.slice(-300));
       const depois = banco.prepare("SELECT data_matricula, dia_vencimento FROM g_alunos WHERE id=?").get(idVelha);
       certo("a pré-matrícula antiga ganha a data do envio ao subir o sistema", depois.data_matricula === "2026-09-26", depois.data_matricula);
       certo("…no fuso da academia: sábado 22h30 é sábado, e não o domingo do UTC", depois.data_matricula !== "2026-09-27");

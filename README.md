@@ -123,8 +123,9 @@ server.js         tudo: site, publicação, painel, blog, SEO, busca, acessos
 db.js             único lugar que abre o banco; escolhe o driver
 limitador.js      freio de tentativas de senha
 backup.js         cópia diária, dentro do processo
-testar.js         suíte principal — 272 conferências
-testar-gestao.js  suíte da gestão — 231 conferências, com banco temporário, CEP e Sicredi falsos
+testar.js         suíte principal — 316 conferências
+testar-gestao.js  suíte da gestão — 272 conferências, com banco temporário, CEP e Sicredi falsos
+testar-matricula-navegador.js  a matrícula num Chrome de verdade, com foto de celular de mais de 8 MB
 gestao/           a gestão: esquema, rotas, documentos (ficha/contrato), textos,
                   auditoria e sobre (o CHANGELOG convertido para a tela);
                   cep (busca de endereço), boleto (nosso número, código de barras),
@@ -163,9 +164,10 @@ apresentável.
 
 ```bash
 node server.js        # num terminal
-node testar.js        # no outro — 272 conferências
+node testar.js        # no outro — 316 conferências
 node testar-limitador.js
 node testar-gestao.js # sobe o próprio servidor, na 5311, com banco temporário
+node testar-matricula-navegador.js # sobe o próprio servidor (5331) e usa o Chrome, se houver
 ```
 
 Para rodar `testar.js` contra uma cópia do banco, suba o servidor com

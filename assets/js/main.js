@@ -556,19 +556,43 @@ function initMatricula() {
   /* Nome do arquivo escolhido, embaixo do campo. Num celular, o seletor de
      arquivos some sem dizer o que ficou selecionado, e a pessoa não sabe se o
      toque funcionou. */
-  const TETO_ARQUIVO = 4 * 1024 * 1024;
+  /* O TETO DEPENDE DO QUE SOBE (1.30.1).
+
+     Na 1.27.0 havia um teto de 4 MB para QUALQUER arquivo, conferido antes da
+     redução — e ele travou uma matrícula de verdade em 29/09/2026: a foto do
+     celular tinha 8,2 MB, o campo ficava inválido, e a pessoa via "Falta
+     preencher um campo obrigatório" com tudo preenchido (veio em vídeo).
+
+     A imagem é REDUZIDA aqui no aparelho antes de subir (8,2 MB viram uns
+     200 KB): o tamanho original dela não chega ao servidor e não importa. O
+     teto de 4 MB vale só para o PDF, que sobe como veio. Para imagem fica um
+     teto largo, de 30 MB, só para barrar o que claramente não é foto — acima
+     disso, abrir a imagem pode derrubar um celular mais simples. */
+  const TETO_PDF = 4 * 1024 * 1024, TETO_IMAGEM = 30 * 1024 * 1024;
   function ligarArquivo(campoId, saidaId) {
     const campo = $(campoId), saida = $(saidaId);
     if (!campo || !saida) return;
     campo.addEventListener("change", () => {
       const arq = campo.files[0];
       campo.setCustomValidity("");
+      saida.classList.remove("mat-arquivo--erro");
       if (!arq) { saida.hidden = true; return; }
-      saida.textContent = `${arq.name} · ${(arq.size / 1024 / 1024).toFixed(1)} MB`;
+      const mb = (arq.size / 1024 / 1024).toFixed(1);
+      const ehPdf = arq.type === "application/pdf";
+      const teto = ehPdf ? TETO_PDF : TETO_IMAGEM;
+      saida.textContent = `${arq.name} · ${mb} MB`;
       saida.hidden = false;
-      /* O teto é conferido aqui e de novo no servidor. Aqui é conforto: dizer
-         "grande demais" agora é melhor do que depois de um envio que demorou. */
-      if (arq.size > TETO_ARQUIVO) campo.setCustomValidity("Arquivo grande demais (máx. 4 MB).");
+      /* Conferido aqui e de novo no servidor. Aqui é conforto: dizer "grande
+         demais" agora é melhor do que depois de um envio que demorou. E o
+         aviso aparece AO LADO do arquivo, não só na hora de enviar. */
+      if (arq.size > teto) {
+        const msg = ehPdf
+          ? `O PDF tem ${mb} MB e o limite é 4 MB. Mande um print ou uma foto do comprovante — imagem pode ser de qualquer tamanho.`
+          : `Esta imagem tem ${mb} MB, grande demais para abrir no celular. Escolha outra.`;
+        campo.setCustomValidity(msg);
+        saida.textContent = msg;
+        saida.classList.add("mat-arquivo--erro");
+      }
     });
   }
   ligarArquivo("#m-foto", "#mat-foto-nome");
@@ -628,9 +652,14 @@ function initMatricula() {
       const faltando = [...form.querySelectorAll(":invalid")].filter((el) => !el.disabled && el.tagName !== "FIELDSET");
       const primeiro = faltando[0];
       const cpfRuim = faltando.find((el) => el.validationMessage === "CPF inválido");
+      /* (1.30.1) Campo PREENCHIDO mas recusado (arquivo grande demais, por
+         exemplo) não é campo que "falta preencher". Dizer isso a quem tem tudo
+         preenchido faz a pessoa procurar o erro onde ele não está. */
+      const recusado = faltando.find((el) => el.validity.customError && el.validationMessage !== "CPF inválido");
       mostrarErro(cpfRuim ? "O CPF não confere. Verifique os números."
+        : recusado ? recusado.validationMessage
         : faltando.length === 1 ? "Falta preencher um campo obrigatório."
-        : `Faltam ${faltando.length} campos obrigatórios.`, cpfRuim || primeiro);
+        : `Faltam ${faltando.length} campos obrigatórios.`, cpfRuim || recusado || primeiro);
       return;
     }
 
@@ -661,8 +690,13 @@ function initMatricula() {
       const arqComp = $("#m-comprovante").files[0];
       if (!arqFoto) { mostrarErro("Escolha a foto do aluno.", $("#m-foto")); return; }
       if (!arqComp) { mostrarErro("Escolha o comprovante de pagamento.", $("#m-comprovante")); return; }
-      d.foto = await reduzirFoto(arqFoto);
-      d.comprovante = arqComp.type === "application/pdf" ? await lerCru(arqComp) : await reduzirFoto(arqComp, 1600, 0.9);
+      /* (1.30.1) Se a imagem não abrir aqui (arquivo corrompido, formato que o
+         celular não lê), o erro é DELA — e não da rede. Antes caía no aviso
+         geral de "sem conexão", e a pessoa ficava tentando de novo à toa. */
+      try { d.foto = await reduzirFoto(arqFoto); }
+      catch { mostrarErro("Não consegui abrir a foto do aluno neste aparelho. Tente outra foto, ou tire uma na hora.", $("#m-foto")); return; }
+      try { d.comprovante = arqComp.type === "application/pdf" ? await lerCru(arqComp) : await reduzirFoto(arqComp, 1600, 0.9); }
+      catch { mostrarErro("Não consegui abrir o comprovante neste aparelho. Tente um print da tela do banco.", $("#m-comprovante")); return; }
       botao.textContent = "Enviando documentos…";
       const r = await fetch("/api/publico/matricula", {
         method: "POST",
