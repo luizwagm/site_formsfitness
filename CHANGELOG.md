@@ -5,6 +5,33 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.30.2 — 2026-09-30 · CPF "incorreto" na matrícula (e telefone colado errado)
+
+Chegaram reclamações: *"coloco o CPF e diz que está incorreto"*, *"copio o CPF de
+outro lugar, colo, e não vai"*. O servidor estava certo; o defeito era todo da
+tela da matrícula, e só aparecia com teclado e colar de verdade. Reproduzido num
+Chrome: **21 de 34 testes falhavam** no código que estava no ar.
+
+- **Colar cortava o número.** O campo tinha limite de 14 caracteres, e o
+  navegador corta o texto colado *antes* de o site vê-lo. CPF copiado com um
+  espaço na frente, com "CPF:" na frente, ou do WhatsApp (que põe caracteres
+  invisíveis em volta do texto) perdia o último dígito — e o CPF certo virava
+  "inválido". Agora o site tira o que não é número e acha o CPF no texto colado.
+- **Corrigir um dígito no meio jogava o cursor para o fim**, e o número digitado
+  entrava no lugar errado. O cursor agora fica onde a pessoa pôs.
+- **Apagar em cima do ponto ou do hífen não fazia nada** (a máscara recolocava).
+  Agora apaga o dígito do lado.
+- **Um CPF escondido travava o envio.** Quem digitava um CPF de adulto e depois
+  corrigia a data de nascimento para a de uma criança ficava preso em "O CPF não
+  confere" — apontando para um campo que tinha sumido da tela.
+- **O aviso aparece embaixo do campo**, ao sair dele, e diz o que houve: *"O CPF
+  tem 11 números — aqui há 10"* ou *"Este CPF não existe. Confira os números."*
+- **CEP e telefone colados** também eram cortados: " 55038-270" perdia o último
+  número, e **"+55 81 99999-0005" era gravado como "(55) 81999-9900"** — um
+  WhatsApp errado. Agora +55 e o 0 da operadora são tirados.
+- Nova suíte `testar-cpf-navegador.js` (34 provas): cola e digita no Chrome, com
+  os eventos do próprio navegador, e envia a matrícula até o fim.
+
 ## 1.30.1 — 2026-09-29 · A foto do celular travava a matrícula
 
 Chegou em vídeo: uma pessoa preenchia a ficha inteira, marcava os quatro

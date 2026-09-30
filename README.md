@@ -126,6 +126,7 @@ backup.js         cópia diária, dentro do processo
 testar.js         suíte principal — 316 conferências
 testar-gestao.js  suíte da gestão — 272 conferências, com banco temporário, CEP e Sicredi falsos
 testar-matricula-navegador.js  a matrícula num Chrome de verdade, com foto de celular de mais de 8 MB
+testar-cpf-navegador.js        CPF, CEP e telefone colados e corrigidos no Chrome (teclado e colar de verdade), até a matrícula entrar
 gestao/           a gestão: esquema, rotas, documentos (ficha/contrato), textos,
                   auditoria e sobre (o CHANGELOG convertido para a tela);
                   cep (busca de endereço), boleto (nosso número, código de barras),
@@ -168,6 +169,7 @@ node testar.js        # no outro — 316 conferências
 node testar-limitador.js
 node testar-gestao.js # sobe o próprio servidor, na 5311, com banco temporário
 node testar-matricula-navegador.js # sobe o próprio servidor (5331) e usa o Chrome, se houver
+node testar-cpf-navegador.js     # idem, porta 5333: CPF/CEP/telefone colados, cursor no meio, CPF escondido
 ```
 
 Para rodar `testar.js` contra uma cópia do banco, suba o servidor com

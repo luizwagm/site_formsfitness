@@ -403,6 +403,18 @@ function initMatricula() {
       if (el) el.required = menor;
     });
     $("#m-cpf").required = maior;
+    /* O bloco que sumiu leva o julgamento junto (1.30.2): um CPF escondido
+       não pode continuar reprovado e travar o envio. Limpeza direta, sem
+       passar pelo `julgarCpf` — esta função roda na carga da página, antes de
+       `cpfOk` existir. O CPF à vista é julgado ao sair do campo e no envio. */
+    ["#m-cpf", "#m-r-cpf"].forEach((s) => {
+      const el = $(s);
+      if (!el || !el.closest("[hidden]")) return;
+      el.setCustomValidity("");
+      el.setAttribute("aria-invalid", "false");
+      const a = el.parentElement.querySelector(".mat-campo-aviso");
+      if (a) a.hidden = true;
+    });
 
     textoDados.innerHTML = menor
       ? `Como responsável legal pelo aluno, autorizo a Forms Fitness a guardar os dados dele e os meus para a gestão da matrícula, conforme a ${linkPriv}.`
@@ -436,21 +448,89 @@ function initMatricula() {
     })
     .catch(() => semHorario("Não foi possível carregar os horários agora"));
 
-  /* Máscaras leves: ajudam a digitar sem impedir colar nem atrapalhar quem usa
-     leitor de tela. Só formatam o que já é número. */
+  /* ==========================================================================
+     MÁSCARAS — CPF, CEP e telefone (1.30.2)
+
+     "Coloco o CPF e diz que está incorreto", "copio o CPF de outro lugar e
+     não vai". Reproduzido num Chrome de verdade (testar-cpf-navegador.js),
+     eram TRÊS defeitos, todos aqui:
+
+     1. COLAR CORTAVA O NÚMERO. O campo tinha maxlength="14" — e o navegador
+        corta o texto colado ANTES de a máscara ver. " 529.982.247-25" (espaço
+        na frente), "CPF: 529…", ou o caractere invisível que o WhatsApp põe
+        em volta do texto copiado: o último dígito ficava de fora e o CPF,
+        certo, virava "inválido". O teto agora é folgado no HTML, e quem
+        limita é a máscara, que já sabe separar número de enfeite.
+
+     2. CORRIGIR UM DÍGITO NO MEIO jogava o cursor para o fim. Quem notava o
+        erro, voltava, apagava e digitava o número certo, via o número entrar
+        no FIM — e o CPF ficava mais errado a cada tentativa de consertar.
+        Agora o cursor fica depois do mesmo dígito em que estava.
+
+     3. APAGAR EM CIMA DO PONTO não fazia nada: a máscara recolocava o ponto
+        apagado, e a pessoa ficava presa. Apagar a pontuação agora apaga o
+        dígito do lado, como em qualquer campo de banco.
+
+     O mesmo vale para CEP e telefone — colar " 55038-270" perdia o último
+     número do CEP; "+55 81 99999-0005" virava outro telefone.
+     ========================================================================== */
   const soDig = (v) => String(v || "").replace(/\D/g, "");
-  const mascara = (el, fn) => el && el.addEventListener("input", () => { el.value = fn(el.value); });
-  mascara($("#m-cep"), (v) => soDig(v).slice(0, 8).replace(/^(\d{5})(\d)/, "$1-$2"));
-  const cpf = (v) => soDig(v).slice(0, 11)
-    .replace(/^(\d{3})(\d)/, "$1.$2").replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+  /* Recebe os DÍGITOS e devolve o texto formatado. */
+  const fmtCpf = (d) => d.replace(/^(\d{3})(\d)/, "$1.$2").replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
     .replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2");
-  mascara($("#m-cpf"), cpf);
-  mascara($("#m-r-cpf"), cpf);
-  const fone = (v) => {
-    const d = soDig(v).slice(0, 11);
-    return d.replace(/^(\d{2})(\d)/, "($1) $2").replace(d.length > 10 ? /(\d{5})(\d{1,4})$/ : /(\d{4})(\d{1,4})$/, "$1-$2");
+  const fmtCep = (d) => d.replace(/^(\d{5})(\d)/, "$1-$2");
+  const fmtFone = (d) => d.replace(/^(\d{2})(\d)/, "($1) $2")
+    .replace(d.length > 10 ? /(\d{5})(\d{1,4})$/ : /(\d{4})(\d{1,4})$/, "$1-$2");
+  /* Os dígitos que INTERESSAM num texto colado. Um CPF colado junto de outro
+     número ("1) CPF 529.982.247-25") é achado pelo desenho dele; sem esse
+     desenho, valem os primeiros 11. */
+  const digCpf = (v) => {
+    const d = soDig(v);
+    if (d.length <= 11) return d;
+    const m = String(v).match(/\d{3}\D{0,2}\d{3}\D{0,2}\d{3}\D{0,2}\d{2}(?!\d)/);
+    return (m ? soDig(m[0]) : d).slice(0, 11);
   };
-  ["#m-whats", "#m-fone2", "#m-r-fone", "#m-r-ftrab"].forEach((s) => mascara($(s), fone));
+  /* Telefone copiado da agenda vem com +55 e às vezes com o 0 da operadora. */
+  const digFone = (v) => {
+    let d = soDig(v);
+    if (d.length > 11 && d.startsWith("55")) d = d.slice(2);
+    if (d.length > 10 && d.startsWith("0")) d = d.slice(1);
+    return d.slice(0, 11);
+  };
+  const digCep = (v) => soDig(v).slice(0, 8);
+
+  function mascara(el, digitos, formatar) {
+    if (!el) return;
+    let anterior = el.value;
+    el.addEventListener("input", (ev) => {
+      const pos = el.selectionStart ?? el.value.length;
+      /* Quantos dígitos havia ANTES do cursor: é o endereço que sobrevive à
+         reformatação (os pontos mudam de lugar; o 5º dígito continua o 5º). */
+      let antes = soDig(el.value.slice(0, pos)).length;
+      let d = soDig(el.value);
+      /* Apagou só pontuação? Então apaga o dígito colado a ela. */
+      if (d === soDig(anterior) && el.value.length < anterior.length) {
+        if (ev.inputType === "deleteContentBackward" && antes > 0) { d = d.slice(0, antes - 1) + d.slice(antes); antes--; }
+        else if (ev.inputType === "deleteContentForward") d = d.slice(0, antes) + d.slice(antes + 1);
+      }
+      /* Texto colado passa pelo filtro inteiro; digitação só formata. */
+      const colado = ev.inputType === "insertFromPaste" || ev.inputType === "insertReplacementText" || el.value.length - anterior.length > 1;
+      d = colado ? digitos(el.value) : digitos(d);
+      if (colado) antes = d.length;
+      const novo = formatar(d);
+      el.value = novo;
+      anterior = novo;
+      if (document.activeElement === el) {
+        let p = 0, vistos = 0;
+        while (p < novo.length && vistos < Math.min(antes, d.length)) { if (/\d/.test(novo[p])) vistos++; p++; }
+        el.setSelectionRange(p, p);
+      }
+    });
+  }
+  mascara($("#m-cep"), digCep, fmtCep);
+  mascara($("#m-cpf"), digCpf, fmtCpf);
+  mascara($("#m-r-cpf"), digCpf, fmtCpf);
+  ["#m-whats", "#m-fone2", "#m-r-fone", "#m-r-ftrab"].forEach((s) => mascara($(s), digFone, fmtFone));
 
   /* Dígito verificador do CPF: pega o erro de digitação aqui, com o dedo
      ainda no campo, e não depois de a pessoa apertar enviar. */
@@ -465,10 +545,44 @@ function initMatricula() {
     };
     return dv(9) === Number(d[9]) && dv(10) === Number(d[10]);
   };
+  /* (1.30.2) O CPF só é julgado quando está À VISTA. Quem digita um CPF de
+     adulto e depois corrige a data para a de uma criança esconde o campo — e
+     ele continuava reprovado, escondido: o envio travava com "O CPF não
+     confere" apontando para um campo que a pessoa não via. Escondido, ele nem
+     viaja (ver `soDoOutro`); não tem por que barrar nada.
+
+     E o aviso aparece EMBAIXO DO CAMPO ao sair dele, dizendo quantos números
+     foram digitados — "CPF inválido" sozinho não diz se falta um número ou se
+     há um trocado. */
+  const visivel = (el) => !el.closest("[hidden]");
+  function julgarCpf(el) {
+    const d = soDig(el.value);
+    const msg = !el.value || !visivel(el) || cpfOk(el.value) ? ""
+      : d.length !== 11 ? `O CPF tem 11 números — aqui há ${d.length}.`
+      : "Este CPF não existe. Confira os números.";
+    el.setCustomValidity(msg ? "CPF inválido" : "");
+    el.setAttribute("aria-invalid", msg ? "true" : "false");
+    let aviso = el.parentElement.querySelector(".mat-campo-aviso");
+    if (msg && !aviso) {
+      aviso = document.createElement("small");
+      aviso.className = "mat-campo-aviso";
+      aviso.id = el.id + "-aviso";
+      aviso.setAttribute("role", "alert");
+      el.parentElement.appendChild(aviso);
+      el.setAttribute("aria-describedby", aviso.id);
+    }
+    if (aviso) { aviso.textContent = msg; aviso.hidden = !msg; }
+  }
   ["#m-cpf", "#m-r-cpf"].forEach((s) => {
     const el = $(s);
-    el.addEventListener("input", () => el.setCustomValidity(""));
-    el.addEventListener("blur", () => el.setCustomValidity(el.value && !cpfOk(el.value) ? "CPF inválido" : ""));
+    /* Enquanto digita, só LIMPA o aviso (acusar erro no 3º número é
+       implicância); completou os 11, confere na hora. */
+    el.addEventListener("input", () => {
+      if (soDig(el.value).length === 11) julgarCpf(el);
+      else { el.setCustomValidity(""); el.setAttribute("aria-invalid", "false");
+        const a = el.parentElement.querySelector(".mat-campo-aviso"); if (a) a.hidden = true; }
+    });
+    el.addEventListener("blur", () => julgarCpf(el));
   });
 
   /* ------------------------------------------------------- CEP → endereço
@@ -640,10 +754,7 @@ function initMatricula() {
     e.preventDefault();
     if (enviando) return;
     erro.hidden = true;
-    ["#m-cpf", "#m-r-cpf"].forEach((s) => {
-      const el = $(s);
-      el.setCustomValidity(el.value && !cpfOk(el.value) ? "CPF inválido" : "");
-    });
+    ["#m-cpf", "#m-r-cpf"].forEach((s) => julgarCpf($(s)));
 
     /* `reportValidity` só aponta o primeiro campo. A mensagem própria diz
        QUANTOS faltam e leva até o primeiro — numa ficha longa, sair rolando

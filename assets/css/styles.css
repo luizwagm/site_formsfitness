@@ -724,6 +724,11 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
 /* (1.30.1) Arquivo recusado: o aviso fica AO LADO dele, em vermelho, e não
    só na hora de enviar — é o campo que precisa de outra escolha. */
 .mat-arquivo--erro { background: #fdecee; color: #a4162b; font-weight: 600; word-break: normal; }
+/* (1.30.2) O aviso do CPF mora embaixo do próprio campo, e o campo ganha a
+   borda da mesma cor: quem rola a ficha de volta acha onde está o problema. */
+.mat-campo-aviso { display: block; margin-top: .35rem; color: #a4162b; font-size: .84rem; font-weight: 600; line-height: 1.35; }
+.mat-campo-aviso[hidden] { display: none; }
+.field input[aria-invalid="true"] { border-color: #a4162b; box-shadow: 0 0 0 3px rgba(164, 22, 43, .12); }
 
 /* Dados do Pix (1.29.0). Um cartão próprio, e não mais uma nota cinza: é a
    informação que a pessoa vai COPIAR para outro aplicativo, e precisa ser
