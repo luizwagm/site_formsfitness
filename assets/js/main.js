@@ -398,11 +398,17 @@ function initMatricula() {
 
     blocoResp.hidden = !menor;
     blocoDocs.hidden = !maior;
-    ["m-r-nome", "m-r-rg", "m-r-cpf", "m-r-fone"].forEach((id) => {
+    /* (1.31.0) A ficha completa: o responsável inteiro para criança; RG,
+       órgão emissor, estado civil e profissão para adulto. O CPF do aluno é
+       obrigatório para todos e já vem marcado no HTML. */
+    ["m-r-nome", "m-r-rg", "m-r-emissor", "m-r-cpf", "m-r-fone", "m-r-civil", "m-r-profissao", "m-r-nac"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.required = menor;
     });
-    $("#m-cpf").required = maior;
+    ["m-rg", "m-rg-emissor", "m-civil", "m-profissao"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.required = maior;
+    });
     /* O bloco que sumiu leva o julgamento junto (1.30.2): um CPF escondido
        não pode continuar reprovado e travar o envio. Limpeza direta, sem
        passar pelo `julgarCpf` — esta função roda na carga da página, antes de
@@ -423,6 +429,16 @@ function initMatricula() {
   nasc.addEventListener("change", ajustarPorIdade);
   nasc.addEventListener("blur", ajustarPorIdade);
   ajustarPorIdade();
+
+  /* (1.31.0) O PAI é obrigatório, com saída: "Não consta no registro" escreve
+     isso no campo e o trava. `readOnly`, e não `disabled` — campo desabilitado
+     não viaja no envio, e o servidor receberia o pai em branco. */
+  const pai = $("#m-pai"), paiNc = $("#m-pai-nc");
+  if (pai && paiNc) paiNc.addEventListener("change", () => {
+    pai.readOnly = paiNc.checked;
+    pai.value = paiNc.checked ? "Não consta" : "";
+    if (!paiNc.checked) pai.focus();
+  });
 
   /* Os horários vêm da gestão, na hora — só os CADASTRADOS: texto livre
      ("terça às 10h, se tiver") não vira turma, e a secretaria tinha de
@@ -782,7 +798,7 @@ function initMatricula() {
     const menor = (idadeEm(d.nascimento) ?? 99) < 18;
     /* O que não vale para a idade não viaja: CPF de adulto escondido num
        cadastro de criança (ou o contrário) iria para o banco sem ninguém ver. */
-    const soDoOutro = menor ? ["cpf", "rg", "rg_emissor", "estado_civil"]
+    const soDoOutro = menor ? ["rg", "rg_emissor", "estado_civil", "profissao"]
       : ["resp_nome", "resp_cpf", "resp_rg", "resp_rg_emissor", "resp_nascimento", "resp_fone",
          "resp_estado_civil", "resp_profissao", "resp_nacionalidade", "resp_end_trabalho", "resp_fone_trabalho"];
     soDoOutro.forEach((k) => delete d[k]);

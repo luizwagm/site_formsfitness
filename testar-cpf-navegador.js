@@ -230,6 +230,9 @@ function certo(nome, cond, detalhe = "") {
       const $ = (s) => document.querySelector(s);
       const v = (s, x) => { const e = $(s); e.value = x; e.dispatchEvent(new Event("input", { bubbles: true }));
         e.dispatchEvent(new Event("change", { bubbles: true })); e.dispatchEvent(new Event("blur")); };
+      v("#m-email", "zz.qa@exemplo.test"); v("#m-pai", "Zz Qa Pai");
+      v("#m-rg", "1234567"); v("#m-rg-emissor", "SDS/PE"); v("#m-civil", "Solteiro(a)"); v("#m-profissao", "Professora");
+      v("#m-r-emissor", "SDS/PE"); v("#m-r-civil", "Casado(a)"); v("#m-r-profissao", "Comerciante");
       ${preparo}
       const t = $("#m-turma"); t.selectedIndex = 1; t.dispatchEvent(new Event("change", { bubbles: true }));
       v("#m-sexo", "Masculino"); v("#m-mae", "Zz Qa Mae");
@@ -255,12 +258,28 @@ function certo(nome, cond, detalhe = "") {
     let r = await enviar("");
     certo("CPF colado com espaço na frente: a matrícula ENTRA", r.recebida, r.erro || "");
 
-    /* Adulto com CPF errado, e a data corrigida para a de uma criança. */
+    /* O CAMPO ESCONDIDO não pode barrar. Desde a 1.31.0 o CPF do aluno vale
+       para todos e nunca se esconde; quem some é o bloco do RESPONSÁVEL. O
+       cenário: começou como criança, digitou o CPF do responsável errado, e a
+       data era a de um adulto — o bloco some com o CPF errado dentro. */
     await abrir();
-    r = await enviar(`v("#m-nome", "Zz Qa Virou Crianca"); v("#m-nasc", "1990-05-10"); v("#m-cpf", "529.982.247-99");
-      v("#m-nasc", "2015-05-10");
+    r = await enviar(`v("#m-nome", "Zz Qa Virou Adulto"); v("#m-nasc", "2015-05-10");
+      v("#m-r-nome", "Zz Qa Responsavel"); v("#m-r-rg", "1234567"); v("#m-r-cpf", "111.444.777-99"); v("#m-r-fone", "(81) 99999-0006");
+      v("#m-nasc", "1990-05-10"); v("#m-cpf", "529.982.247-25");`);
+    certo("CPF errado do responsável, depois a data virou de adulto: a matrícula ENTRA", r.recebida, r.erro || "");
+
+    /* E o CPF da CRIANÇA agora é pedido — errado e à vista, barra. */
+    await abrir();
+    r = await enviar(`v("#m-nome", "Zz Qa Crianca Cpf Errado"); v("#m-nasc", "2015-05-10"); v("#m-cpf", "529.982.247-99");
       v("#m-r-nome", "Zz Qa Responsavel"); v("#m-r-rg", "1234567"); v("#m-r-cpf", "111.444.777-35"); v("#m-r-fone", "(81) 99999-0006");`);
-    certo("CPF errado de adulto, depois a data virou de criança: a matrícula ENTRA", r.recebida, r.erro || "");
+    certo("criança com CPF errado é barrada (o CPF da criança é obrigatório desde a 1.31.0)",
+      !r.recebida && /CPF não confere/.test(r.erro || ""), JSON.stringify(r));
+
+    /* "Não consta" no pai: a matrícula entra, e o campo leva essas palavras. */
+    await abrir();
+    r = await enviar(`v("#m-nome", "Zz Qa Sem Pai"); v("#m-nasc", "1990-05-10"); v("#m-cpf", "529.982.247-25");
+      v("#m-pai", ""); const nc = $("#m-pai-nc"); nc.checked = true; nc.dispatchEvent(new Event("change", { bubbles: true }));`);
+    certo("pai \"Não consta no registro\": a matrícula ENTRA", r.recebida, r.erro || "");
 
     /* E um CPF errado À VISTA continua barrado — consertar não pode virar
        deixar passar qualquer coisa. */

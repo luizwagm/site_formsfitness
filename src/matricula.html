@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Nunito+Sans:wght@300;400;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/styles.css?v=1.30.2">
+  <link rel="stylesheet" href="/assets/css/styles.css?v=1.31.0">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
     {"@type":"ListItem","position":1,"name":"Início","item":"https://formsfitness.com/"},
@@ -121,27 +121,37 @@
               </div>
             </div>
 
-            <!-- Documento e estado civil só valem para maior de idade, e é a
-                 data de nascimento que decide. O bloco aparece sozinho: pedir
-                 CPF de uma criança seria erro, e explicar em texto ninguém lê. -->
+            <!-- (1.31.0) O CPF é de TODOS, criança inclusive — pedido da
+                 academia. Criança nascida depois de 2015 já sai do cartório
+                 com CPF. -->
+            <div class="field-row">
+              <div class="field">
+                <label for="m-cpf">CPF do aluno <span class="req">*</span></label>
+                <input id="m-cpf" name="cpf" type="text" inputmode="numeric" required maxlength="40" autocomplete="off" placeholder="000.000.000-00">
+              </div>
+              <div class="field">
+                <label for="m-nac">Nacionalidade <span class="req">*</span></label>
+                <input id="m-nac" name="nacionalidade" type="text" required maxlength="40" value="Brasileira">
+              </div>
+            </div>
+
+            <!-- RG, estado civil e profissão são do ADULTO, e é a data de
+                 nascimento que decide: o bloco aparece sozinho. De criança não
+                 se pede — escondido, não é obrigatório nem viaja. -->
             <div id="mat-docs" hidden>
               <div class="field-row">
                 <div class="field">
-                  <label for="m-cpf">CPF <span class="req">*</span></label>
-                  <input id="m-cpf" name="cpf" type="text" inputmode="numeric" maxlength="40" autocomplete="off" placeholder="000.000.000-00">
+                  <label for="m-rg">RG <span class="req">*</span></label>
+                  <input id="m-rg" name="rg" type="text" inputmode="numeric" maxlength="20">
                 </div>
                 <div class="field">
-                  <label for="m-rg">RG</label>
-                  <input id="m-rg" name="rg" type="text" inputmode="numeric" maxlength="20">
+                  <label for="m-rg-emissor">Órgão emissor do RG <span class="req">*</span></label>
+                  <input id="m-rg-emissor" name="rg_emissor" type="text" maxlength="20" placeholder="SDS/PE">
                 </div>
               </div>
               <div class="field-row">
                 <div class="field">
-                  <label for="m-rg-emissor">Órgão emissor do RG</label>
-                  <input id="m-rg-emissor" name="rg_emissor" type="text" maxlength="20" placeholder="SDS/PE">
-                </div>
-                <div class="field">
-                  <label for="m-civil">Estado civil</label>
+                  <label for="m-civil">Estado civil <span class="req">*</span></label>
                   <select id="m-civil" name="estado_civil">
                   <option value="">Selecione…</option>
                   <option>Solteiro(a)</option>
@@ -152,17 +162,10 @@
                   <option>Viúvo(a)</option>
                   </select>
                 </div>
-              </div>
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label for="m-profissao">Profissão</label>
-                <input id="m-profissao" name="profissao" type="text" maxlength="80">
-              </div>
-              <div class="field">
-                <label for="m-nac">Nacionalidade</label>
-                <input id="m-nac" name="nacionalidade" type="text" maxlength="40" value="Brasileira">
+                <div class="field">
+                  <label for="m-profissao">Profissão <span class="req">*</span></label>
+                  <input id="m-profissao" name="profissao" type="text" maxlength="80" placeholder="Ex.: Professora, Aposentado">
+                </div>
               </div>
             </div>
 
@@ -172,8 +175,11 @@
                 <input id="m-mae" name="mae" type="text" required maxlength="120">
               </div>
               <div class="field">
-                <label for="m-pai">Nome do pai</label>
-                <input id="m-pai" name="pai" type="text" maxlength="120">
+                <label for="m-pai">Nome do pai <span class="req">*</span></label>
+                <input id="m-pai" name="pai" type="text" required maxlength="120">
+                <!-- Obrigatório, mas com saída: muita família não tem o pai no
+                     registro, e sem esta opção a pessoa inventaria um nome. -->
+                <label class="mat-nao-consta"><input type="checkbox" id="m-pai-nc"> Não consta no registro</label>
               </div>
             </div>
           </fieldset>
@@ -254,7 +260,7 @@
 
             <div class="field-row">
               <div class="field">
-                <label for="m-r-emissor">Órgão emissor do RG</label>
+                <label for="m-r-emissor">Órgão emissor do RG <span class="req">*</span></label>
                 <input id="m-r-emissor" name="resp_rg_emissor" type="text" maxlength="20" placeholder="SDS/PE">
               </div>
               <div class="field">
@@ -269,7 +275,7 @@
                 <input id="m-r-fone" name="resp_fone" type="tel" maxlength="30" placeholder="(00) 00000-0000">
               </div>
               <div class="field">
-                <label for="m-r-civil">Estado civil do responsável</label>
+                <label for="m-r-civil">Estado civil do responsável <span class="req">*</span></label>
                 <select id="m-r-civil" name="resp_estado_civil">
                   <option value="">Selecione…</option>
                   <option>Solteiro(a)</option>
@@ -284,11 +290,11 @@
 
             <div class="field-row">
               <div class="field">
-                <label for="m-r-profissao">Profissão do responsável</label>
+                <label for="m-r-profissao">Profissão do responsável <span class="req">*</span></label>
                 <input id="m-r-profissao" name="resp_profissao" type="text" maxlength="80">
               </div>
               <div class="field">
-                <label for="m-r-nac">Nacionalidade do responsável</label>
+                <label for="m-r-nac">Nacionalidade do responsável <span class="req">*</span></label>
                 <input id="m-r-nac" name="resp_nacionalidade" type="text" maxlength="40" value="Brasileira">
               </div>
             </div>
@@ -322,8 +328,8 @@
 
             <div class="field-row">
               <div class="field">
-                <label for="m-email">E-mail</label>
-                <input id="m-email" name="email" type="email" maxlength="120" autocomplete="email">
+                <label for="m-email">E-mail <span class="req">*</span></label>
+                <input id="m-email" name="email" type="email" required maxlength="120" autocomplete="email">
               </div>
               <div class="field">
                 <label for="m-insta">Instagram</label>
@@ -451,6 +457,6 @@
     </div>
   </footer>
 
-  <script type="module" src="/assets/js/main.js?v=1.30.2"></script>
+  <script type="module" src="/assets/js/main.js?v=1.31.0"></script>
 </body>
 </html>

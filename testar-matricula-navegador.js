@@ -158,6 +158,9 @@ async function noNavegador(CHROME, pdfGrande) {
       await new Promise((ok) => setTimeout(ok, 800));
       const t = $("#m-turma"); t.selectedIndex = 1; t.dispatchEvent(new Event("change", { bubbles: true }));
       v("#m-nome", "Zz Qa Foto Grande"); v("#m-nasc", "1990-05-10"); v("#m-sexo", "Masculino"); v("#m-mae", "Zz Qa Mae");
+      v("#m-email", "zz.qa@exemplo.test"); v("#m-pai", "Zz Qa Pai");
+      v("#m-rg", "1234567"); v("#m-rg-emissor", "SDS/PE"); v("#m-civil", "Solteiro(a)"); v("#m-profissao", "Professora");
+      v("#m-r-emissor", "SDS/PE"); v("#m-r-civil", "Casado(a)"); v("#m-r-profissao", "Comerciante");
       v("#m-cpf", "529.982.247-25"); v("#m-whats", "(81) 99999-0005");
       v("#m-cep", "55038-270"); v("#m-rua", "Avenida Caruaru"); v("#m-num", "579"); v("#m-bairro", "Boa Vista"); v("#m-cidade", "Caruaru"); v("#m-uf", "PE");
       document.querySelectorAll(".mat-check input").forEach((x) => { x.checked = true; });

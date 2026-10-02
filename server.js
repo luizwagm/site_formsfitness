@@ -44,7 +44,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.30.2";
+const APP_VERSION = "1.31.0";
 /* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
    deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
    num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento
@@ -386,7 +386,7 @@ const SESSAO_HORAS = 12;
 const sessions = new Map();
 /* Devolve o USUÁRIO da sessão (ou null). Quem só precisa de sim/não continua
    usando como antes — objeto é verdadeiro, null é falso. */
-const authed = (req) => {
+const authed = (req, { renovar = true } = {}) => {
   const m = /(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie || "");
   if (!m) return null;
   const s = sessions.get(m[1]);
@@ -396,7 +396,10 @@ const authed = (req) => {
      Usuários tira o acesso na hora, e não quando a sessão dele vencer. */
   const u = db.prepare("SELECT id, nome, login, admin, ativo FROM usuarios WHERE id=?").get(s.uid);
   if (!u || !u.ativo) { sessions.delete(m[1]); return null; }
-  s.visto = Date.now();
+  /* (1.31.0) `renovar:false` é a conferência do AVISO EM TEMPO REAL: ele
+     confere a sessão a cada aviso e a cada batida, mas não pode renová-la —
+     senão um painel esquecido aberto manteria a sessão viva para sempre. */
+  if (renovar) s.visto = Date.now();
   return u;
 };
 const derrubarSessoes = (uid, exceto) => {
@@ -1230,6 +1233,7 @@ require("./gestao/esquema").instalar({ db, getS, setS, hashSenha });
 const gestao = require("./gestao/rotas").criar({
   db, getS, setS, hashSenha, confereSenha, htmlLimpo, readBody, json, ipDoCliente,
   CSP_IMPRESSAO, derrubarSessoes,
+  aindaAutenticado: (req) => authed(req, { renovar: false }),
   versao: APP_VERSION, driver: DRIVER_NOME, iniciadoEm: new Date().toISOString(), site: SITE,
 });
 const auditoria = gestao.auditoria;

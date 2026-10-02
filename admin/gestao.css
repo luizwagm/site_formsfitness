@@ -323,6 +323,37 @@ table.g-aud{min-width:820px}
   padding:.4rem .85rem;font-size:.9rem;color:var(--text);cursor:pointer;background:#fff}
 .g-dias input{width:auto}
 .g-dias label:has(input:checked){background:#dcecfb;border-color:#9cc4ec;color:#0B4EA2}
+/* ----------------------------------------- aviso de matrícula nova (1.31.0)
+   No canto, por cima de tudo, e FICA até alguém fechar: a recepção pode estar
+   atendendo no balcão quando a matrícula chega, e um aviso que some em três
+   segundos é um aviso que ninguém viu. A borda lima é a cor de "chegou". */
+/* No canto de BAIXO: no alto ele cobria os filtros da lista — justamente o
+   "Pré-matrículas" que a recepção vai clicar. O toast do painel fica no meio
+   de baixo, então os dois não se encontram. A mais nova fica embaixo, junto do canto. */
+.g-avisos{position:fixed;bottom:1.2rem;right:1.2rem;z-index:80;display:flex;flex-direction:column-reverse;gap:.55rem;
+  width:min(360px,calc(100vw - 2rem));pointer-events:none}
+.g-aviso{pointer-events:auto;display:grid;grid-template-columns:auto 1fr auto;gap:.15rem .7rem;align-items:start;
+  background:#fff;border:1px solid var(--line);border-left:5px solid var(--lime-d);border-radius:12px;
+  box-shadow:0 16px 40px rgba(11,78,162,.22);padding:.75rem .8rem;animation:g-aviso-entra .35s ease-out}
+/* `display:grid` anula o atributo hidden — sem esta linha o 5º aviso em diante
+   continuaria à vista. */
+.g-aviso[hidden]{display:none}
+.g-aviso__sino{font-size:1.35rem;line-height:1.2}
+.g-aviso__txt b{display:block;color:var(--blue);font-size:.9rem}
+.g-aviso__txt span{display:block;font-weight:700;color:var(--text);margin-top:.1rem;overflow-wrap:anywhere}
+.g-aviso__txt small{color:var(--muted);font-size:.78rem}
+.g-aviso__x{border:0;background:none;color:var(--muted);font-size:1.25rem;line-height:1;cursor:pointer;padding:0 .15rem}
+.g-aviso__acoes{grid-column:2 / 4;display:flex;gap:.5rem;margin-top:.45rem}
+.g-aviso--mais{display:block;text-align:center;font-weight:700;color:var(--blue);font-size:.84rem;padding:.5rem}
+@keyframes g-aviso-entra{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+/* A linha que acabou de chegar, na lista: fundo lima suave que esmaece. */
+.g-alunos tr.g-nova td{animation:g-nova 4s ease-out;background:#f3fbe9}
+@keyframes g-nova{from{background:#d9f5b8}to{background:#f3fbe9}}
+.selo--nova{background:var(--lime-d);color:#fff}
+.g-chegou{display:block;color:var(--muted);font-size:.78rem;font-weight:600}
+.g-avisos-perm{font-size:.82rem}
+@media (prefers-reduced-motion:reduce){.g-aviso,.g-alunos tr.g-nova td{animation:none}}
+
 .rodape-previa{margin:.7rem 0;padding:.6rem .8rem;border-top:1px solid #111;background:#fbfdff;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:.85rem;color:#111}
 
 @media (max-width:980px){
@@ -346,4 +377,5 @@ table.g-aud{min-width:820px}
   .gb-trilho{margin-right:110px}
   .sobre-dados{grid-template-columns:1fr}
   .appbar .ab-titulo{display:none}
+  .g-avisos{top:auto;bottom:1rem;right:.75rem;left:.75rem;width:auto}
 }

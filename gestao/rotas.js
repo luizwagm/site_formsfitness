@@ -62,6 +62,41 @@ class Recusa extends Error {
 function criar(ctx) {
   const { db, getS, setS, hashSenha, confereSenha, htmlLimpo, readBody, json, ipDoCliente, CSP_IMPRESSAO } = ctx;
   const auditoria = criarAuditoria(db);
+
+  /* ==========================================================================
+     O AVISO EM TEMPO REAL (1.31.0)
+
+     Pedido da academia: o painel tem de saber, NA HORA, que chegou uma
+     matrícula pelo site — e a lista tem de se atualizar sozinha. Antes, a
+     pré-matrícula ficava esperando alguém lembrar de recarregar a página.
+
+     Server-Sent Events (GET /api/gestao/eventos): uma conexão aberta do
+     painel, por onde o servidor empurra o aviso. É HTTP comum, atravessa o
+     nginx, e o próprio navegador reconecta se a rede cair.
+
+     A SESSÃO É CONFERIDA A CADA AVISO E A CADA BATIDA, e não só ao abrir. Uma
+     conexão aberta não fecha sozinha quando a pessoa sai do sistema ou é
+     desativada: sem esta conferência, quem foi desligado às 9h continuaria
+     recebendo os nomes das matrículas até fechar o navegador. A batida a cada
+     25 s também mantém a conexão viva diante do nginx (que fecha uma conexão
+     calada em 60 s).
+     ========================================================================== */
+  const OUVINTES = new Set();          // { req, res, uid, batida }
+  const OUVINTES_MAX = 60, OUVINTES_POR_USUARIO = 6;
+  function encerrarOuvinte(o) {
+    if (!OUVINTES.delete(o)) return;
+    clearInterval(o.batida);
+    try { o.res.end(); } catch { /* já fechada */ }
+  }
+  function escrever(o, texto) {
+    if (!ctx.aindaAutenticado || !ctx.aindaAutenticado(o.req)) { encerrarOuvinte(o); return; }
+    try { o.res.write(texto); } catch { encerrarOuvinte(o); }
+  }
+  function avisar(evento, dados) {
+    const texto = `event: ${evento}\ndata: ${JSON.stringify(dados)}\n\n`;
+    for (const o of [...OUVINTES]) escrever(o, texto);
+  }
+
   /* A consulta de CEP é criada uma vez: ela guarda as respostas por um dia. */
   const buscarCep = criarBuscaCep();
 
@@ -348,21 +383,42 @@ function criar(ctx) {
       else a.mensalidade = c;
     }
 
+    /* (1.31.0) A FICHA COMPLETA — pedido da academia em 01/10/2026: "dados
+       básicos, endereço e CPF obrigatórios", no site E no cadastro novo do
+       painel.
+
+       · CPF de TODOS, criança inclusive (antes, só do adulto). Criança nascida
+         depois de 2015 já sai do cartório com CPF.
+       · O pai é obrigatório, mas "Não consta" é resposta: muita família não
+         tem o pai no registro, e obrigar sem essa saída faria inventar nome.
+       · RG, órgão emissor, estado civil e profissão são do ADULTO — de criança
+         não se pede (o bloco nem aparece). Do responsável, sim.
+       · E-mail obrigatório.
+
+       Vale para CADASTRO NOVO. A edição de uma ficha antiga (o histórico tem
+       milhares de alunos sem pai, profissão ou e-mail) continua livre: senão
+       trocar o telefone de um aluno de 2009 exigiria inventar o resto. */
     if (rigoroso) {
       const menor = U.ehMenor(a.nascimento);
       const faltam = [];
       for (const [c, rot] of [["nome", "nome"], ["nascimento", "data de nascimento"], ["sexo", "sexo"],
-        ["mae", "nome da mãe"], ["fone1", "WhatsApp"], ["logradouro", "rua"], ["numero", "número"],
-        ["bairro", "bairro"], ["cidade", "cidade"], ["uf", "estado"], ["cep", "CEP"]])
+        ["cpf", "CPF"], ["nacionalidade", "nacionalidade"], ["mae", "nome da mãe"], ["pai", "nome do pai (ou \"Não consta\")"],
+        ["fone1", "WhatsApp"], ["email", "e-mail"],
+        ["cep", "CEP"], ["logradouro", "rua"], ["numero", "número"], ["bairro", "bairro"], ["cidade", "cidade"], ["uf", "estado"]])
         if (!a[c]) faltam.push(rot);
+      if (a.cpf && !U.cpfValido(a.cpf)) erros.push(menor ? "O CPF do aluno não confere. Verifique os números." : "O CPF não confere. Verifique os números.");
       if (menor) {
         for (const [c, rot] of [["resp_nome", "nome do responsável"], ["resp_cpf", "CPF do responsável"],
-          ["resp_rg", "RG do responsável"], ["resp_fone", "telefone do responsável"]])
+          ["resp_rg", "RG do responsável"], ["resp_rg_emissor", "órgão emissor do RG do responsável"],
+          ["resp_fone", "telefone do responsável"], ["resp_estado_civil", "estado civil do responsável"],
+          ["resp_profissao", "profissão do responsável"], ["resp_nacionalidade", "nacionalidade do responsável"]])
           if (!a[c]) faltam.push(rot);
         if (a.resp_cpf && !U.cpfValido(a.resp_cpf)) erros.push("O CPF do responsável não confere. Verifique os números.");
+        if (a.resp_cpf && a.cpf && a.resp_cpf === a.cpf) erros.push("O CPF do aluno e o do responsável são o mesmo — confira qual é de quem.");
       } else if (a.nascimento) {
-        if (!a.cpf) faltam.push("CPF");
-        else if (!U.cpfValido(a.cpf)) erros.push("O CPF não confere. Verifique os números.");
+        for (const [c, rot] of [["rg", "RG"], ["rg_emissor", "órgão emissor do RG"],
+          ["estado_civil", "estado civil"], ["profissao", "profissão"]])
+          if (!a[c]) faltam.push(rot);
       }
       if (faltam.length) erros.unshift(`Faltou preencher: ${faltam.join(", ")}.`);
       if (a.cep && !/^\d{5}-?\d{3}$/.test(a.cep)) erros.push("CEP inválido.");
@@ -593,6 +649,13 @@ function criar(ctx) {
           alvo: `pré-matrícula nº ${Number(novo.lastInsertRowid)}`, metodo: "POST", rota: p, status: 200 });
         console.log(`  · pré-matrícula recebida pelo site: ${a.nome}`);
         json(res, 200, { ok: true });
+        /* (1.31.0) Avisa os painéis abertos. DEPOIS da resposta: quem está se
+           matriculando não espera pelos avisos. Vai o nome — é o que a
+           secretaria precisa ler no aviso — e só para quem está logado. */
+        avisar("matricula", {
+          id: Number(novo.lastInsertRowid), nome: a.nome, menor: U.ehMenor(a.nascimento), quando: a.criado_em,
+          pendentes: um("SELECT COUNT(*) AS n FROM g_alunos WHERE status='pendente'").n,
+        });
       } catch (e) {
         json(res, e.status || 500, { error: e.status ? e.message : "Não foi possível enviar agora.", erros: e.extra?.erros });
         if (!e.status) console.error("  ✖ matrícula pública:", e.message);
@@ -616,6 +679,33 @@ function criar(ctx) {
     if (req.method !== "GET") res.auditoria = { alvo: alvoDaRota(rota) };
 
     try {
+      /* ------------------------------------------- aviso em tempo real (1.31.0)
+         Ver OUVINTES, lá em cima. Com teto: cada conexão aberta é memória do
+         servidor, e uma conta (ou alguém com a senha de uma) abrindo mil abas
+         não pode esgotá-la. Passou do teto, a mais VELHA daquela pessoa fecha —
+         é a aba esquecida, não a que ela acabou de abrir. */
+      if (rota === "/eventos" && req.method === "GET") {
+        const minhas = [...OUVINTES].filter((o) => o.uid === usuario.id);
+        if (minhas.length >= OUVINTES_POR_USUARIO) encerrarOuvinte(minhas[0]);
+        if (OUVINTES.size >= OUVINTES_MAX) return json(res, 503, { error: "Avisos em tempo real indisponíveis agora." }), true;
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",       // o nginx não segura o aviso num buffer
+        });
+        const o = { req, res, uid: usuario.id, batida: null };
+        OUVINTES.add(o);
+        /* `retry`: se a rede cair, o navegador tenta de novo em 5 s. "pronto"
+           traz a contagem de agora — numa RECONEXÃO, é por ela que o painel
+           descobre o que chegou enquanto esteve fora. */
+        res.write(`retry: 5000\nevent: pronto\ndata: ${JSON.stringify({
+          pendentes: um("SELECT COUNT(*) AS n FROM g_alunos WHERE status='pendente'").n })}\n\n`);
+        o.batida = setInterval(() => escrever(o, ": batida\n\n"), 25_000);
+        req.on("close", () => encerrarOuvinte(o));
+        return true;
+      }
+
       /* ------------------------------------------------------------ resumo */
       if (rota === "/resumo") return json(res, 200, {
         pendentes: um("SELECT COUNT(*) AS n FROM g_alunos WHERE status='pendente'").n,
@@ -674,7 +764,12 @@ function criar(ctx) {
             al.resp_nome, al.resp_fone, al.criado_em, al.horario_desejado,
             (SELECT COUNT(*) FROM g_contratos c WHERE c.aluno_id=al.id) AS contratos
           FROM g_alunos al ${where}
-          ORDER BY CASE al.status WHEN 'pendente' THEN 0 ELSE 1 END, al.nome COLLATE NOCASE, al.id
+          ORDER BY CASE al.status WHEN 'pendente' THEN 0 ELSE 1 END,
+            /* (1.31.0) As pré-matrículas da MAIS NOVA para a mais velha: a que
+               acabou de chegar pelo site aparece no alto, e não no meio do
+               alfabeto. O resto segue em ordem de nome. */
+            CASE al.status WHEN 'pendente' THEN al.criado_em END DESC,
+            al.nome COLLATE NOCASE, al.id
           ${paginado ? "LIMIT ? OFFSET ?" : ""}`, ...args, ...(paginado ? [por, (pagina - 1) * por] : []));
         const atividadesDe = atividadesPorAluno();
         return json(res, 200, { total, ...(paginado ? { pagina, por } : {}), alunos: linhas.map((l) => ({
@@ -686,7 +781,9 @@ function criar(ctx) {
 
       if (rota === "/alunos" && req.method === "POST") {
         const b = await corpo();
-        const a = normalizarAluno(b);
+        /* (1.31.0) Cadastro NOVO pelo painel exige a ficha completa, como o
+           site. A edição (PUT, abaixo) continua livre para as fichas antigas. */
+        const a = normalizarAluno(b, { rigoroso: true });
         if (!a.nome) throw new Recusa(400, "Informe o nome completo.");
         const mats = matriculasDoCorpo(b, 0);
         if (mats) delete a.mensalidade;

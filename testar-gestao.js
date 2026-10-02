@@ -28,10 +28,14 @@ const certo = (nome, cond, detalhe = "") => {
   else { falhas.push(nome); console.log(`  FALHA ${nome}${detalhe ? "\n         " + detalhe : ""}`); }
 };
 
-async function pedir(metodo, caminho, { corpo, cookie, bruto = false } = {}) {
+async function pedir(metodo, caminho, { corpo, cookie, bruto = false, ip } = {}) {
   const r = await fetch(BASE + caminho, {
     method: metodo, redirect: "manual",
-    headers: { ...(corpo ? { "Content-Type": "application/json" } : {}), ...(cookie ? { Cookie: cookie } : {}) },
+    /* `ip`: o servidor de ensaio está em 127.0.0.1, que conta como proxy, e
+       aceita X-Real-IP — cada prova nova do formulário usa um endereço seu,
+       para não esbarrar no freio de 5 envios por hora das provas anteriores. */
+    headers: { ...(corpo ? { "Content-Type": "application/json" } : {}), ...(cookie ? { Cookie: cookie } : {}),
+      ...(ip ? { "X-Real-IP": ip } : {}) },
     body: corpo ? JSON.stringify(corpo) : undefined,
   });
   const texto = await r.text();
@@ -61,11 +65,22 @@ const PDF = (enchimento = 64) =>
 /* Um HTML com nome de imagem: é o ataque que a conferência por bytes pega. */
 const FALSO = "data:image/jpeg;base64," + b64(Buffer.from("<html><script>alert(1)</script>"));
 
+/* (1.31.0) A FICHA COMPLETA. Cadastro NOVO — pelo site ou pelo "+ Novo aluno"
+   do painel — exige dados básicos, endereço, CPF (criança inclusive), pai (ou
+   "Não consta") e e-mail; RG, emissor, estado civil e profissão do adulto; o
+   responsável inteiro para criança. Os ensaios partem destas fichas. */
+const FICHA_BASE = {
+  sexo: "Masculino", nacionalidade: "Brasileira", mae: "Zz Qa Mãe", pai: "Não consta",
+  fone1: "(81) 99999-0000", email: "zz.qa@exemplo.test",
+  cep: "55038-270", logradouro: "Avenida Caruaru", numero: "579", bairro: "Maria Auxiliadora", cidade: "Caruaru", uf: "PE",
+};
+const FICHA_ADULTO = { ...FICHA_BASE, nascimento: "1980-01-01", cpf: "390.533.447-05",
+  rg: "1234567", rg_emissor: "SDS/PE", estado_civil: "Solteiro(a)", profissao: "Professora" };
+const FICHA_RESP = { resp_nome: "Zz Qa Responsável", resp_cpf: "529.982.247-25", resp_rg: "9172964", resp_rg_emissor: "SDS/PE",
+  resp_fone: "(81) 99999-0001", resp_estado_civil: "Casado(a)", resp_profissao: "Comerciante", resp_nacionalidade: "Brasileira" };
 const PUB_MENOR = (extra = {}) => ({
-  nome: "Zz Qa Criança Teste", nascimento: "2019-05-03", sexo: "Masculino", mae: "Zz Qa Mãe",
-  fone1: "(81) 99999-0000", logradouro: "Avenida Caruaru", numero: "579", bairro: "Maria Auxiliadora",
-  cidade: "Caruaru", uf: "PE", cep: "55038-270",
-  resp_nome: "Zz Qa Responsável", resp_cpf: "529.982.247-25", resp_rg: "9172964", resp_fone: "(81) 99999-0001",
+  ...FICHA_BASE, ...FICHA_RESP,
+  nome: "Zz Qa Criança Teste", nascimento: "2019-05-03", cpf: "714.602.380-01",
   aceite_termos: true, aceite_dados: true,
   foto: JPEG(), comprovante: PDF(), ...extra,
 });
@@ -321,11 +336,11 @@ const servidorSB = require("node:http").createServer((req, res) => {
     certo("efetivar dá o código 4149", ef.status === 200 && ef.j.codigo === 4149 && ef.j.codigo_fmt === "004149");
     const ef2 = await pedir("POST", `/api/gestao/alunos/${pId}/efetivar`, { cookie: A, corpo: {} });
     certo("efetivar duas vezes é recusado", ef2.status === 409);
-    const antigo = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Aluno Antigo", codigo: "003879", nascimento: "1990-02-10", turma_id: t1.j.id, mensalidade: "110,00" } });
+    const antigo = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Aluno Antigo", codigo: "003879", nascimento: "1990-02-10", turma_id: t1.j.id, mensalidade: "110,00" } });
     certo("aluno antigo entra com o código dele (3879)", antigo.status === 200 && antigo.j.codigo === 3879);
-    const novo = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Adulto Novo", nascimento: "1985-09-11", cpf: "529.982.247-25", turma_id: t1.j.id, mensalidade: "110,00" } });
+    const novo = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Adulto Novo", nascimento: "1985-09-11", cpf: "529.982.247-25", turma_id: t1.j.id, mensalidade: "110,00" } });
     certo("o código antigo NÃO puxa a sequência para trás: o próximo é 4150", novo.j.codigo === 4150, String(novo.j.codigo));
-    const dup = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Duplicado", codigo: "4150" } });
+    const dup = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Duplicado", codigo: "4150" } });
     certo("código repetido é recusado, dizendo de quem é", dup.status === 409 && /Adulto Novo/.test(dup.j.error));
     const apagarAtivo = await pedir("DELETE", `/api/gestao/alunos/${novo.j.id}`, { cookie: A });
     certo("aluno matriculado não se apaga — inativa", apagarAtivo.status === 409);
@@ -429,7 +444,7 @@ const servidorSB = require("node:http").createServer((req, res) => {
     const hidro = await pedir("POST", "/api/gestao/atividades", { cookie: A, corpo: { nome: "Hidroginástica", mensalidade: "R$ 90,00" } });
     const tHidro = await pedir("POST", "/api/gestao/turmas", { cookie: A, corpo: { atividade_id: hidro.j.id, horario: "07:00", vagas: 1, professor_id: pHidro.j.id } });
     const tNat6 = await pedir("POST", "/api/gestao/turmas", { cookie: A, corpo: { atividade_id: natacao.id, horario: "06:00" } });
-    const multi = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Duas Atividades", nascimento: "1980-01-15",
+    const multi = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Duas Atividades", nascimento: "1980-01-15",
       cpf: "529.982.247-25", matriculas: [
         { turma_id: tNat6.j.id, dias: [2, 5], mensalidade: "R$ 110,00" },
         { turma_id: tHidro.j.id, dias: [], mensalidade: "" },
@@ -499,7 +514,7 @@ const servidorSB = require("node:http").createServer((req, res) => {
 
     /* Vaga excedida: permitido, com aviso. A turma das 07h tem 1 vaga e o
        aluno acima já a ocupa. */
-    const excede = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Excedente", nascimento: "1979-04-02",
+    const excede = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Excedente", nascimento: "1979-04-02",
       matriculas: [{ turma_id: tHidro.j.id }] } });
     certo("aluno além do limite de vagas É cadastrado", excede.status === 200 && excede.j.id);
     certo("…e o sistema avisa que a turma passou do limite", (excede.j.avisos || []).some((a) => /passou do limite: 2 alunos para 1 vaga\./.test(a)), JSON.stringify(excede.j.avisos));
@@ -910,7 +925,7 @@ const servidorSB = require("node:http").createServer((req, res) => {
       const Database = require("better-sqlite3");
       const banco = new Database(path.join(TMP, "data", "site.db"));
       const novoAluno = async (extra) => {
-        const r = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: {
+        const r = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO,
           nome: "Zz Qa Boleto", nascimento: "1990-04-02", cpf: "529.982.247-25", mensalidade: "110,00", status: "ativo",
           logradouro: "Avenida Caruaru", numero: "579", bairro: "Maria Auxiliadora", cidade: "Caruaru", uf: "PE", cep: "55038-270",
           dia_vencimento: "28", ...extra } });
@@ -931,11 +946,12 @@ const servidorSB = require("node:http").createServer((req, res) => {
         JSON.stringify(tela.previa.map((x) => [x.competencia, x.vencimento, x.valor])) === JSON.stringify(esperadas.map((x) => [x.competencia, x.vencimento, 11000])));
       certo("pagador adulto é o próprio aluno", tela.pagador.nome === "Zz Qa Boleto" && !tela.pagador.bloqueios.length);
 
-      const menor = await novoAluno({ nome: "Zz Qa Criança Boleto", nascimento: "2018-01-01", cpf: "",
+      const menor = await novoAluno({ ...FICHA_RESP, nome: "Zz Qa Criança Boleto", nascimento: "2018-01-01", cpf: "168.995.350-09",
         resp_nome: "Zz Qa Mãe Pagadora", resp_cpf: "111.444.777-35" });
       const telaMenor = (await pedir("GET", `/api/gestao/alunos/${menor}/boletos`, { cookie: A })).j;
       certo("aluno menor: o boleto sai no nome e CPF do responsável", telaMenor.pagador.nome === "Zz Qa Mãe Pagadora" && telaMenor.pagador.menor);
-      const semCpf = await novoAluno({ cpf: "123.456.789-00" });
+      const semCpf = await novoAluno();
+      await pedir("PUT", `/api/gestao/alunos/${semCpf}`, { cookie: A, corpo: { cpf: "123.456.789-00" } });
       const recusaCpf = await pedir("POST", `/api/gestao/alunos/${semCpf}/boletos`, { cookie: A, corpo: {} });
       certo("CPF que não confere bloqueia a geração antes de ir ao banco", recusaCpf.status === 400 && /CPF/.test(recusaCpf.j.error || "") && SB.registros.length === 0);
 
@@ -1098,10 +1114,10 @@ const servidorSB = require("node:http").createServer((req, res) => {
       certo("…e, para criança, o 4º texto é o do responsável legal", /responsável legal/.test((consent.textos || [])[3] || ""));
 
       /* CADASTRO PELO PAINEL: sem dia, a regra; com dia, o combinado. */
-      const semDia = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Regra Painel", nascimento: "1990-01-01", data_matricula: "2026-10-09" } });
+      const semDia = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Regra Painel", nascimento: "1990-01-01", data_matricula: "2026-10-09" } });
       const semDiaA = (await pedir("GET", `/api/gestao/alunos/${semDia.j.id}`, { cookie: A })).j.aluno;
       certo("cadastro pelo painel sem dia: 9 de outubro vence no dia 10", semDiaA.dia_vencimento === 10, String(semDiaA.dia_vencimento));
-      const comDia = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { nome: "Zz Qa Dia Combinado", nascimento: "1990-01-01", data_matricula: "2026-10-09", dia_vencimento: "3" } });
+      const comDia = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Dia Combinado", nascimento: "1990-01-01", data_matricula: "2026-10-09", dia_vencimento: "3" } });
       const comDiaA = (await pedir("GET", `/api/gestao/alunos/${comDia.j.id}`, { cookie: A })).j.aluno;
       certo("…e um dia digitado (combinado com o aluno) é respeitado", comDiaA.dia_vencimento === 3, String(comDiaA.dia_vencimento));
 
@@ -1211,6 +1227,114 @@ const servidorSB = require("node:http").createServer((req, res) => {
     const apagouPre = (await pedir("GET", "/api/gestao/auditoria?q=Apagou", { cookie: A })).j.itens.find((l) => l.acao === "Apagou pré-matrícula");
     certo("apagar uma pré-matrícula não deixa o nome dela na auditoria",
       apagouPre && apagouPre.alvo === `pré-matrícula nº ${pendentes[0].id}` && !/Zz Qa/.test(apagouPre.alvo), JSON.stringify(apagouPre));
+    /* ======================================================================
+       A FICHA COMPLETA E O AVISO EM TEMPO REAL (1.31.0)
+       ====================================================================== */
+    console.log("\n— a ficha completa (1.31.0)");
+    {
+      let n = 0;
+      const ipNovo = () => `10.31.0.${++n}`;
+      for (const [campo, rot] of [["cpf", "CPF"], ["pai", "pai"], ["email", "e-mail"],
+        ["resp_rg_emissor", "emissor do RG do responsável"], ["resp_profissao", "profissão do responsável"],
+        ["resp_estado_civil", "estado civil do responsável"], ["nacionalidade", "nacionalidade"]]) {
+        const r = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(), corpo: PUB_MENOR({ turma_id: t1.j.id, [campo]: "" }) });
+        certo(`site: criança sem ${rot} é recusada`, r.status === 400 && r.j.error.includes(rot), `${r.status} ${r.j.error}`);
+      }
+      const adultoSemProf = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(), corpo: {
+        ...FICHA_ADULTO, nome: "Zz Qa Adulto Sem Profissao", turma_id: t1.j.id, profissao: "",
+        aceite_termos: true, aceite_dados: true, foto: JPEG(), comprovante: PDF() } });
+      certo("site: adulto sem profissão é recusado", adultoSemProf.status === 400 && /profissão/.test(adultoSemProf.j.error || ""), adultoSemProf.j.error);
+      const mesmoCpf = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(),
+        corpo: PUB_MENOR({ turma_id: t1.j.id, cpf: "529.982.247-25" }) });
+      certo("site: CPF da criança igual ao do responsável é recusado", mesmoCpf.status === 400 && /mesmo/.test(mesmoCpf.j.error || ""), mesmoCpf.j.error);
+      const cpfCriancaRuim = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(), corpo: PUB_MENOR({ turma_id: t1.j.id, cpf: "714.602.380-02" }) });
+      certo("site: CPF da criança que não confere é recusado", cpfCriancaRuim.status === 400 && /CPF do aluno/.test(cpfCriancaRuim.j.error || ""), cpfCriancaRuim.j.error);
+
+      const semCpfPainel = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Painel Sem Cpf", cpf: "" } });
+      certo("painel: aluno NOVO sem CPF é recusado", semCpfPainel.status === 400 && /CPF/.test(semCpfPainel.j.error || ""), semCpfPainel.j.error);
+      const semEmailPainel = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Painel Sem Email", email: "" } });
+      certo("painel: aluno NOVO sem e-mail é recusado", semEmailPainel.status === 400 && /e-mail/.test(semEmailPainel.j.error || ""), semEmailPainel.j.error);
+      const completo = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Ficha Completa" } });
+      certo("painel: aluno novo com a ficha completa entra", completo.status === 200, `${completo.status} ${completo.j.error || ""}`);
+      /* A FICHA ANTIGA continua editável sem a ficha completa: o histórico tem
+         milhares de alunos sem pai, profissão ou e-mail. */
+      const edicao = await pedir("PUT", `/api/gestao/alunos/${completo.j.id}`, { cookie: A, corpo: { email: "", pai: "", profissao: "" } });
+      certo("painel: EDITAR uma ficha continua livre (ficha antiga incompleta)", edicao.status === 200, `${edicao.status} ${edicao.j.error || ""}`);
+    }
+
+    console.log("\n— o aviso em tempo real (1.31.0)");
+    {
+      /* Abre o fluxo de eventos e vai juntando o que chega. */
+      const ouvir = async (cookie) => {
+        const ctrl = new AbortController();
+        const r = await fetch(BASE + "/api/gestao/eventos", { headers: cookie ? { Cookie: cookie } : {}, signal: ctrl.signal });
+        const o = { status: r.status, tipo: r.headers.get("content-type") || "", buffer: r.headers.get("x-accel-buffering"),
+          eventos: [], fechado: false, parar: () => { try { ctrl.abort(); } catch {} } };
+        if (r.ok) (async () => {
+          let buf = "";
+          try {
+            const rd = r.body.getReader(), dec = new TextDecoder();
+            for (;;) {
+              const { value, done } = await rd.read(); if (done) break;
+              buf += dec.decode(value, { stream: true });
+              let i;
+              while ((i = buf.indexOf("\n\n")) >= 0) {
+                const bloco = buf.slice(0, i); buf = buf.slice(i + 2);
+                const ev = /^event: (.+)$/m.exec(bloco), dado = /^data: (.+)$/m.exec(bloco);
+                if (ev) o.eventos.push({ tipo: ev[1], dados: dado ? JSON.parse(dado[1]) : null });
+              }
+            }
+          } catch { /* abortado */ }
+          o.fechado = true;
+        })();
+        else await r.text();
+        return o;
+      };
+      const ate = async (cond, ms = 3000) => { const fim = Date.now() + ms;
+        while (Date.now() < fim) { if (cond()) return true; await new Promise((r) => setTimeout(r, 40)); } return !!cond(); };
+      const deTipo = (o, t) => o.eventos.filter((x) => x.tipo === t);
+
+      const anon = await ouvir(null);
+      certo("sem login, o fluxo de avisos é recusado (401)", anon.status === 401, String(anon.status));
+
+      const um1 = await ouvir(A);
+      const B = (await entrar(null, "forms-admin")).cookie;      // outra sessão, para sair no meio
+      const dois = await ouvir(B);
+      certo("com login, o fluxo abre como text/event-stream", um1.status === 200 && /text\/event-stream/.test(um1.tipo), `${um1.status} ${um1.tipo}`);
+      certo("…sem buffer no nginx (X-Accel-Buffering: no)", um1.buffer === "no");
+      await ate(() => deTipo(um1, "pronto").length && deTipo(dois, "pronto").length);
+      const pendAntes = (deTipo(um1, "pronto")[0] || {}).dados?.pendentes;
+      certo("ao abrir, chega \"pronto\" com a contagem de pré-matrículas", Number.isInteger(pendAntes), JSON.stringify(um1.eventos));
+
+      const ok1 = await pedir("POST", "/api/publico/matricula", { ip: "10.31.1.1", corpo: PUB_MENOR({ turma_id: t1.j.id, nome: "Zz Qa Aviso Primeiro" }) });
+      certo("uma matrícula pelo site entra", ok1.status === 200, `${ok1.status} ${ok1.j.error || ""}`);
+      await ate(() => deTipo(um1, "matricula").length && deTipo(dois, "matricula").length);
+      const av = (deTipo(um1, "matricula")[0] || {}).dados || {};
+      certo("o painel aberto recebe o aviso NA HORA, com o nome", av.nome === "Zz Qa Aviso Primeiro" && av.id > 0, JSON.stringify(um1.eventos));
+      certo("…e com a contagem nova de pré-matrículas", av.pendentes === pendAntes + 1, `${pendAntes} → ${av.pendentes}`);
+      certo("os DOIS painéis abertos recebem", deTipo(dois, "matricula").length === 1);
+
+      const recusada = await pedir("POST", "/api/publico/matricula", { ip: "10.31.1.2", corpo: PUB_MENOR({ turma_id: t1.j.id, email: "" }) });
+      await new Promise((r) => setTimeout(r, 300));
+      certo("matrícula RECUSADA não gera aviso", recusada.status === 400 && deTipo(um1, "matricula").length === 1);
+
+      /* Sair do sistema não fecha a conexão que já estava aberta — a sessão é
+         conferida a cada aviso, e quem saiu deixa de receber. */
+      await pedir("POST", "/api/logout", { cookie: B });
+      const ok2 = await pedir("POST", "/api/publico/matricula", { ip: "10.31.1.3", corpo: PUB_MENOR({ turma_id: t1.j.id, nome: "Zz Qa Aviso Segundo" }) });
+      await ate(() => deTipo(um1, "matricula").length === 2 && dois.fechado);
+      certo("quem continua logado recebe o segundo aviso", ok2.status === 200 && deTipo(um1, "matricula").length === 2);
+      certo("quem SAIU do sistema não recebe — e a conexão dele é fechada", deTipo(dois, "matricula").length === 1 && dois.fechado,
+        `avisos ${deTipo(dois, "matricula").length}, fechado ${dois.fechado}`);
+
+      /* A lista mostra as ÚLTIMAS primeiro. */
+      const lista = (await pedir("GET", "/api/gestao/alunos?status=pendente&pagina=1&por=5", { cookie: A })).j.alunos || [];
+      certo("as pré-matrículas vêm da mais nova para a mais velha",
+        lista[0]?.nome === "Zz Qa Aviso Segundo" && lista[1]?.nome === "Zz Qa Aviso Primeiro", lista.map((x) => x.nome).join(" · "));
+      const ficha = (await pedir("GET", `/api/gestao/alunos/${av.id}`, { cookie: A })).j.aluno || {};
+      certo("o \"Não consta\" do pai é gravado como resposta", ficha.pai === "Não consta" && ficha.cpf === "714.602.380-01", `${ficha.pai} · ${ficha.cpf}`);
+      um1.parar(); dois.parar();
+    }
   } catch (e) {
     falhas.push("a suíte quebrou: " + e.message);
     console.log("  QUEBROU:", e.stack);

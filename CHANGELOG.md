@@ -5,6 +5,41 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.31.0 — 2026-10-01 · Aviso de matrícula nova na hora, e a ficha completa
+
+**O painel avisa sozinho quando chega matrícula pelo site.** Antes a
+pré-matrícula ficava esperando alguém lembrar de recarregar a página.
+
+- **Um aviso aparece no canto da tela** — *"Nova matrícula pelo site — Fulano"* —
+  com o botão **Revisar agora**. Ele **fica** até alguém fechar: a recepção pode
+  estar atendendo no balcão na hora em que a matrícula chega.
+- **A lista e o contador de Pré-matrículas se atualizam sozinhos.** As
+  pré-matrículas agora aparecem **da mais nova para a mais velha** (antes, em
+  ordem alfabética — a que acabou de chegar podia cair no meio), com o selo
+  **nova** e a hora em que chegou ("chegou hoje às 14:32").
+- **Com o painel em outra aba**, o título da aba mostra quantas chegaram, toca um
+  aviso curto e — se a pessoa permitir, no botão **🔔 Avisar no computador** da
+  tela de Alunos — o computador mostra a notificação.
+- Se a internet cair ou o sistema for atualizado, o painel se reconecta sozinho e
+  confere o que chegou no intervalo.
+- Segurança: só quem está logado recebe os avisos, e a sessão é conferida a cada
+  aviso — quem sai do sistema (ou é desativado) para de receber na hora.
+
+**A ficha de matrícula ficou completa** — pedido da academia: dados básicos,
+endereço e CPF obrigatórios, no site e no **+ Novo aluno** do painel.
+
+- **CPF de todos, criança inclusive.** O CPF da criança não pode ser o mesmo do
+  responsável.
+- Obrigatórios para todos: nome, nascimento, sexo, CPF, nacionalidade, mãe, **pai**,
+  WhatsApp, **e-mail** e o endereço inteiro (menos o complemento).
+- Do aluno **adulto**: RG, órgão emissor, estado civil e profissão. Do
+  **responsável** pela criança: nome, CPF, RG, órgão emissor, telefone, estado
+  civil, profissão e nacionalidade.
+- **O pai tem a saída "Não consta no registro"** — muitas famílias não têm o pai
+  na certidão, e sem essa opção a pessoa inventaria um nome.
+- **A edição de alunos antigos continua livre.** O histórico tem milhares de
+  fichas sem esses dados; exigir tudo na edição impediria até trocar um telefone.
+
 ## 1.30.2 — 2026-09-30 · CPF "incorreto" na matrícula (e telefone colado errado)
 
 Chegaram reclamações: *"coloco o CPF e diz que está incorreto"*, *"copio o CPF de

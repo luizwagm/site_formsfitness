@@ -50,9 +50,150 @@
     "g-config": telaConfig, "g-usuarios": telaUsuarios, "g-auditoria": telaAuditoria, "g-sobre": telaSobre,
   };
   document.addEventListener("painel", (ev) => {
+    ouvirAvisos();                       // o primeiro "painel" é o login feito
     const f = TELAS[ev.detail];
     if (f) f().catch((err) => toast(err.message, true));
   });
+
+  /* ==========================================================================
+     O AVISO EM TEMPO REAL (1.31.0) — o outro lado de OUVINTES (gestao/rotas.js)
+
+     Chegou matrícula pelo site: o contador e a lista se atualizam sozinhos, a
+     linha nova aparece no ALTO e destacada, e um aviso fica no canto até
+     alguém fechar. Com a aba em segundo plano, o título ganha "(1)" e — se a
+     pessoa deixou — o computador mostra a notificação.
+     ========================================================================== */
+  const NOVAS = new Set();               // chegaram enquanto o painel estava aberto
+  let fonte = null, naoVistas = 0;
+  const tituloBase = document.title;
+
+  function ouvirAvisos() {
+    if (fonte || !("EventSource" in window)) return;
+    fonte = new EventSource("/api/gestao/eventos");
+    let primeira = true;
+    /* "pronto" chega a cada conexão. Na primeira não há o que fazer; numa
+       RECONEXÃO (rede caiu, servidor reiniciou na entrega) pode ter chegado
+       matrícula no intervalo — sem aviso. Atualizar é o que a recupera. */
+    fonte.addEventListener("pronto", () => { if (!primeira) atualizarAposAviso(); primeira = false; });
+    fonte.addEventListener("matricula", (ev) => {
+      let d; try { d = JSON.parse(ev.data); } catch { return; }
+      novaMatricula(d);
+    });
+    /* Fechada de vez = o servidor recusou (sessão vencida). Não insiste em
+       laço: tenta de novo em um minuto, e se a pessoa entrou de novo, volta. */
+    fonte.addEventListener("error", () => {
+      if (fonte && fonte.readyState === EventSource.CLOSED) { fonte = null; setTimeout(ouvirAvisos, 60_000); }
+    });
+  }
+
+  async function atualizarAposAviso() {
+    await resumo().catch(() => {});
+    const P = $("#p-g-alunos");
+    if (P && P.dataset.pronto && P.classList.contains("on")) await listarAlunos().catch(() => {});
+  }
+
+  function novaMatricula(d) {
+    NOVAS.add(Number(d.id));
+    atualizarAposAviso();
+    mostrarAviso(d);
+    tocarAviso();
+    if (document.hidden) {
+      naoVistas++;
+      document.title = `(${naoVistas}) ${tituloBase}`;
+      notificarComputador(d);
+    }
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) { naoVistas = 0; document.title = tituloBase; }
+  });
+
+  const horaCurta = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); };
+  /* "hoje às 14:32" / "ontem às 9:05" / "28/09 às 16:40" — quando chegou, sem conta de cabeça. */
+  const quandoChegou = (iso) => {
+    const d = new Date(iso); if (isNaN(d)) return "";
+    const dia = (x) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
+    const ontem = new Date(); ontem.setDate(ontem.getDate() - 1);
+    const qual = dia(d) === dia(new Date()) ? "hoje" : dia(d) === dia(ontem) ? "ontem"
+      : `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return `${qual} às ${horaCurta(iso)}`;
+  };
+
+  /* Até 4 avisos à vista; os demais viram "+N" — uma rajada de matrículas
+     (campanha no Instagram) não pode cobrir a tela inteira. */
+  function mostrarAviso(d) {
+    let caixa = $("#g-avisos");
+    if (!caixa) {
+      caixa = document.createElement("div");
+      caixa.id = "g-avisos"; caixa.className = "g-avisos";
+      caixa.setAttribute("aria-live", "polite");
+      document.body.appendChild(caixa);
+      caixa.addEventListener("click", (ev) => {
+        const card = ev.target.closest(".g-aviso");
+        if (ev.target.closest("[data-aviso-fechar]")) { card.remove(); arrumarAvisos(); }
+        const rev = ev.target.closest("[data-aviso-revisar]");
+        if (rev) { card.remove(); arrumarAvisos(); revisar(Number(rev.dataset.avisoRevisar)); }
+        if (ev.target.closest(".g-aviso--mais")) { caixa.innerHTML = ""; $('.navbtn[data-p="g-alunos"]')?.click(); }
+      });
+    }
+    const card = document.createElement("div");
+    card.className = "g-aviso"; card.setAttribute("role", "status");
+    card.innerHTML = `<span class="g-aviso__sino" aria-hidden="true">🔔</span>
+      <div class="g-aviso__txt"><b>Nova matrícula pelo site</b><span>${e(d.nome)}${d.menor ? " <small>(menor de idade)</small>" : ""}</span>
+        <small>chegou às ${horaCurta(d.quando) || "agora"}</small></div>
+      <button type="button" class="g-aviso__x" data-aviso-fechar aria-label="Fechar o aviso">×</button>
+      <div class="g-aviso__acoes"><button type="button" class="btn btn-mint btn-sm" data-aviso-revisar="${Number(d.id)}">Revisar agora</button></div>`;
+    caixa.prepend(card);
+    arrumarAvisos();
+  }
+  function arrumarAvisos() {
+    const caixa = $("#g-avisos"); if (!caixa) return;
+    caixa.querySelector(".g-aviso--mais")?.remove();
+    const cards = $$(".g-aviso:not(.g-aviso--mais)", caixa);
+    cards.forEach((c, i) => { c.hidden = i >= 4; });
+    if (cards.length > 4) {
+      const mais = document.createElement("button");
+      mais.type = "button"; mais.className = "g-aviso g-aviso--mais";
+      mais.textContent = `+${cards.length - 4} matrícula(s) — ver todas`;
+      caixa.appendChild(mais);
+    }
+  }
+  function revisar(id) {
+    const nav = $('.navbtn[data-p="g-alunos"]');
+    if (nav && !nav.classList.contains("on")) nav.click();
+    formAluno(id).catch((err) => toast(err.message, true));
+  }
+
+  /* Dois toques curtos e baixos, gerados na hora (sem arquivo de som). O
+     navegador só toca depois de um clique na página — o login já foi um. */
+  function tocarAviso() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
+      const ac = tocarAviso.ac || (tocarAviso.ac = new Ctx());
+      [[880, 0], [1320, 0.16]].forEach(([f, t]) => {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.type = "sine"; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, ac.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(0.12, ac.currentTime + t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + t + 0.32);
+        o.connect(g).connect(ac.destination); o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 0.34);
+      });
+    } catch { /* sem som não é erro */ }
+  }
+
+  /* A notificação do computador só com permissão — e a permissão só é pedida
+     num CLIQUE (botão na tela de Alunos): pedir sozinho, no carregamento, é o
+     jeito certo de levar um "bloquear" para sempre. */
+  function notificarComputador(d) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    try {
+      const n = new Notification("Nova matrícula pelo site", { body: d.nome, tag: `matricula-${d.id}` });
+      n.onclick = () => { window.focus(); revisar(Number(d.id)); n.close(); };
+    } catch { /* alguns navegadores só notificam por service worker */ }
+  }
+  function botaoPermissao() {
+    const b = $("#g-avisos-perm"); if (!b) return;
+    b.hidden = !("Notification" in window) || Notification.permission !== "default";
+  }
 
   /* ------------------------------------------------------------ diálogos */
   function abrir(dlg, html) {
@@ -108,7 +249,12 @@
     const P = $("#p-g-alunos");
     if (!P.dataset.pronto) {
       P.innerHTML = `
-        <div class="topbar"><h1>Alunos</h1><button class="btn btn-mint" data-acao="novo-aluno">+ Novo aluno</button></div>
+        <div class="topbar"><h1>Alunos</h1>
+          <span style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm g-avisos-perm" id="g-avisos-perm" data-acao="permitir-avisos" hidden
+              title="Mostra a matrícula nova no canto da tela do computador mesmo com o painel em outra aba">🔔 Avisar no computador</button>
+            <button class="btn btn-mint" data-acao="novo-aluno">+ Novo aluno</button>
+          </span></div>
         <div class="g-barra">
           <input class="g-busca" type="search" id="g-busca" placeholder="Buscar por nome, código ou CPF…" autocomplete="off">
           <div class="g-chips" id="g-filtros">
@@ -132,6 +278,7 @@
       });
       P.addEventListener("click", acaoAluno);
     }
+    botaoPermissao();
     await Promise.all([resumo(), carregarTurmasEAtividades()]);
     await listarAlunos();
   }
@@ -155,9 +302,11 @@
     }
     caixa.innerHTML = `<table class="g-tabela g-alunos" data-paginacao="servidor">
       <thead><tr><th>Código</th><th>Nome</th><th>Idade</th><th>Turma</th><th>Telefone</th><th>Status</th><th></th></tr></thead>
-      <tbody>${alunos.map((a) => `<tr>
+      <tbody>${alunos.map((a) => `<tr${NOVAS.has(a.id) && a.status === "pendente" ? ' class="g-nova"' : ""}>
         <td class="cod">${a.codigo_fmt || '<span class="fraco">—</span>'}</td>
         <td><b>${e(a.nome)}</b>${a.origem === "site" && a.status === "pendente" ? ' <span class="selo selo--site">site</span>' : ""}
+          ${NOVAS.has(a.id) && a.status === "pendente" ? ' <span class="selo selo--nova">nova</span>' : ""}
+          ${a.status === "pendente" && a.criado_em ? `<small class="g-chegou">chegou ${e(quandoChegou(a.criado_em))}</small>` : ""}
           ${a.menor && a.resp_nome ? `<br><small class="fraco">resp.: ${e(a.resp_nome)}</small>` : ""}</td>
         <td>${a.idade ?? ""}</td>
         <td class="nw">${e(a.turma || "")}</td>
@@ -177,6 +326,12 @@
     const id = Number(b.dataset.id);
     if (b.dataset.acao === "novo-aluno") formAluno(null);
     if (b.dataset.acao === "editar") formAluno(id);
+    if (b.dataset.acao === "permitir-avisos" && "Notification" in window)
+      Notification.requestPermission().then((r) => {
+        botaoPermissao();
+        toast(r === "granted" ? "Pronto: a matrícula nova aparece no computador mesmo com o painel em outra aba."
+          : "O navegador não deixou. Dá para liberar no cadeado da barra de endereço.", r !== "granted", 5000);
+      });
     if (b.dataset.acao === "ficha") imprimirEm(`/admin/imprimir/ficha/${id}`);
     if (b.dataset.acao === "contratos") abrirContratos(id, b.dataset.nome);
   }
@@ -184,6 +339,12 @@
   /* ------------------------------------------------ o formulário do aluno */
   async function formAluno(id) {
     if (!G.resumo) await resumo();
+    /* Aberta para revisar, deixa de ser "nova" (o destaque e o aviso somem). */
+    if (id && NOVAS.delete(id)) {
+      $$("#g-avisos [data-aviso-revisar]").filter((b) => Number(b.dataset.avisoRevisar) === id)
+        .forEach((b) => b.closest(".g-aviso").remove());
+      arrumarAvisos();
+    }
     /* Sempre de novo: a ocupação de cada turma (o "10/12 vagas" da grade)
        muda a cada aluno salvo. */
     await carregarTurmasEAtividades();
@@ -420,12 +581,29 @@
       });
     }
     const nasc = $("#fa-nascimento", F);
+    /* (1.31.0) O ALUNO NOVO pede a ficha completa — a mesma regra do site, e
+       quem a garante é o servidor (`normalizarAluno` rigoroso). Aqui só se
+       MOSTRA o asterisco, para a secretaria não descobrir no Salvar. Ficha
+       antiga (com id) não ganha asterisco: a edição continua livre. */
+    const OBRIG_SEMPRE = ["nome", "sexo", "nascimento", "cpf", "nacionalidade", "email",
+      "cep", "logradouro", "numero", "bairro", "cidade", "uf", "fone1", "pai", "mae"];
+    const OBRIG_ADULTO = ["rg", "rg_emissor", "estado_civil", "profissao"];
+    const OBRIG_MENOR = ["resp_nome", "resp_cpf", "resp_rg", "resp_rg_emissor", "resp_fone",
+      "resp_estado_civil", "resp_profissao", "resp_nacionalidade"];
+    const marcar = (lista, sim) => lista.forEach((n) => { const l = $(`label[for="fa-${n}"]`, F); if (l) l.classList.toggle("obrig", sim); });
+    if (!id) {
+      marcar(OBRIG_SEMPRE, true);
+      const paiEl = $("#fa-pai", F);
+      if (paiEl) paiEl.placeholder = 'Sem pai no registro? Escreva "Não consta"';
+    }
     const menorOuNao = () => {
       const i = idadeDe(nasc.value);
       $("#fa-idade", F).value = i ?? "";
       const menor = i !== null && i < 18;
       $("#fa-nota-menor", F).hidden = !menor;
-      for (const n of ["resp_nome", "resp_rg", "resp_cpf"]) $(`label[for="fa-${n}"]`, F).classList.toggle("obrig", menor);
+      if (id) { for (const n of ["resp_nome", "resp_rg", "resp_cpf"]) $(`label[for="fa-${n}"]`, F).classList.toggle("obrig", menor); return; }
+      marcar(OBRIG_MENOR, menor);
+      marcar(OBRIG_ADULTO, i !== null && !menor);
     };
     nasc.addEventListener("change", menorOuNao); menorOuNao();
 

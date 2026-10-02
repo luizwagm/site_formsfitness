@@ -726,6 +726,10 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
 .mat-arquivo--erro { background: #fdecee; color: #a4162b; font-weight: 600; word-break: normal; }
 /* (1.30.2) O aviso do CPF mora embaixo do próprio campo, e o campo ganha a
    borda da mesma cor: quem rola a ficha de volta acha onde está o problema. */
+/* (1.31.0) A saída do "Nome do pai": discreta, colada no campo. */
+.field .mat-nao-consta { display: inline-flex; align-items: center; gap: .4rem; margin-top: .4rem; font-size: .86rem; font-weight: 500; color: var(--ink-soft); cursor: pointer; }
+.field .mat-nao-consta input { width: 1.05rem; padding: 0; border-radius: 4px; box-shadow: none; height: 1.05rem; margin: 0; }
+.field input[readonly] { background: var(--bg-soft); color: var(--ink-soft); }
 .mat-campo-aviso { display: block; margin-top: .35rem; color: #a4162b; font-size: .84rem; font-weight: 600; line-height: 1.35; }
 .mat-campo-aviso[hidden] { display: none; }
 .field input[aria-invalid="true"] { border-color: #a4162b; box-shadow: 0 0 0 3px rgba(164, 22, 43, .12); }
