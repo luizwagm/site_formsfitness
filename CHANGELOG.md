@@ -5,6 +5,21 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.32.0 — 2026-10-02 · Número da página nos impressos
+
+- **Relatório que passa de uma folha sai numerado**: *"Página 1 de 3"*, *"Página 2
+  de 3"*… no pé de cada folha. O que cabe numa folha só **não** ganha número —
+  nada de "Página 1 de 1".
+- Vale para todo impresso do sistema: relatórios, agenda, carnê — e a ficha e o
+  contrato, se um dia passarem de uma folha.
+- A decisão acompanha a orientação escolhida (vertical ou horizontal): a mesma
+  lista deitada tem mais folhas, e a numeração acompanha.
+- Com o número no rodapé, o navegador deixa de imprimir o dele (data e endereço da
+  página), mesmo com "Cabeçalhos e rodapés" marcado.
+- Nova suíte `testar-paginas-navegador.js`: imprime relatórios de verdade em PDF,
+  conta as folhas e exige que a numeração apareça **exatamente** quando há 2 ou
+  mais — inclusive no limite, aluno a aluno, até virar a segunda folha.
+
 ## 1.31.0 — 2026-10-01 · Aviso de matrícula nova na hora, e a ficha completa
 
 **O painel avisa sozinho quando chega matrícula pelo site.** Antes a

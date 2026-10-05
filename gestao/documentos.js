@@ -250,6 +250,30 @@ const SCRIPT_PAGINA = `
     if (aviso) aviso.hidden = miolo.offsetHeight <= limite;
   }
 
+  /* NÚMERO DA PÁGINA — só quando dá mais de uma folha (1.32.0).
+
+     Quem escreve "Página 2 de 5" é o PRÓPRIO PAPEL: um rodapé de @page com
+     counter(page) e counter(pages). Só ele sabe em que folha está — o texto da
+     página não sabe onde o navegador vai cortar. (E com rodapé próprio, o
+     Chrome deixa de imprimir o dele — data, endereço —, mesmo com "Cabeçalhos
+     e rodapés" marcado no diálogo: provado em PDF.)
+
+     O que o CSS não sabe é "se tiver mais de uma folha". Isso se MEDE: a folha
+     já tem a largura exata do papel, então a altura do conteúdo aqui é a do
+     papel. Útil por folha = o papel menos 10 mm em cima (a moldura) e 10 mm
+     embaixo (agora a margem da página, onde mora o número). Coube em uma, não
+     se numera: folha única não precisa de número. */
+  var numeracao = document.getElementById("numeracao");
+  function numerar(paisagem) {
+    var util = ((paisagem ? 210 : 297) - 20) * mm;
+    var varias = miolo.offsetHeight > util + 1;
+    document.body.classList.toggle("numerada", varias);
+    numeracao.textContent = varias
+      ? '@page{margin:0 0 10mm 0;@bottom-center{content:"Página " counter(page) " de " counter(pages);' +
+        'font:9pt Arial,Helvetica,sans-serif;color:#555}}'
+      : "";
+  }
+
   function orientar(paisagem, lembrar) {
     document.body.classList.toggle("paisagem", paisagem);
     regra.textContent = "@page{size:A4 " + (paisagem ? "landscape" : "portrait") + ";margin:0}";
@@ -257,8 +281,13 @@ const SCRIPT_PAGINA = `
       b.setAttribute("aria-pressed", String((b.dataset.orient === "h") === paisagem));
     });
     ajustar(paisagem);
+    numerar(paisagem);
     if (lembrar) { try { localStorage.setItem(chave, paisagem ? "h" : "v"); } catch (e) {} }
   }
+  /* Mede de novo na hora de imprimir: a fonte e o logotipo podem ter chegado
+     depois da primeira medição, e mudado a altura. */
+  window.addEventListener("beforeprint", function () { numerar(document.body.classList.contains("paisagem")); });
+  window.addEventListener("load", function () { numerar(document.body.classList.contains("paisagem")); });
 
   document.querySelectorAll("[data-orient]").forEach(function (b) {
     b.addEventListener("click", function () { orientar(b.dataset.orient === "h", true); });
@@ -278,6 +307,7 @@ function pagina({ titulo, corpo, css = "", umaFolha = false, paisagem = false, t
 <meta name="robots" content="noindex, nofollow">
 <title>${esc(titulo)} — Forms Fitness</title>
 <style id="orientacao">@page{size:A4 ${paisagem ? "landscape" : "portrait"};margin:0}</style>
+<style id="numeracao"></style>
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;background:#e9eef4;color:#111;font-family:Arial,Helvetica,sans-serif}
@@ -307,6 +337,9 @@ function pagina({ titulo, corpo, css = "", umaFolha = false, paisagem = false, t
     html,body{background:#fff}
     .barra-imp{display:none}
     .folha,body.paisagem .folha{margin:0;box-shadow:none;width:auto}
+    /* Numerada, a margem de baixo passa a ser a da PÁGINA (é nela que o número
+       é impresso); a linha vazia da moldura sairia em dobro. */
+    body.numerada table.moldura > tfoot > tr > td{height:0}
   }
   ${css}
 </style>
