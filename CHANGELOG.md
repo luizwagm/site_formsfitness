@@ -5,6 +5,15 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.32.1 — 2026-10-06 · E-mail opcional na matrícula
+
+- O **e-mail deixou de ser obrigatório** na matrícula — no site e no **+ Novo aluno**
+  do painel. Pedido da academia: muita gente não tem ou não lembra o e-mail, e o
+  campo obrigatório travava a matrícula.
+- Se for preenchido, continua conferido: um e-mail escrito errado ("fulano@") é
+  recusado, com aviso.
+- O resto da ficha completa (1.31.0) continua obrigatório.
+
 ## 1.32.0 — 2026-10-02 · Número da página nos impressos
 
 - **Relatório que passa de uma folha sai numerado**: *"Página 1 de 3"*, *"Página 2

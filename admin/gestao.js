@@ -585,7 +585,7 @@
        quem a garante é o servidor (`normalizarAluno` rigoroso). Aqui só se
        MOSTRA o asterisco, para a secretaria não descobrir no Salvar. Ficha
        antiga (com id) não ganha asterisco: a edição continua livre. */
-    const OBRIG_SEMPRE = ["nome", "sexo", "nascimento", "cpf", "nacionalidade", "email",
+    const OBRIG_SEMPRE = ["nome", "sexo", "nascimento", "cpf", "nacionalidade",
       "cep", "logradouro", "numero", "bairro", "cidade", "uf", "fone1", "pai", "mae"];
     const OBRIG_ADULTO = ["rg", "rg_emissor", "estado_civil", "profissao"];
     const OBRIG_MENOR = ["resp_nome", "resp_cpf", "resp_rg", "resp_rg_emissor", "resp_fone",

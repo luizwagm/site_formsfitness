@@ -124,14 +124,17 @@ async function pedir(metodo, caminho, { corpo, cookie } = {}) {
    WebSocket), põe a foto grande — 4000×3000 com ruído, que não comprime e
    passa de 8 MB como a do vídeo —, preenche a ficha de um adulto e envia. */
 async function noNavegador(CHROME, pdfGrande) {
-  const DEP = PORTA + 1000;
+  /* Uma porta de depuração POR abertura do Chrome: o anterior ainda está
+     fechando (e segurando a porta) quando o seguinte abre — com a mesma porta,
+     a segunda abertura quebrava com "reading find" a toda hora. */
+  const DEP = PORTA + 1000 + (noNavegador.vez = (noNavegador.vez || 0) + 1);
   const perfil = fs.mkdtempSync(path.join(os.tmpdir(), "forms-nav-chrome-"));
   const chrome = spawn(CHROME, ["--headless=new", "--disable-gpu", `--remote-debugging-port=${DEP}`,
     `--user-data-dir=${perfil}`, "--window-size=412,900", "about:blank"], { stdio: "ignore" });
   const espera = (ms) => new Promise((r) => setTimeout(r, ms));
   try {
     let alvos = null;
-    for (let i = 0; i < 40 && !alvos; i++) { try { alvos = await (await fetch(`http://127.0.0.1:${DEP}/json/list`)).json(); } catch { await espera(250); } }
+    for (let i = 0; i < 60 && !alvos; i++) { try { alvos = await (await fetch(`http://127.0.0.1:${DEP}/json/list`)).json(); } catch { await espera(250); } }
     const ws = new WebSocket(alvos.find((a) => a.type === "page").webSocketDebuggerUrl);
     await new Promise((r) => ws.addEventListener("open", r, { once: true }));
     let seq = 0; const esp = new Map();

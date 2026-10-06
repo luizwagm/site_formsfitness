@@ -281,6 +281,11 @@ function certo(nome, cond, detalhe = "") {
       v("#m-pai", ""); const nc = $("#m-pai-nc"); nc.checked = true; nc.dispatchEvent(new Event("change", { bubbles: true }));`);
     certo("pai \"Não consta no registro\": a matrícula ENTRA", r.recebida, r.erro || "");
 
+    /* (1.32.1) O e-mail voltou a ser opcional: em branco, a ficha entra. */
+    await abrir();
+    r = await enviar(`v("#m-nome", "Zz Qa Sem Email"); v("#m-nasc", "1990-05-10"); v("#m-cpf", "529.982.247-25"); v("#m-email", "");`);
+    certo("sem e-mail: a matrícula ENTRA (opcional desde a 1.32.1)", r.recebida, r.erro || "");
+
     /* E um CPF errado À VISTA continua barrado — consertar não pode virar
        deixar passar qualquer coisa. */
     await abrir();

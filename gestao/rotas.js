@@ -393,7 +393,8 @@ function criar(ctx) {
          tem o pai no registro, e obrigar sem essa saída faria inventar nome.
        · RG, órgão emissor, estado civil e profissão são do ADULTO — de criança
          não se pede (o bloco nem aparece). Do responsável, sim.
-       · E-mail obrigatório.
+       · E-mail OPCIONAL (1.32.1, pedido da academia: muita gente da academia
+         não tem ou não lembra o e-mail). Se vier, continua conferido.
 
        Vale para CADASTRO NOVO. A edição de uma ficha antiga (o histórico tem
        milhares de alunos sem pai, profissão ou e-mail) continua livre: senão
@@ -403,7 +404,7 @@ function criar(ctx) {
       const faltam = [];
       for (const [c, rot] of [["nome", "nome"], ["nascimento", "data de nascimento"], ["sexo", "sexo"],
         ["cpf", "CPF"], ["nacionalidade", "nacionalidade"], ["mae", "nome da mãe"], ["pai", "nome do pai (ou \"Não consta\")"],
-        ["fone1", "WhatsApp"], ["email", "e-mail"],
+        ["fone1", "WhatsApp"],
         ["cep", "CEP"], ["logradouro", "rua"], ["numero", "número"], ["bairro", "bairro"], ["cidade", "cidade"], ["uf", "estado"]])
         if (!a[c]) faltam.push(rot);
       if (a.cpf && !U.cpfValido(a.cpf)) erros.push(menor ? "O CPF do aluno não confere. Verifique os números." : "O CPF não confere. Verifique os números.");

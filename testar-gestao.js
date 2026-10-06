@@ -1234,7 +1234,7 @@ const servidorSB = require("node:http").createServer((req, res) => {
     {
       let n = 0;
       const ipNovo = () => `10.31.0.${++n}`;
-      for (const [campo, rot] of [["cpf", "CPF"], ["pai", "pai"], ["email", "e-mail"],
+      for (const [campo, rot] of [["cpf", "CPF"], ["pai", "pai"],
         ["resp_rg_emissor", "emissor do RG do responsável"], ["resp_profissao", "profissão do responsável"],
         ["resp_estado_civil", "estado civil do responsável"], ["nacionalidade", "nacionalidade"]]) {
         const r = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(), corpo: PUB_MENOR({ turma_id: t1.j.id, [campo]: "" }) });
@@ -1252,8 +1252,17 @@ const servidorSB = require("node:http").createServer((req, res) => {
 
       const semCpfPainel = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Painel Sem Cpf", cpf: "" } });
       certo("painel: aluno NOVO sem CPF é recusado", semCpfPainel.status === 400 && /CPF/.test(semCpfPainel.j.error || ""), semCpfPainel.j.error);
+      /* (1.32.1) O E-MAIL VOLTOU A SER OPCIONAL — pedido da academia: muita
+         gente não tem ou não lembra. Em branco, entra; escrito errado, continua
+         recusado (um e-mail torto não serve para nada e esconde o erro). */
+      const semEmailSite = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(),
+        corpo: PUB_MENOR({ turma_id: t1.j.id, nome: "Zz Qa Sem Email Site", email: "" }) });
+      certo("site: matrícula SEM e-mail entra (opcional desde a 1.32.1)", semEmailSite.status === 200, `${semEmailSite.status} ${semEmailSite.j.error || ""}`);
+      const emailTorto = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(),
+        corpo: PUB_MENOR({ turma_id: t1.j.id, email: "fulano@" }) });
+      certo("site: e-mail escrito errado continua recusado", emailTorto.status === 400 && /E-mail inválido/.test(emailTorto.j.error || ""), emailTorto.j.error);
       const semEmailPainel = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Painel Sem Email", email: "" } });
-      certo("painel: aluno NOVO sem e-mail é recusado", semEmailPainel.status === 400 && /e-mail/.test(semEmailPainel.j.error || ""), semEmailPainel.j.error);
+      certo("painel: aluno NOVO sem e-mail entra", semEmailPainel.status === 200, `${semEmailPainel.status} ${semEmailPainel.j.error || ""}`);
       const completo = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_ADULTO, nome: "Zz Qa Ficha Completa" } });
       certo("painel: aluno novo com a ficha completa entra", completo.status === 200, `${completo.status} ${completo.j.error || ""}`);
       /* A FICHA ANTIGA continua editável sem a ficha completa: o histórico tem
@@ -1314,7 +1323,7 @@ const servidorSB = require("node:http").createServer((req, res) => {
       certo("…e com a contagem nova de pré-matrículas", av.pendentes === pendAntes + 1, `${pendAntes} → ${av.pendentes}`);
       certo("os DOIS painéis abertos recebem", deTipo(dois, "matricula").length === 1);
 
-      const recusada = await pedir("POST", "/api/publico/matricula", { ip: "10.31.1.2", corpo: PUB_MENOR({ turma_id: t1.j.id, email: "" }) });
+      const recusada = await pedir("POST", "/api/publico/matricula", { ip: "10.31.1.2", corpo: PUB_MENOR({ turma_id: t1.j.id, pai: "" }) });
       await new Promise((r) => setTimeout(r, 300));
       certo("matrícula RECUSADA não gera aviso", recusada.status === 400 && deTipo(um1, "matricula").length === 1);
 
