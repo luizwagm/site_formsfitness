@@ -387,8 +387,10 @@ function criar(ctx) {
        básicos, endereço e CPF obrigatórios", no site E no cadastro novo do
        painel.
 
-       · CPF de TODOS, criança inclusive (antes, só do adulto). Criança nascida
-         depois de 2015 já sai do cartório com CPF.
+       · CPF obrigatório do ADULTO. Da criança é OPCIONAL (1.32.2, pedido da
+         academia: nem toda criança tem CPF) — quem responde por ela, e paga, é
+         o responsável, cujo CPF continua obrigatório. Se o da criança vier,
+         é conferido como qualquer outro.
        · O pai é obrigatório, mas "Não consta" é resposta: muita família não
          tem o pai no registro, e obrigar sem essa saída faria inventar nome.
        · RG, órgão emissor, estado civil e profissão são do ADULTO — de criança
@@ -403,7 +405,7 @@ function criar(ctx) {
       const menor = U.ehMenor(a.nascimento);
       const faltam = [];
       for (const [c, rot] of [["nome", "nome"], ["nascimento", "data de nascimento"], ["sexo", "sexo"],
-        ["cpf", "CPF"], ["nacionalidade", "nacionalidade"], ["mae", "nome da mãe"], ["pai", "nome do pai (ou \"Não consta\")"],
+        ["nacionalidade", "nacionalidade"], ["mae", "nome da mãe"], ["pai", "nome do pai (ou \"Não consta\")"],
         ["fone1", "WhatsApp"],
         ["cep", "CEP"], ["logradouro", "rua"], ["numero", "número"], ["bairro", "bairro"], ["cidade", "cidade"], ["uf", "estado"]])
         if (!a[c]) faltam.push(rot);
@@ -417,7 +419,7 @@ function criar(ctx) {
         if (a.resp_cpf && !U.cpfValido(a.resp_cpf)) erros.push("O CPF do responsável não confere. Verifique os números.");
         if (a.resp_cpf && a.cpf && a.resp_cpf === a.cpf) erros.push("O CPF do aluno e o do responsável são o mesmo — confira qual é de quem.");
       } else if (a.nascimento) {
-        for (const [c, rot] of [["rg", "RG"], ["rg_emissor", "órgão emissor do RG"],
+        for (const [c, rot] of [["cpf", "CPF"], ["rg", "RG"], ["rg_emissor", "órgão emissor do RG"],
           ["estado_civil", "estado civil"], ["profissao", "profissão"]])
           if (!a[c]) faltam.push(rot);
       }

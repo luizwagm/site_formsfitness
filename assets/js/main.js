@@ -405,6 +405,11 @@ function initMatricula() {
       const el = document.getElementById(id);
       if (el) el.required = menor;
     });
+    /* (1.32.2) CPF do aluno: obrigatório para adulto (e enquanto não há data),
+       opcional para criança — o asterisco vira "(opcional para menor de idade)". */
+    $("#m-cpf").required = !menor;
+    $("#m-cpf-req").hidden = menor;
+    $("#m-cpf-opc").hidden = !menor;
     ["m-rg", "m-rg-emissor", "m-civil", "m-profissao"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.required = maior;

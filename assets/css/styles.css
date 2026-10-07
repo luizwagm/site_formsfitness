@@ -699,6 +699,8 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
 .mat-bloco--termos { background: var(--bg-soft); }
 
 .req { color: var(--terracota, #d1495b); font-weight: 800; }
+.mat-opcional { margin-left: .35rem; font-weight: 500; font-size: .92em; color: var(--ink-soft); }
+.mat-opcional[hidden], .req[hidden] { display: none; }
 
 .mat-docs { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: .6rem; }
 .mat-docs li { background: var(--bg-soft); border-radius: 10px; padding: .7rem .9rem; font-size: .93rem; }

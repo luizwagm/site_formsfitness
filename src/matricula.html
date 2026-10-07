@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Nunito+Sans:wght@300;400;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/styles.css?v=1.32.1">
+  <link rel="stylesheet" href="/assets/css/styles.css?v=1.32.2">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
     {"@type":"ListItem","position":1,"name":"Início","item":"https://formsfitness.com/"},
@@ -121,12 +121,13 @@
               </div>
             </div>
 
-            <!-- (1.31.0) O CPF é de TODOS, criança inclusive — pedido da
-                 academia. Criança nascida depois de 2015 já sai do cartório
-                 com CPF. -->
+            <!-- (1.32.2) O CPF do aluno é obrigatório para ADULTO. Para criança é
+                 opcional (nem toda criança tem): o campo continua à vista, sem
+                 asterisco — quem tem, informa. O `required` é ligado e
+                 desligado pela data de nascimento, no main.js. -->
             <div class="field-row">
               <div class="field">
-                <label for="m-cpf">CPF do aluno <span class="req">*</span></label>
+                <label for="m-cpf">CPF do aluno <span class="req" id="m-cpf-req">*</span><span class="mat-opcional" id="m-cpf-opc" hidden>(opcional para menor de idade)</span></label>
                 <input id="m-cpf" name="cpf" type="text" inputmode="numeric" required maxlength="40" autocomplete="off" placeholder="000.000.000-00">
               </div>
               <div class="field">
@@ -457,6 +458,6 @@
     </div>
   </footer>
 
-  <script type="module" src="/assets/js/main.js?v=1.32.1"></script>
+  <script type="module" src="/assets/js/main.js?v=1.32.2"></script>
 </body>
 </html>

@@ -1234,12 +1234,24 @@ const servidorSB = require("node:http").createServer((req, res) => {
     {
       let n = 0;
       const ipNovo = () => `10.31.0.${++n}`;
-      for (const [campo, rot] of [["cpf", "CPF"], ["pai", "pai"],
+      for (const [campo, rot] of [["pai", "pai"],
         ["resp_rg_emissor", "emissor do RG do responsável"], ["resp_profissao", "profissão do responsável"],
         ["resp_estado_civil", "estado civil do responsável"], ["nacionalidade", "nacionalidade"]]) {
         const r = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(), corpo: PUB_MENOR({ turma_id: t1.j.id, [campo]: "" }) });
         certo(`site: criança sem ${rot} é recusada`, r.status === 400 && r.j.error.includes(rot), `${r.status} ${r.j.error}`);
       }
+      /* (1.32.2) O CPF da CRIANÇA é opcional; o do adulto, não. */
+      const criancaSemCpf = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(),
+        corpo: PUB_MENOR({ turma_id: t1.j.id, nome: "Zz Qa Crianca Sem Cpf", cpf: "" }) });
+      certo("site: criança SEM CPF entra (opcional para menor desde a 1.32.2)", criancaSemCpf.status === 200,
+        `${criancaSemCpf.status} ${criancaSemCpf.j.error || ""}`);
+      const criancaSemCpfResp = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(),
+        corpo: PUB_MENOR({ turma_id: t1.j.id, cpf: "", resp_cpf: "" }) });
+      certo("site: …mas sem o CPF do RESPONSÁVEL continua recusada", criancaSemCpfResp.status === 400 && /CPF do responsável/.test(criancaSemCpfResp.j.error || ""), criancaSemCpfResp.j.error);
+      const adultoSemCpf = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(), corpo: {
+        ...FICHA_ADULTO, nome: "Zz Qa Adulto Sem Cpf", turma_id: t1.j.id, cpf: "",
+        aceite_termos: true, aceite_dados: true, foto: JPEG(), comprovante: PDF() } });
+      certo("site: ADULTO sem CPF continua recusado", adultoSemCpf.status === 400 && /CPF/.test(adultoSemCpf.j.error || ""), adultoSemCpf.j.error);
       const adultoSemProf = await pedir("POST", "/api/publico/matricula", { ip: ipNovo(), corpo: {
         ...FICHA_ADULTO, nome: "Zz Qa Adulto Sem Profissao", turma_id: t1.j.id, profissao: "",
         aceite_termos: true, aceite_dados: true, foto: JPEG(), comprovante: PDF() } });

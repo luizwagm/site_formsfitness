@@ -585,9 +585,9 @@
        quem a garante é o servidor (`normalizarAluno` rigoroso). Aqui só se
        MOSTRA o asterisco, para a secretaria não descobrir no Salvar. Ficha
        antiga (com id) não ganha asterisco: a edição continua livre. */
-    const OBRIG_SEMPRE = ["nome", "sexo", "nascimento", "cpf", "nacionalidade",
+    const OBRIG_SEMPRE = ["nome", "sexo", "nascimento", "nacionalidade",
       "cep", "logradouro", "numero", "bairro", "cidade", "uf", "fone1", "pai", "mae"];
-    const OBRIG_ADULTO = ["rg", "rg_emissor", "estado_civil", "profissao"];
+    const OBRIG_ADULTO = ["cpf", "rg", "rg_emissor", "estado_civil", "profissao"];   // (1.32.2) CPF de criança é opcional
     const OBRIG_MENOR = ["resp_nome", "resp_cpf", "resp_rg", "resp_rg_emissor", "resp_fone",
       "resp_estado_civil", "resp_profissao", "resp_nacionalidade"];
     const marcar = (lista, sim) => lista.forEach((n) => { const l = $(`label[for="fa-${n}"]`, F); if (l) l.classList.toggle("obrig", sim); });

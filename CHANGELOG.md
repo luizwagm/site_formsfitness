@@ -5,6 +5,16 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.32.2 — 2026-10-07 · CPF da criança opcional
+
+- Na matrícula de **menor de 18 anos**, o **CPF do aluno deixou de ser
+  obrigatório** — no site e no **+ Novo aluno** do painel. Pedido da academia: nem
+  toda criança tem CPF.
+- O campo continua à vista, sem asterisco e com "(opcional para menor de idade)":
+  quem tem o CPF da criança pode informar, e ele é conferido.
+- O **CPF do responsável continua obrigatório** — é ele quem responde pela criança
+  e paga. O CPF do aluno adulto também continua obrigatório.
+
 ## 1.32.1 — 2026-10-06 · E-mail opcional na matrícula
 
 - O **e-mail deixou de ser obrigatório** na matrícula — no site e no **+ Novo aluno**

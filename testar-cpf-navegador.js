@@ -286,6 +286,21 @@ function certo(nome, cond, detalhe = "") {
     r = await enviar(`v("#m-nome", "Zz Qa Sem Email"); v("#m-nasc", "1990-05-10"); v("#m-cpf", "529.982.247-25"); v("#m-email", "");`);
     certo("sem e-mail: a matrícula ENTRA (opcional desde a 1.32.1)", r.recebida, r.erro || "");
 
+    /* (1.32.2) Criança: o CPF do aluno é opcional — o rótulo diz isso, e a
+       ficha entra com o campo em branco. O do responsável continua exigido. */
+    await abrir();
+    const rotulo = await na(`(() => { const n = document.querySelector("#m-nasc"); n.value = "2016-03-03"; n.dispatchEvent(new Event("change"));
+      return { req: !document.querySelector("#m-cpf-req").hidden, opc: !document.querySelector("#m-cpf-opc").hidden,
+        exigido: document.querySelector("#m-cpf").required }; })()`);
+    certo("criança: o CPF do aluno aparece como opcional (sem asterisco)", !rotulo.req && rotulo.opc && !rotulo.exigido, JSON.stringify(rotulo));
+    r = await enviar(`v("#m-nome", "Zz Qa Crianca Sem Cpf"); v("#m-nasc", "2016-03-03"); v("#m-cpf", "");
+      v("#m-r-nome", "Zz Qa Responsavel"); v("#m-r-rg", "1234567"); v("#m-r-cpf", "111.444.777-35"); v("#m-r-fone", "(81) 99999-0006");`);
+    certo("criança SEM CPF: a matrícula ENTRA", r.recebida, r.erro || "");
+    await abrir();
+    const adultoRot = await na(`(() => { const n = document.querySelector("#m-nasc"); n.value = "1990-03-03"; n.dispatchEvent(new Event("change"));
+      return { req: !document.querySelector("#m-cpf-req").hidden, exigido: document.querySelector("#m-cpf").required }; })()`);
+    certo("adulto: o CPF volta a ser obrigatório, com asterisco", adultoRot.req && adultoRot.exigido, JSON.stringify(adultoRot));
+
     /* E um CPF errado À VISTA continua barrado — consertar não pode virar
        deixar passar qualquer coisa. */
     await abrir();
