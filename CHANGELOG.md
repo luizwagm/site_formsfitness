@@ -5,6 +5,25 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.33.0 — 2026-10-09 · Capa do vídeo tirada do próprio vídeo
+
+- Matéria com **vídeo** deixou de ter a capa genérica igual para todas: ao enviar
+  o vídeo, o painel **tira uma foto do próprio vídeo** e ela vira a capa — no
+  cartão do Feed (com o selo "▶ vídeo"), no **poster** do player da matéria, no
+  vídeo da **Estrutura** e na prévia do link no **WhatsApp/redes** (og:image).
+- O quadro escolhido não é o primeiro (quase sempre preto): tenta 10%, 25%, 50%
+  e 75% do vídeo e fica com o primeiro que não for escuro.
+- **Vídeos que já estavam no ar** ganham capa sozinhos na primeira vez que o
+  painel é aberto — sem reenviar nada. Depois é só **Publicar**.
+- A capa mora **ao lado do vídeo** (abc.mp4 → abc.jpg): trocar o vídeo troca a
+  capa, e o deploy já preserva a pasta. Vídeo que o navegador não abre fica com a
+  capa genérica, como antes.
+- **Vídeo agora é entregue por faixa (HTTP Range)**: dá para **avançar** na barra
+  do vídeo (antes voltava para o 0), o **iPhone** passa a tocar, e o arquivo sai
+  em fluxo do disco em vez de inteiro na memória a cada visita.
+- O JSON-LD da matéria em vídeo entregava o próprio .mp4 como imagem (e em
+  caminho relativo): agora entrega a capa, com o domínio.
+
 ## 1.32.2 — 2026-10-07 · CPF da criança opcional
 
 - Na matrícula de **menor de 18 anos**, o **CPF do aluno deixou de ser

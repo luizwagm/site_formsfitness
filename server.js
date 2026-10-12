@@ -44,7 +44,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.32.2";
+const APP_VERSION = "1.33.0";
 /* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
    deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
    num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento
@@ -70,6 +70,27 @@ const VIDEO_DIR = path.join(ROOT, "assets", "video");
 const CAPA_VIDEO = "/assets/img/capa-video.svg";
 const absolutaNoSite = (u) => (/^https?:\/\//i.test(String(u||"")) ? String(u) : SITE + String(u||""));
 const ehVideo = (u) => /\.(mp4|webm|ogv)(\?|#|$)/i.test(String(u || ""));
+/* ==========================================================================
+   A CAPA TIRADA DO PRÓPRIO VÍDEO (1.33.0)
+
+   A capa genérica dizia "aqui tem vídeo" e nada mais: todos os cartões de
+   vídeo do Feed ficavam iguais. Agora o painel tira um quadro do vídeo e o
+   grava AO LADO dele, com o mesmo nome: abc.mp4 → abc.jpg.
+
+   Ao lado, e não numa coluna nova: a capa pertence ao ARQUIVO, não à linha.
+   O mesmo vídeo na Estrutura e numa matéria tem uma capa só, trocar o vídeo
+   troca a capa sozinho, e não há migração de banco para esquecer.
+
+   Quem tira o quadro é o NAVEGADOR de quem envia (`<video>` + `<canvas>`), e
+   não o servidor: o ffmpeg não está no servidor, e instalá-lo só para isto
+   seria mais um pacote a manter. Sem capa ainda, volta a genérica.
+   ========================================================================== */
+function capaDoVideo(url) {
+  const m = /^\/assets\/video\/([A-Za-z0-9._-]+)\.(mp4|webm|ogv)$/i.exec(String(url || ""));
+  if (!m) return null;
+  const jpg = m[1] + ".jpg";
+  return fs.existsSync(path.join(VIDEO_DIR, jpg)) ? "/assets/video/" + jpg : null;
+}
 fs.mkdirSync(VIDEO_DIR, { recursive: true });
 /* Teto do arquivo. 120 MB dá folga para um vídeo curto em 1080p; acima disso
    o certo é hospedar no YouTube e colar o link, que o painel também aceita. */
@@ -549,9 +570,11 @@ function linhaTexto(valor) {
    caso não declaramos nada, e o CSS acerta a proporção quando a imagem chega.
    ========================================================================== */
 function medirImagem(url) {
+  /* A capa de vídeo (1.33.0) mora na pasta do vídeo, não na de uploads. */
   const m = /^\/assets\/img\/uploads\/([A-Za-z0-9._-]+)$/.exec(String(url || ""));
-  if (!m) return null;
-  const arq = path.join(UPLOAD_DIR, m[1]);
+  const c = /^\/assets\/video\/([A-Za-z0-9._-]+\.jpg)$/.exec(String(url || ""));
+  if (!m && !c) return null;
+  const arq = m ? path.join(UPLOAD_DIR, m[1]) : path.join(VIDEO_DIR, c[1]);
   let b;
   try { b = fs.readFileSync(arq); } catch { return null; }
 
@@ -734,8 +757,11 @@ const fill = (tpl, map) => Object.entries(map).reduce((h, [k, v]) => h.split(`{{
    os atributos são o que deixa o navegador reservar o espaço ANTES do CSS e
    da imagem chegarem — é o CLS. Quando a capa é upload local, a medida real
    vem do arquivo; de fora, vale a caixa do card. */
+/* A capa do cartão: a foto, ou o quadro tirado do vídeo, ou — vídeo ainda sem
+   quadro — a genérica. */
+const capaDoCartao = (p) => ehVideo(p.image) ? (capaDoVideo(p.image) || CAPA_VIDEO) : urlOtimizada(p.image);
 const postCard = (p, nivel = 3) => `<article class="post-card" data-reveal>
-            <a class="post-card__media${ehVideo(p.image) ? " post-card__media--video" : ""}" href="/blog/${esc(p.slug)}/" tabindex="-1" aria-hidden="true"><img src="${esc(ehVideo(p.image) ? CAPA_VIDEO : urlOtimizada(p.image))}" alt="" loading="lazy"${ehVideo(p.image) ? ' width="900" height="563"' : (medidasDoImg(p.image) || ' width="900" height="563"')}></a>
+            <a class="post-card__media${ehVideo(p.image) ? " post-card__media--video" : ""}" href="/blog/${esc(p.slug)}/" tabindex="-1" aria-hidden="true"><img src="${esc(capaDoCartao(p))}" alt="" loading="lazy"${medidasDoImg(capaDoCartao(p)) || ' width="900" height="563"'}></a>
             <div class="post-card__body">
               <time class="post-card__date" datetime="${esc(p.date)}">${dateBR(p.date)}</time>
               <h${nivel} class="post-card__title"><a href="/blog/${esc(p.slug)}/">${esc(p.title)}</a></h${nivel}>
@@ -864,8 +890,11 @@ function publish() {
        `preload="metadata"` baixa só o cabeçalho até alguém dar play — com
        "auto", o vídeo inteiro entraria no carregamento da home. */
     if (/^\/assets\/video\/[A-Za-z0-9._-]+$/.test(u)) {
+      /* Com capa tirada do vídeo (1.33.0), ela vira o poster: sem ele o
+         navegador mostra o primeiro quadro, que costuma ser preto. */
+      const capa = capaDoVideo(u);
       return `<figure class="video-coluna" data-reveal>
-            <video src="${esc(u)}" controls preload="metadata" playsinline
+            <video src="${esc(u)}" controls preload="metadata" playsinline${capa ? ` poster="${esc(capa)}"` : ""}
                    title="Vídeo da estrutura — Forms Fitness"></video>
           </figure>`;
     }
@@ -949,7 +978,7 @@ function publish() {
   for (const p of posts) {
     const paragraphs = blocoTexto(p.content);
     const pj = { "@context": "https://schema.org", "@type": "Article",
-      headline: p.title, description: p.excerpt, image: p.image,
+      headline: p.title, description: p.excerpt, image: absolutaNoSite(capaDoCartao(p)),
       datePublished: p.date, inLanguage: "pt-BR",
       author: { "@type": "Organization", name: "Forms Fitness Academia Aquática", url: `${SITE}/` },
       publisher: { "@id": `${SITE}/#org` },
@@ -968,18 +997,20 @@ function publish() {
     fs.writeFileSync(path.join(dirP, "index.html"), fill(postTpl, {
       TITLE: esc(p.title), EXCERPT: esc(p.excerpt), SLUG: esc(p.slug),
       /* O compartilhamento (og:image, JSON-LD) precisa de IMAGEM: rede social
-         nenhuma aceita um .mp4 como capa de link. Matéria em vídeo entrega a
-         capa genérica, que é a mesma do cartão. */
+         nenhuma aceita um .mp4 como capa de link. Matéria em vídeo entrega o
+         quadro tirado do vídeo (1.33.0) — ou, sem ele, a capa genérica —, o
+         mesmo do cartão. O JSON-LD recebia o próprio .mp4, em caminho
+         relativo: o Google descartava a imagem do Article. */
       /* ABSOLUTA: o og:image e o JSON-LD vão para fora do site, e caminho
          relativo ali é descartado pelo validador e pelo WhatsApp. A capa do
          Unsplash já vem com http e passa direto; a enviada pelo painel (e a
          capa genérica de vídeo) começam com "/" e precisam do domínio. */
-      IMAGE: esc(absolutaNoSite(ehVideo(p.image) ? CAPA_VIDEO : urlOtimizada(p.image))),
+      IMAGE: esc(absolutaNoSite(capaDoCartao(p))),
       /* `preload="metadata"`: baixa só o cabeçalho, para saber duração e
          proporção. Com "auto", abrir a matéria puxaria o vídeo inteiro de quem
          só queria ler o texto. */
       COVER: ehVideo(p.image)
-        ? `<figure class="post__cover post__cover--video"><video src="${esc(p.image)}" controls preload="metadata" playsinline poster="${esc(CAPA_VIDEO)}"></video></figure>`
+        ? `<figure class="post__cover post__cover--video"><video src="${esc(p.image)}" controls preload="metadata" playsinline poster="${esc(capaDoCartao(p))}"></video></figure>`
         : `<figure class="post__cover"><img src="${esc(urlOtimizada(p.image))}" alt="${esc(p.title)}" fetchpriority="high"${medidasDoImg(p.image) || ' width="1200" height="675"'}></figure>`,
       /* Sem medida real (capa remota), a reserva é 16/9 — é a proporção das
          capas do Unsplash usadas até aqui. Reserva aproximada segura mais o
@@ -1464,6 +1495,49 @@ http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, path: `/assets/video/${arquivo}`, bytes: kb * 1024 });
       }
 
+      /* ------------------------------------------ capa do vídeo (1.33.0)
+         O painel tira a foto do vídeo no navegador e manda para cá. O NOME
+         do arquivo não vem do navegador: ele sai do vídeo, que tem de existir
+         na pasta dos vídeos — assim ninguém escreve fora dela nem grava a
+         capa de um vídeo que não é daqui. E o conteúdo é conferido pelos
+         BYTES: um JPEG começa com FF D8 FF, diga o navegador o que disser. */
+      if (p === "/api/capa-video" && req.method === "POST") {
+        const { video, dataUrl } = await readBody(req);
+        const mv = /^\/assets\/video\/([A-Za-z0-9._-]+)\.(mp4|webm|ogv)$/i.exec(String(video || ""));
+        if (!mv || !fs.existsSync(path.join(VIDEO_DIR, mv[1] + "." + mv[2])))
+          return json(res, 400, { error: "Vídeo não encontrado." });
+        const md = /^data:image\/jpeg;base64,([A-Za-z0-9+\/=]+)$/.exec(String(dataUrl || ""));
+        if (!md) return json(res, 400, { error: "A capa precisa ser uma imagem JPEG." });
+        const bytes = Buffer.from(md[1], "base64");
+        if (bytes.length > 3 * 1024 * 1024) return json(res, 413, { error: "Capa grande demais (máx. 3 MB)." });
+        if (!(bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff))
+          return json(res, 400, { error: "O arquivo não é um JPEG." });
+        /* Grava num temporário e RENOMEIA: quem abrir a página no meio da
+           gravação vê a capa antiga ou a nova, nunca meia imagem. */
+        const destino = path.join(VIDEO_DIR, mv[1] + ".jpg");
+        const temp = destino + ".tmp-" + process.pid;
+        fs.writeFileSync(temp, bytes);
+        fs.renameSync(temp, destino);
+        console.log(`  · capa do vídeo gravada: ${mv[1]}.jpg (${Math.round(bytes.length / 1024)} KB)`);
+        return json(res, 200, { ok: true, capa: "/assets/video/" + mv[1] + ".jpg" });
+      }
+
+      /* Os vídeos que ainda não têm capa: os das matérias do Feed e o da
+         Estrutura. É o que o painel usa para dar capa aos vídeos que já
+         estavam no ar antes desta versão. */
+      if (p === "/api/videos-sem-capa" && req.method === "GET") {
+        const semCapa = (u) => ehVideo(u) && /^\/assets\/video\/[A-Za-z0-9._-]+$/.test(u)
+          && fs.existsSync(path.join(VIDEO_DIR, path.basename(u))) && !capaDoVideo(u);
+        const faltam = [];
+        for (const r of db.prepare("SELECT id, title, image FROM posts WHERE image<>''").all())
+          if (semCapa(r.image)) faltam.push({ tabela: "posts", id: r.id, titulo: r.title, video: r.image });
+        const est = getS("estrutura_video") || "";
+        if (semCapa(est) && !faltam.some((f) => f.video === est))
+          faltam.push({ tabela: "settings", id: "estrutura_video", titulo: "Vídeo da Estrutura", video: est });
+        res.setHeader("Cache-Control", "no-store");
+        return json(res, 200, { videos: faltam });
+      }
+
       if (p === "/api/upload" && req.method === "POST") {
         const { name, dataUrl } = await readBody(req);
         /* SVG fica DE FORA de propósito: é XML e pode carregar <script> dentro.
@@ -1537,8 +1611,51 @@ http.createServer(async (req, res) => {
        Fica aqui, no ponto em que o arquivo já foi resolvido — antes disso não
        se sabe se a URL era mesmo uma página. */
     if (path.extname(file) === ".html") trackVisit(req, p);
-    res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
-    res.end(fs.readFileSync(file));
+    /* ENTREGA EM FLUXO, E POR FAIXA (1.33.0).
+
+       Até aqui era readFileSync + res.end: o arquivo INTEIRO na memória a cada
+       pedido, e o cabeçalho Range ignorado. Para vídeo isso quebrava três
+       coisas ao mesmo tempo (o mesmo defeito medido no Kenósis):
+
+       · o vídeo não deixava AVANÇAR — sem resposta por faixa, o navegador
+         marca a mídia como não-pulável e a barra volta para o 0;
+       · no iPhone ele provavelmente nem TOCAVA — o Safari pede bytes=0-1
+         antes de tudo e recusa vídeo de quem responde 200 com o arquivo
+         inteiro;
+       · e a capa tirada do vídeo saía PRETA: toda busca caía no segundo 0.
+
+       Sem contar a memória: um vídeo de 120 MB com dez pessoas assistindo
+       eram 1,2 GB carregados de uma vez. Agora o arquivo sai em fluxo, do
+       disco para a rede, com Content-Length; e "bytes=ini-fim" recebe 206
+       com o pedaço pedido. Pedido de várias faixas numa vez (raro) recebe o
+       arquivo inteiro com 200, o que a norma permite. */
+    const tipo = MIME[path.extname(file)] || "application/octet-stream";
+    const tam = fs.statSync(file).size;
+    const faixa = /^bytes=([0-9]*)-([0-9]*)$/.exec(String(req.headers.range || ""));
+    const envia = (ini, fim) => {
+      const fluxo = fs.createReadStream(file, { start: ini, end: fim });
+      /* erro no meio do caminho (arquivo trocado durante a entrega): fecha
+         a resposta em vez de deixar a conexão pendurada */
+      fluxo.on("error", () => { if (!res.headersSent) res.writeHead(500); res.end(); });
+      fluxo.pipe(res);
+    };
+    if (faixa && (faixa[1] !== "" || faixa[2] !== "")) {
+      let ini, fim;
+      if (faixa[1] === "") { ini = Math.max(0, tam - Number(faixa[2])); fim = tam - 1; }   // "bytes=-500": os últimos 500
+      else { ini = Number(faixa[1]); fim = faixa[2] === "" ? tam - 1 : Math.min(Number(faixa[2]), tam - 1); }
+      if (!(ini <= fim) || ini >= tam) {
+        res.writeHead(416, { "Content-Range": `bytes */${tam}`, "Accept-Ranges": "bytes" });
+        return res.end();
+      }
+      res.writeHead(206, { "Content-Type": tipo, "Content-Length": fim - ini + 1,
+        "Content-Range": `bytes ${ini}-${fim}/${tam}`, "Accept-Ranges": "bytes" });
+      if (req.method === "HEAD") return res.end();
+      return envia(ini, fim);
+    }
+    res.writeHead(200, { "Content-Type": tipo, "Content-Length": tam, "Accept-Ranges": "bytes" });
+    if (req.method === "HEAD") return res.end();
+    if (tam === 0) return res.end();
+    envia(0, tam - 1);
   } catch (e) { json(res, 500, { error: e.message }); }
 /* Escuta só no localhost: quem fala com o mundo é o nginx. Sem isto, o painel
    ficaria acessível por http://IP:5186/admin/ — sem HTTPS, com o cookie de
