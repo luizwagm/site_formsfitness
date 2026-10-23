@@ -352,6 +352,28 @@ table.g-aud{min-width:820px}
 .selo--nova{background:var(--lime-d);color:#fff}
 .g-chegou{display:block;color:var(--muted);font-size:.78rem;font-weight:600}
 .g-avisos-perm{font-size:.82rem}
+/* (1.35.0) lista com busca — saúde e transtornos (assets/js/lista-busca.js) */
+.lb{position:relative}
+.lb__caixa{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;background:#fff;border:1.5px solid var(--line2);border-radius:9px;padding:.3rem .45rem}
+.lb__caixa:focus-within{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(31,168,220,.18)}
+.lb--erro .lb__caixa{border-color:var(--red)}
+.lb__chips{display:contents;list-style:none;margin:0;padding:0}
+.lb__chip{display:inline-flex;align-items:center;gap:.25rem;max-width:100%;background:#e2f2fb;color:#072b5c;font-size:.8rem;font-weight:700;padding:.2rem .3rem .2rem .6rem;border-radius:999px}
+.lb__chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb__chip--nenhuma{background:#e6f6d8;color:#2f6b0c}
+.lb__chip button{border:0;background:rgba(7,43,92,.1);color:inherit;width:1.25rem;height:1.25rem;border-radius:50%;line-height:1;padding:0;flex:none}
+.lb input.lb__busca{flex:1 1 12ch;min-width:12ch;border:0;box-shadow:none;padding:.3rem .25rem;background:transparent}
+.lb input.lb__busca:focus{box-shadow:none;outline:none}
+.lb__lista{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;max-height:260px;overflow-y:auto;margin:0;padding:.3rem;list-style:none;background:#fff;border:1px solid var(--line2);border-radius:10px;box-shadow:0 14px 30px -12px rgba(8,59,126,.3)}
+.lb__op{display:flex;align-items:center;gap:.5rem;padding:.45rem .55rem;border-radius:7px;cursor:pointer;font-size:.88rem}
+.lb__op::before{content:"";flex:none;width:.95rem;height:.95rem;border-radius:4px;border:2px solid var(--line2);background:#fff}
+.lb__op[aria-selected="true"]{font-weight:700}
+.lb__op[aria-selected="true"]::before{border-color:var(--blue);background:var(--blue)}
+.lb__op:hover,.lb__op--ativa{background:var(--bg)}
+.lb__op--nenhuma{border-bottom:1px solid var(--line);margin-bottom:.2rem}
+.lb__vazio{padding:.55rem;font-size:.85rem;color:var(--muted)}
+.lb__outra{margin-top:.4rem}
+.lb__outra[hidden],.lb__lista[hidden]{display:none}
 @media (prefers-reduced-motion:reduce){.g-aviso,.g-alunos tr.g-nova td{animation:none}}
 
 .rodape-previa{margin:.7rem 0;padding:.6rem .8rem;border-top:1px solid #111;background:#fbfdff;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:.85rem;color:#111}

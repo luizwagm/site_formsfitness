@@ -10,6 +10,7 @@
 "use strict";
 
 const U = require("./util");
+const { DECLARACAO_RESPONSAVEL, DECLARACAO_ACEITE } = require("./saude");
 
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
   .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -412,6 +413,9 @@ const CSS_FICHA = `
   .f-aut .qd{flex:0 0 auto;width:1.05em;height:1.05em;border:1px solid #223;display:inline-flex;
     align-items:center;justify-content:center;font-weight:800;font-size:.95em;line-height:1}
   .f-aut-quando{margin:2px 0 0;font-size:.72em;color:#445}
+  .f-decl p{margin:1px 0;text-align:justify;font-size:.8em;line-height:1.3}
+  .f-decl .linha{display:flex;gap:16px;margin-top:6px;font-size:.8em}
+  .f-decl .linha span{flex:1;border-bottom:1px solid #556;padding-bottom:1px}
   .ass-ficha{margin-top:26px;width:60%}
   .ass-ficha .traco{display:block;border-top:1px solid #111;margin-bottom:3px}
   .ass-ficha small{font-size:.8em}
@@ -457,6 +461,11 @@ function fichaHTML({ aluno, matriculas = [], condicoes, agora, temFoto }) {
     ${c("Profissão", aluno.profissao, "s3")}
     ${c("Nacionalidade", aluno.nacionalidade, "s3")}
     ${c("Observação", aluno.observacao, "s12", " alto")}
+    ${/* (1.35.0) saúde e transtornos: sempre na ficha de criança; na de adulto, só se houver */
+      menor || aluno.saude || aluno.transtornos ? c("Questões de saúde", aluno.saude, "s6") + c("Transtornos", aluno.transtornos, "s6") : ""}
+    ${/* (1.36.0) a pergunta do acompanhamento individualizado */
+      menor || aluno.necessidade ? c("Precisa de acompanhamento individualizado, supervisão adicional ou suporte especializado?",
+        aluno.necessidade === "sim" ? "Sim" : aluno.necessidade === "nao" ? "Não" : "", "s12") : ""}
     ${c("Endereço", [aluno.logradouro, aluno.complemento].filter(Boolean).join(", "), "s6")}
     ${c("Nº", aluno.numero, "s1")}
     ${c("CEP", aluno.cep, "s2")}
@@ -480,6 +489,7 @@ function fichaHTML({ aluno, matriculas = [], condicoes, agora, temFoto }) {
     ${c("Fone trabalho", aluno.resp_fone_trabalho, "s3")}
   </div>
   ${autorizacoes(aluno)}
+  ${declaracaoResponsavel(aluno, menor)}
   <div class="condicoes">${condicoes || ""}</div>
   <div class="ass-ficha"><span class="traco"></span><small>Assinatura do(a) aluno(a) ou responsável legal</small></div>`;
 
@@ -504,6 +514,29 @@ function autorizacoes(aluno) {
   return `<p class="f-sec">Autorizações marcadas na matrícula online</p>
   <ul class="f-aut">${textos.map((t) => `<li><span class="qd">X</span><span>${esc(t)}</span></li>`).join("")}</ul>
   <p class="f-aut-quando">Marcadas ${c.por === "responsável legal" ? "pelo responsável legal" : "pelo próprio aluno"} em ${esc(U.dataHoraBR(c.em))}, no envio pelo site.</p>`;
+}
+
+/* A DECLARAÇÃO DO RESPONSÁVEL (1.36.0) — só na ficha de criança.
+
+   Veio pelo site: sai o texto ACEITO naquele dia (gravado no consentimento),
+   com quem aceitou, o CPF e a hora. Matrícula de balcão (ou anterior a esta
+   versão): sai o texto atual com as linhas para o responsável preencher e
+   assinar no papel — é a mesma declaração, em outro meio. */
+function declaracaoResponsavel(aluno, menor) {
+  if (!menor) return "";
+  let c = null;
+  try { c = JSON.parse(aluno.consentimento || "null"); } catch { c = null; }
+  const d = c && c.declaracao;
+  const textos = d && Array.isArray(d.textos) && d.textos.length ? d.textos : [...DECLARACAO_RESPONSAVEL, DECLARACAO_ACEITE];
+  const corpo = textos.slice(0, -1).map((t) => `<p>${esc(t)}</p>`).join("");
+  const aceite = textos[textos.length - 1];
+  return `<p class="f-sec">Declaração do pai, mãe ou responsável legal</p>
+  <div class="f-decl">${corpo}
+  ${d ? `<ul class="f-aut"><li><span class="qd">X</span><span>${esc(aceite)}</span></li></ul>
+  <p class="f-aut-quando">Aceita no site por ${esc(d.nome)} — CPF ${esc(U.formatarCpf(d.cpf))}, em ${esc(U.dataHoraBR(c.em))}.</p>`
+    : `<div class="linha"><span>Nome do responsável legal:</span><span style="flex:.55">CPF:</span></div>
+  <ul class="f-aut"><li><span class="qd"></span><span>${esc(aceite)}</span></li></ul>`}
+  </div>`;
 }
 
 /* Seg a Sáb, como na ficha antiga; domingo só aparece se alguém tiver aula

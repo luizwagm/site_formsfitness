@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Nunito+Sans:wght@300;400;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/styles.css?v=1.32.2">
+  <link rel="stylesheet" href="/assets/css/styles.css?v=1.36.0">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
     {"@type":"ListItem","position":1,"name":"Início","item":"https://formsfitness.com/"},
@@ -312,9 +312,75 @@
             </div>
           </fieldset>
 
+          <!-- ========================= SAÚDE (1.35.0) ========================= -->
+          <!-- Só para menor de idade, como o responsável. Duas listas com busca
+               (assets/js/lista-busca.js); as opções vêm do servidor, junto com
+               as turmas. "Nenhuma"/"Nenhum" é resposta — o campo é obrigatório
+               para que o "não tem" seja dito, e não presumido. -->
+          <fieldset class="mat-bloco" id="mat-saude" hidden>
+            <legend><span class="mat-bloco__n">5</span> Saúde do aluno</legend>
+            <p class="mat-bloco__nota">Para a segurança da criança na piscina. Pode marcar mais de uma opção; se não houver, escolha <b>Nenhuma</b> / <b>Nenhum</b>. Estas informações ficam só com a academia.</p>
+
+            <div class="field">
+              <label for="m-saude-busca">Alguma questão de saúde? <span class="req">*</span></label>
+              <div id="m-saude"></div>
+            </div>
+            <div class="field">
+              <label for="m-transtornos-busca">Algum transtorno? <span class="req">*</span></label>
+              <div id="m-transtornos"></div>
+            </div>
+            <!-- ============ NECESSIDADES DO ALUNO (1.36.0) ============
+                 Texto da academia, palavra por palavra (gestao/saude.js tem a
+                 mesma cópia, que é a gravada na ficha). Quem decide é a
+                 NECESSIDADE DE SUPORTE, e não o diagnóstico das listas acima:
+                 "Sim" mostra a orientação e a matrícula não segue pelo site;
+                 "Não" abre a declaração do responsável — e só ela aceita libera
+                 foto e pagamento (item 7). -->
+            <div class="mat-necessidades">
+              <p class="mat-subtitulo">Informações importantes sobre as necessidades do aluno</p>
+              <div class="field">
+                <label for="m-necessidade">O(a) aluno(a) possui alguma condição, deficiência ou necessidade específica que exija acompanhamento individualizado, supervisão adicional ou suporte especializado durante as atividades aquáticas? <span class="req">*</span></label>
+                <select id="m-necessidade" name="necessidade">
+                  <option value="">Selecione…</option>
+                  <option value="nao">Não</option>
+                  <option value="sim">Sim</option>
+                </select>
+              </div>
+              <p class="mat-importante"><b>Importante:</b> <em>A Forms Fitness Academia Aquática não dispõe, no momento, de equipe especializada para oferecer determinadas modalidades de acompanhamento individualizado ou suporte específico. Por isso, é fundamental que as informações fornecidas sejam verdadeiras e completas, para que as necessidades do(a) aluno(a) sejam consideradas em relação à segurança e aos recursos disponíveis.</em></p>
+
+              <!-- "Sim": a orientação (texto editável em Gestão ▸ Configurações) -->
+              <div class="mat-pausa" id="m-pausa" role="status" hidden>
+                <p class="mat-pausa__texto" id="m-pausa-texto"></p>
+                <a class="mat-pausa__contato" id="m-pausa-zap" target="_blank" rel="noopener">Ficou alguma dúvida? Fale com a academia pelo WhatsApp</a>
+              </div>
+
+              <!-- "Não": a declaração do responsável legal -->
+              <div class="mat-declaracao" id="m-declaracao" hidden>
+                <p class="mat-subtitulo">Declaração do pai, mãe ou responsável legal</p>
+                <p>Declaro que as informações fornecidas nesta ficha são verdadeiras e completas, comprometendo-me a comunicar à Forms Fitness Academia Aquática eventuais informações relevantes para a participação segura do(a) aluno(a) nas atividades aquáticas.</p>
+                <p>Declaro estar ciente das informações apresentadas pela academia sobre os serviços oferecidos e suas limitações quanto à disponibilidade de acompanhamento especializado.</p>
+                <p>Estou ciente de que a participação nas atividades está condicionada às características do serviço oferecido e às condições de segurança disponíveis, observadas as necessidades individuais do(a) aluno(a) e a legislação aplicável.</p>
+                <div class="field-row">
+                  <div class="field">
+                    <label for="m-decl-nome">Nome do responsável legal <span class="req">*</span></label>
+                    <input id="m-decl-nome" name="decl_nome" type="text" maxlength="120" autocomplete="off">
+                  </div>
+                  <div class="field">
+                    <label for="m-decl-cpf">CPF <span class="req">*</span></label>
+                    <input id="m-decl-cpf" name="decl_cpf" type="text" inputmode="numeric" maxlength="40" autocomplete="off" placeholder="000.000.000-00">
+                  </div>
+                </div>
+                <label class="mat-check">
+                  <input type="checkbox" id="m-decl-ok" name="decl_ok">
+                  <span>Declaro que li e estou ciente das informações acima.</span>
+                </label>
+              </div>
+            </div>
+          </fieldset>
+
           <!-- ============================ CONTATO =========================== -->
           <fieldset class="mat-bloco">
-            <legend><span class="mat-bloco__n">5</span> Contato</legend>
+            <legend><span class="mat-bloco__n">6</span> Contato</legend>
 
             <div class="field-row">
               <div class="field">
@@ -340,8 +406,13 @@
           </fieldset>
 
           <!-- =========================== DOCUMENTOS ========================= -->
-          <fieldset class="mat-bloco">
-            <legend><span class="mat-bloco__n">6</span> Foto e comprovante</legend>
+          <fieldset class="mat-bloco" id="mat-pagamento">
+            <legend><span class="mat-bloco__n">7</span> Foto e comprovante</legend>
+            <!-- (1.36.0) Criança: foto e pagamento só depois do item 5 — a
+                 resposta "Não" e a declaração aceita. Até lá, este aviso no
+                 lugar dos campos (e dos dados do Pix). -->
+            <p class="mat-trava" id="mat-trava-pag" hidden>🔒 O envio da foto e o pagamento são liberados depois do <b>item 5</b>: responda à pergunta sobre as necessidades do aluno e aceite a declaração do responsável.</p>
+            <div id="mat-pagamento-conteudo">
             <!-- (1.27.0) Os dois documentos passaram a vir AQUI. Iam pelo
                  WhatsApp, e o que chegava pela conversa se perdia no meio do
                  dia: a secretaria terminava correndo atrás de foto e de
@@ -392,11 +463,12 @@
               </dl>
               <p class="mat-pix__nota">Os dois nomes são da academia. Depois de pagar, anexe o comprovante no campo acima.</p>
             </div>
+            </div>
           </fieldset>
 
           <!-- ========================== AUTORIZAÇÃO ========================= -->
           <fieldset class="mat-bloco mat-bloco--termos">
-            <legend><span class="mat-bloco__n">7</span> Autorização e compromisso</legend>
+            <legend><span class="mat-bloco__n">8</span> Autorização e compromisso</legend>
             <p class="mat-bloco__nota">Marque as quatro para enviar a matrícula.</p>
 
             <label class="mat-check">
@@ -458,6 +530,7 @@
     </div>
   </footer>
 
-  <script type="module" src="/assets/js/main.js?v=1.32.2"></script>
+  <script src="/assets/js/lista-busca.js?v=1.36.0"></script>
+  <script type="module" src="/assets/js/main.js?v=1.36.0"></script>
 </body>
 </html>

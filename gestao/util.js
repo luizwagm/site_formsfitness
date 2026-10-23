@@ -345,7 +345,7 @@ function termosDaMatricula(menor) {
     "Reconheço que devo cumprir com os pagamentos e com o horário fixo escolhido, conforme contrato.",
     "Autorizo a efetivação da matrícula.",
     menor
-      ? "Como responsável legal pelo aluno, autorizo a Forms Fitness a guardar os dados dele e os meus para a gestão da matrícula, conforme a Política de Privacidade."
+      ? "Como responsável legal pelo aluno, autorizo a Forms Fitness a guardar os dados dele e os meus — inclusive as informações de saúde, usadas só para a segurança dele nas aulas — para a gestão da matrícula, conforme a Política de Privacidade."
       : "Autorizo a Forms Fitness a guardar estes dados para a gestão da matrícula, conforme a Política de Privacidade.",
   ];
 }

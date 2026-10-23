@@ -44,7 +44,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.33.0";
+const APP_VERSION = "1.36.0";
 /* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
    deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
    num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento
@@ -121,6 +121,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_visits_day ON visits(day);
   CREATE INDEX IF NOT EXISTS idx_visits_ts ON visits(ts);
 `);
+
+// (1.34.0) as fotos e vídeos além da capa, para o carrossel do Feed (JSON)
+try { db.exec("ALTER TABLE posts ADD COLUMN midias TEXT"); } catch {}
 
 const sha = (s) => crypto.createHash("sha256").update(String(s)).digest("hex");
 
@@ -757,11 +760,66 @@ const fill = (tpl, map) => Object.entries(map).reduce((h, [k, v]) => h.split(`{{
    os atributos são o que deixa o navegador reservar o espaço ANTES do CSS e
    da imagem chegarem — é o CLS. Quando a capa é upload local, a medida real
    vem do arquivo; de fora, vale a caixa do card. */
+/* ==========================================================================
+   VÁRIAS MÍDIAS NUMA MATÉRIA DO FEED (1.34.0)
+
+   A capa (`image`) continua sendo a PRIMEIRA mídia — é ela que vai no cartão
+   da lista, no og:image e no Google. As demais fotos e vídeos ficam em
+   `midias` (JSON), sem limite de quantidade. Com mais de uma, a página da
+   matéria abre com um carrossel; com uma só, fica exatamente como antes.
+
+   Só vale mídia NOSSA: foto enviada pelo painel (pasta de uploads) ou vídeo
+   da pasta de vídeos, nome sem barra. Endereço de fora ou `javascript:` num
+   src seria porta aberta para quem tiver a senha do painel — ou a roubar.
+   ========================================================================== */
+const MIDIA_URL = {
+  foto: /^\/assets\/img\/uploads\/[A-Za-z0-9._-]+\.(jpe?g|png|webp|gif)$/i,
+  video: /^\/assets\/video\/[A-Za-z0-9._-]+\.(mp4|webm|ogv)$/i,
+};
+const midiaValida = (m) => !!(m && MIDIA_URL[m.tipo] && MIDIA_URL[m.tipo].test(String(m.url || "")));
+function midiasDe(p) {
+  try {
+    const lista = JSON.parse(p.midias || "[]");
+    return Array.isArray(lista) ? lista.filter(midiaValida).map((m) => ({ tipo: m.tipo, url: m.url })) : [];
+  } catch { return []; }
+}
+/* Todas as mídias da matéria, a capa primeiro. */
+const todasAsMidias = (p) => [...(p.image ? [{ tipo: ehVideo(p.image) ? "video" : "foto", url: p.image }] : []), ...midiasDe(p)];
+/* Confere o que o painel mandou em `midias`. Devolve a mensagem de erro, ou null. */
+function prepararMidias(b) {
+  if (!("midias" in b)) return null;
+  let lista = b.midias;
+  if (typeof lista === "string") { try { lista = lista.trim() ? JSON.parse(lista) : []; } catch { return "Mídias em formato inválido."; } }
+  if (!Array.isArray(lista)) return "Mídias em formato inválido.";
+  if (lista.length > 500) return "São no máximo 500 mídias por matéria.";
+  if (!lista.every(midiaValida)) return "Uma das mídias não é válida. Envie o arquivo de novo.";
+  b.midias = JSON.stringify(lista.map((m) => ({ tipo: m.tipo, url: m.url })));
+  return null;
+}
+/* O CARROSSEL. Sem script ele já funciona: é uma faixa que rola para o lado e
+   para em cada mídia (scroll-snap). O script só acrescenta setas, pontos,
+   contador e teclado (assets/js/main.js, initCarrossel). Cada mídia aparece
+   INTEIRA, na proporção dela, sobre fundo escuro — foto de celular em pé não
+   perde cabeça nem pé para caber numa moldura deitada. Só a primeira foto
+   carrega de cara; vídeo não baixa nada antes do play. */
+const carrossel = (midias, titulo) => `<figure class="post__cover carrossel" data-carrossel aria-roledescription="carrossel" aria-label="${esc(`Fotos e vídeos: ${titulo}`)}">
+          <div class="carrossel__trilho" tabindex="0">
+            ${midias.map((m, i) => `<div class="carrossel__item" role="group" aria-roledescription="slide" aria-label="${i + 1} de ${midias.length}">
+              ${m.tipo === "video"
+                ? `<video src="${esc(m.url)}" controls preload="none" playsinline poster="${esc(capaDoVideo(m.url) || CAPA_VIDEO)}"></video>`
+                : `<img src="${esc(urlOtimizada(m.url))}" alt="${esc(`${titulo} — foto ${i + 1} de ${midias.length}`)}"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'} decoding="async"${medidasDoImg(m.url)}>`}
+            </div>`).join("\n            ")}
+          </div>
+        </figure>`;
 /* A capa do cartão: a foto, ou o quadro tirado do vídeo, ou — vídeo ainda sem
    quadro — a genérica. */
 const capaDoCartao = (p) => ehVideo(p.image) ? (capaDoVideo(p.image) || CAPA_VIDEO) : urlOtimizada(p.image);
+/* (1.34.0) matéria com várias mídias ganha um selo com a contagem: o carrossel
+   fica na página da matéria, e o selo avisa antes do clique. */
+const seloMidias = (p) => { const n = todasAsMidias(p).length;
+  return n > 1 ? `<span class="post-card__qtd" aria-label="${n} fotos e vídeos">${n}</span>` : ""; };
 const postCard = (p, nivel = 3) => `<article class="post-card" data-reveal>
-            <a class="post-card__media${ehVideo(p.image) ? " post-card__media--video" : ""}" href="/blog/${esc(p.slug)}/" tabindex="-1" aria-hidden="true"><img src="${esc(capaDoCartao(p))}" alt="" loading="lazy"${medidasDoImg(capaDoCartao(p)) || ' width="900" height="563"'}></a>
+            <a class="post-card__media${ehVideo(p.image) ? " post-card__media--video" : ""}" href="/blog/${esc(p.slug)}/" tabindex="-1" aria-hidden="true">${seloMidias(p)}<img src="${esc(capaDoCartao(p))}" alt="" loading="lazy"${medidasDoImg(capaDoCartao(p)) || ' width="900" height="563"'}></a>
             <div class="post-card__body">
               <time class="post-card__date" datetime="${esc(p.date)}">${dateBR(p.date)}</time>
               <h${nivel} class="post-card__title"><a href="/blog/${esc(p.slug)}/">${esc(p.title)}</a></h${nivel}>
@@ -1009,7 +1067,8 @@ function publish() {
       /* `preload="metadata"`: baixa só o cabeçalho, para saber duração e
          proporção. Com "auto", abrir a matéria puxaria o vídeo inteiro de quem
          só queria ler o texto. */
-      COVER: ehVideo(p.image)
+      COVER: todasAsMidias(p).length > 1 ? carrossel(todasAsMidias(p), p.title)
+        : ehVideo(p.image)
         ? `<figure class="post__cover post__cover--video"><video src="${esc(p.image)}" controls preload="metadata" playsinline poster="${esc(capaDoCartao(p))}"></video></figure>`
         : `<figure class="post__cover"><img src="${esc(urlOtimizada(p.image))}" alt="${esc(p.title)}" fetchpriority="high"${medidasDoImg(p.image) || ' width="1200" height="675"'}></figure>`,
       /* Sem medida real (capa remota), a reserva é 16/9 — é a proporção das
@@ -1221,7 +1280,7 @@ const readBody = (req) => new Promise((ok, bad) => {
 });
 const TABLES = { services: ["title", "text", "sort"], portfolio: ["title", "subtitle", "image", "sort"],
   testimonials: ["text", "name", "role", "initials", "sort"], team: ["name", "role", "bio", "photo", "sort"],
-  posts: ["title", "slug", "excerpt", "content", "image", "date", "sort"] };
+  posts: ["title", "slug", "excerpt", "content", "image", "midias", "date", "sort"] };
 const KEYS = ["hero_badge", "hero_title", "hero_lead", "stats", "about_title", "about_lead", "about_bullets",
   "whatsapp", "whatsapp_display", "contact_email", "instagram", "footer_tagline", "cnpj",
   "endereco", "maps_url",
@@ -1426,6 +1485,8 @@ http.createServer(async (req, res) => {
         const table = tm[1], id = tm[2], cols = TABLES[table];
         const b = (req.method === "POST" || req.method === "PUT") ? await readBody(req) : {};
         if (table === "posts" && (req.method === "POST" || req.method === "PUT")) {
+          const erro = prepararMidias(b);   // (1.34.0)
+          if (erro) return json(res, 400, { error: erro });
           if (b.slug || b.title) {
             b.slug = slug(b.slug || b.title || "post") || "post";
             const clash = db.prepare("SELECT id FROM posts WHERE slug=?").get(b.slug);
@@ -1532,6 +1593,11 @@ http.createServer(async (req, res) => {
         for (const r of db.prepare("SELECT id, title, image FROM posts WHERE image<>''").all())
           if (semCapa(r.image)) faltam.push({ tabela: "posts", id: r.id, titulo: r.title, video: r.image });
         const est = getS("estrutura_video") || "";
+        /* (1.34.0) os vídeos do carrossel */
+        for (const r of db.prepare("SELECT id, title, midias FROM posts WHERE midias IS NOT NULL AND midias<>''").all())
+          for (const m of midiasDe(r))
+            if (m.tipo === "video" && semCapa(m.url) && !faltam.some((f) => f.video === m.url))
+              faltam.push({ tabela: "posts", id: r.id, titulo: r.title, video: m.url });
         if (semCapa(est) && !faltam.some((f) => f.video === est))
           faltam.push({ tabela: "settings", id: "estrutura_video", titulo: "Vídeo da Estrutura", video: est });
         res.setHeader("Cache-Control", "no-store");

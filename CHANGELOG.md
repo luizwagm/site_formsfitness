@@ -5,6 +5,67 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.36.0 — 2026-10-22 · Necessidades do aluno: a pergunta que decide, e a declaração do responsável
+
+Texto e regras da academia (22/10/2026), na matrícula de **menor de idade**:
+
+- No bloco **5 · Saúde do aluno** entrou **"Informações importantes sobre as necessidades
+  do aluno"**: *"O(a) aluno(a) possui alguma condição, deficiência ou necessidade
+  específica que exija acompanhamento individualizado, supervisão adicional ou suporte
+  especializado durante as atividades aquáticas?"* — **Sim / Não** num campo de seleção,
+  obrigatório. O texto **Importante** fica logo abaixo, **em destaque e itálico**, à
+  vista mesmo antes de responder.
+- **"Sim"** → aparece a **mensagem de orientação** da academia (com as instituições
+  indicadas: Clínica São Gabriel, Clínica Fisiotrauma, Aquafisio, Acqua Angels) e a
+  matrícula **não segue pelo site**. O texto é editável em **Gestão ▸ Configurações**.
+- **"Não"** → abre a **Declaração do pai, mãe ou responsável legal**, já com o nome e o
+  CPF do responsável (item 4); é preciso marcar *"Declaro que li e estou ciente"*. O CPF
+  da declaração tem de ser o do responsável.
+- **Foto e pagamento (item 7) só são liberados depois dessa etapa** — até lá, um aviso
+  ocupa o lugar dos campos e dos dados do Pix.
+- **A trava da 1.35.0 por transtorno SAIU** (ela nunca foi ao ar): bloquear pela
+  existência de diagnóstico é o que a Lei Brasileira de Inclusão não admite. Agora quem
+  decide é a **necessidade de suporte** que a academia não consegue oferecer, como a
+  própria academia definiu. As listas de saúde e transtornos continuam, só para informar.
+- A declaração aceita vai gravada na ficha (nome, CPF, hora e as palavras aceitas) e
+  sai na **ficha impressa**; na matrícula de balcão, a ficha imprime a declaração com
+  linhas para o responsável preencher e assinar.
+- No **painel** a pergunta também aparece (obrigatória no cadastro novo de criança),
+  mas **não trava**: a secretaria decide depois da conversa.
+- Adulto não passa por nada disso.
+
+## 1.35.0 — 2026-10-16 · Saúde e transtornos na matrícula de menor
+
+- Na matrícula de **menor de 18 anos** (site e **+ Novo aluno** do painel) entrou o
+  bloco **"Saúde do aluno"**, com dois campos **obrigatórios**:
+  **"Alguma questão de saúde?"** e **"Algum transtorno?"**.
+- Cada um é uma **lista com busca**: digita-se "asm" e aparece "Asma". Pode-se marcar
+  **mais de uma** opção (cada uma vira uma etiqueta com ×). **"Nenhuma" / "Nenhum"** é
+  resposta e exclui as demais; **"Outra (especificar)"** abre um campo de texto.
+- As listas (33 questões de saúde e 19 transtornos, escolhidos pelo que muda a
+  conduta na piscina: asma, convulsão, tubo no ouvido, alergia ao cloro, TEA, TDAH,
+  medo de água…) moram num lugar só (`gestao/saude.js`): o site e o painel as
+  recebem do servidor, e o servidor recusa o que não é da lista.
+- A **ficha impressa** mostra as duas respostas. Ficha antiga continua editável sem
+  elas (como o resto da ficha completa).
+- **Dado sensível (LGPD):** o texto de autorização do responsável passou a dizer que
+  inclui as informações de saúde e que elas servem só à segurança da criança nas aulas.
+
+## 1.34.0 — 2026-10-15 · Várias fotos e vídeos por matéria do Feed (carrossel)
+
+- Cada matéria do Feed aceita **quantas fotos e vídeos quiser**: a capa continua
+  sendo a primeira, e o painel ganhou **"Mais fotos e vídeos (carrossel)"**, com
+  envio de várias de uma vez, setas para mudar a ordem e × para tirar.
+- Com mais de uma mídia, a **página da matéria abre com um carrossel**: setas,
+  pontos, contador "2 / 5", setas do teclado e o dedo no celular. Cada mídia
+  aparece **inteira**, na proporção dela (foto em pé não é cortada). Trocar de
+  slide **pausa o vídeo** que estava tocando.
+- Na lista do Feed, o cartão mostra a capa com um **selo** com a quantidade de
+  mídias. Matéria de uma mídia só continua exatamente como antes.
+- Só entram mídias enviadas pelo painel (fotos reduzidas a 1920 px antes de
+  subir); endereço de fora ou `javascript:` é recusado pelo servidor.
+- Enviar, mover e tirar mídia **salvam na hora**; depois é só **Publicar**.
+
 ## 1.33.0 — 2026-10-09 · Capa do vídeo tirada do próprio vídeo
 
 - Matéria com **vídeo** deixou de ter a capa genérica igual para todas: ao enviar

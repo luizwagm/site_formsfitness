@@ -269,6 +269,10 @@ function instalar({ db, getS, setS, hashSenha }) {
      Como a foto, o arquivo mora em g_arquivos (BLOB no banco) e nunca no
      disco público: nada em /var/www vira endereço que alguém adivinha. */
   if (!temColuna("g_alunos", "comprovante_id")) db.exec("ALTER TABLE g_alunos ADD COLUMN comprovante_id INTEGER");
+  /* (1.35.0) Saúde e transtornos do aluno menor — as opções marcadas, em
+     texto separado por "; " (ver gestao/saude.js). */
+  for (const col of ["saude", "transtornos", "necessidade"])   // necessidade: 'nao' | 'sim' (1.36.0)
+    if (!temColuna("g_alunos", col)) db.exec(`ALTER TABLE g_alunos ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
   db.exec(`
     CREATE TABLE IF NOT EXISTS g_boletos (
       id                INTEGER PRIMARY KEY AUTOINCREMENT,

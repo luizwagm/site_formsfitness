@@ -486,6 +486,19 @@
         ${campo("resp_fone_trabalho", "Fone do trabalho", "c3", 'data-mask="fone" inputmode="tel"')}
       </div>
 
+      <p class="gf-sec">Saúde</p>
+      <p class="gf-nota" id="fa-nota-saude" hidden>Aluno <b>menor de idade</b>: informe as questões de saúde e os transtornos — ou “Nenhuma” / “Nenhum” — e se precisa de acompanhamento individualizado.</p>
+      <div class="gf">
+        <div class="c6"><label for="fa-saude-busca">Questões de saúde</label><div id="fa-saude"></div></div>
+        <div class="c6"><label for="fa-transtornos-busca">Transtornos</label><div id="fa-transtornos"></div></div>
+        <div class="c12"><label for="fa-necessidade">Precisa de acompanhamento individualizado, supervisão adicional ou suporte especializado nas aulas?</label>
+          <select id="fa-necessidade" name="necessidade">
+            <option value=""${a.necessidade ? "" : " selected"}>—</option>
+            <option value="nao"${a.necessidade === "nao" ? " selected" : ""}>Não</option>
+            <option value="sim"${a.necessidade === "sim" ? " selected" : ""}>Sim</option>
+          </select></div>
+      </div>
+
       <p class="gf-sec">Observação</p>
       <textarea name="observacao" maxlength="1000" rows="3">${e(a.observacao || "")}</textarea>
 
@@ -512,6 +525,14 @@
 
     const F = $("#form-aluno");
     mascarar(F);
+    /* (1.35.0) as duas listas com busca; as opções vêm do servidor (resumo) */
+    const LS = {};
+    if (window.ListaBusca && R.listas_saude) for (const nome of ["saude", "transtornos"]) {
+      const def = R.listas_saude[nome];
+      LS[nome] = window.ListaBusca.montar($("#fa-" + nome, F), { nome, idBusca: `fa-${nome}-busca`,
+        opcoes: def.opcoes, nenhuma: def.nenhuma, outra: def.outra, prefixo: def.prefixo, valor: a[nome] || "",
+        placeholder: "Digite para buscar…" });
+    }
 
     /* ----------------------------------------------------- CEP → endereço
        (1.26.0) Ao completar os 8 dígitos, o servidor consulta o CEP (ver
@@ -601,6 +622,17 @@
       $("#fa-idade", F).value = i ?? "";
       const menor = i !== null && i < 18;
       $("#fa-nota-menor", F).hidden = !menor;
+      $("#fa-nota-saude", F).hidden = !menor;
+      /* saúde e transtornos: obrigatórios no cadastro NOVO de menor (a edição
+         de ficha antiga continua livre, como o resto) */
+      for (const n of ["saude", "transtornos"]) {
+        $(`label[for="fa-${n}-busca"]`, F).classList.toggle("obrig", !id && menor);
+        if (LS[n]) LS[n].obrigatoria(!id && menor);
+      }
+      /* (1.36.0) a pergunta do acompanhamento: obrigatória no cadastro novo
+         de criança; no painel ela INFORMA (a secretaria decide depois da
+         conversa) — a trava do "Sim" é só do site */
+      $('label[for="fa-necessidade"]', F).classList.toggle("obrig", !id && menor);
       if (id) { for (const n of ["resp_nome", "resp_rg", "resp_cpf"]) $(`label[for="fa-${n}"]`, F).classList.toggle("obrig", menor); return; }
       marcar(OBRIG_MENOR, menor);
       marcar(OBRIG_ADULTO, i !== null && !menor);
@@ -1701,7 +1733,16 @@
       <div class="card mt"><h3 style="margin:0 0 .2rem">Condições da matrícula</h3>
         <p class="hint">O texto que sai no fim da <b>ficha impressa</b>, antes da assinatura. Não aparece no formulário do site.</p>
         <div id="cfg-cond" class="mt">${editorRico('data-ed="condicoes"', cfg.condicoes, true)}</div>
-        <button class="btn btn-navy btn-sm mt" data-cf="condicoes">Salvar condições</button></div>`;
+        <button class="btn btn-navy btn-sm mt" data-cf="condicoes">Salvar condições</button></div>
+
+      <div class="card mt"><h3 style="margin:0 0 .2rem">Matrícula de criança que precisa de acompanhamento individualizado</h3>
+        <p class="hint">Quando o responsável responde <b>Sim</b> à pergunta sobre acompanhamento individualizado, supervisão adicional ou
+          suporte especializado, a matrícula <b>não segue pelo site</b> e aparece este texto. A trava é pela <b>necessidade de suporte</b>,
+          nunca por diagnóstico. Escreva sobre a <b>academia</b> (a equipe, a estrutura, a segurança), nunca sobre a criança —
+          recusar atendimento por deficiência é proibido por lei (Lei 13.146/2015). Em branco, volta o texto padrão.</p>
+        <textarea id="cfg-msg-necessidade" rows="14" maxlength="1500">${e(cfg.msg_necessidade)}</textarea>
+        <div class="mt"><button class="btn btn-navy btn-sm" data-cf="msg-necessidade">Salvar mensagem</button>
+          <button class="btn btn-ghost btn-sm" data-cf="msg-necessidade-padrao">Voltar ao texto padrão</button></div></div>`;
 
     P.onclick = async (ev) => {
       const b = ev.target.closest("[data-cf]"); if (!b) return;
@@ -1717,6 +1758,11 @@
         if (b.dataset.cf === "condicoes") {
           const inp = $('#cfg-cond input[type=hidden]'); edSync(inp.id);
           await api("/api/gestao/config", "PUT", { condicoes: inp.value }); toast("Condições da matrícula salvas.");
+        }
+        if (b.dataset.cf === "msg-necessidade" || b.dataset.cf === "msg-necessidade-padrao") {
+          if (b.dataset.cf === "msg-necessidade-padrao") $("#cfg-msg-necessidade").value = cfg.msg_necessidade_padrao;
+          await api("/api/gestao/config", "PUT", { msg_necessidade: $("#cfg-msg-necessidade").value });
+          toast("Mensagem salva — vale para o site na hora.");
         }
         if (b.dataset.cf === "apagar-feriado") {
           const f = fer.feriados.find((x) => x.id === Number(b.dataset.id));

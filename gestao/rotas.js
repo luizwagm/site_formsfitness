@@ -25,6 +25,8 @@ const { criarBuscaCep } = require("./cep");
 const { lerConfig: lerConfigSicredi, criarSicredi } = require("./sicredi");
 const { criarCobranca } = require("./cobranca");
 const { carneHTML } = require("./carne");
+const { LISTAS_SAUDE, normalizarListaSaude, MSG_NECESSIDADE_PADRAO, DECLARACAO_RESPONSAVEL, DECLARACAO_ACEITE,
+  NECESSIDADES } = require("./saude");
 
 const agora = () => new Date().toISOString();
 const ESTADOS_CIVIS = ["Solteiro(a)", "Casado(a)", "União estável", "Separado(a)", "Divorciado(a)", "Viúvo(a)"];
@@ -368,6 +370,17 @@ function criar(ctx) {
     if (a.sexo && !SEXOS.includes(a.sexo)) erros.push("Sexo inválido.");
     if (a.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(a.email)) erros.push("E-mail inválido.");
     for (const campo of ["cpf", "resp_cpf"]) if (a[campo]) a[campo] = U.formatarCpf(a[campo]);
+    /* (1.36.0) necessidade de acompanhamento individualizado: "nao" ou "sim" */
+    if ("necessidade" in b) {
+      const n = String(b.necessidade ?? "").trim().toLowerCase().replace("não", "nao");
+      if (n && !NECESSIDADES.includes(n)) erros.push("Resposta inválida sobre as necessidades do aluno.");
+      else a.necessidade = n;
+    }
+    /* (1.35.0) saúde e transtornos: só opções da lista (ver gestao/saude.js) */
+    for (const campo of ["saude", "transtornos"]) if (campo in b) {
+      const r = normalizarListaSaude(campo, b[campo]);
+      if (r.erro) erros.push(r.erro); else a[campo] = r.valor;
+    }
 
     /* Dia de vencimento do boleto (1.26.0). Vazio = 0 = "o da matrícula". */
     if ("dia_vencimento" in b) {
@@ -416,6 +429,15 @@ function criar(ctx) {
           ["resp_fone", "telefone do responsável"], ["resp_estado_civil", "estado civil do responsável"],
           ["resp_profissao", "profissão do responsável"], ["resp_nacionalidade", "nacionalidade do responsável"]])
           if (!a[c]) faltam.push(rot);
+        /* (1.35.0) Da criança, a saúde e os transtornos — "Nenhuma"/"Nenhum"
+           é resposta; em branco, não. */
+        /* "Faltou" só quando NÃO veio — o que veio errado já tem o motivo
+           próprio em `erros`, e dizer "faltou preencher" a quem preencheu
+           esconderia o problema real. */
+        if (!a.saude && !String(b.saude ?? "").trim()) faltam.push("questões de saúde (ou \"Nenhuma\")");
+        if (!a.transtornos && !String(b.transtornos ?? "").trim()) faltam.push("transtornos (ou \"Nenhum\")");
+        /* (1.36.0) e a resposta sobre acompanhamento individualizado */
+        if (!a.necessidade && !String(b.necessidade ?? "").trim()) faltam.push("a resposta sobre as necessidades do aluno (Sim ou Não)");
         if (a.resp_cpf && !U.cpfValido(a.resp_cpf)) erros.push("O CPF do responsável não confere. Verifique os números.");
         if (a.resp_cpf && a.cpf && a.resp_cpf === a.cpf) erros.push("O CPF do aluno e o do responsável são o mesmo — confira qual é de quem.");
       } else if (a.nascimento) {
@@ -529,7 +551,8 @@ function criar(ctx) {
         WHERE t.ativo=1 AND t.publica=1 AND a.ativo=1 ORDER BY a.nome, t.horario`);
       res.setHeader("Cache-Control", "no-store");
       json(res, 200, { turmas: lista.map((t) => ({ id: t.id, rotulo: rotuloTurma(t) })),
-        dias: U.diasPorExtenso(diasAula()) });
+        dias: U.diasPorExtenso(diasAula()), listas_saude: LISTAS_SAUDE,   // (1.35.0)
+        msg_necessidade: getS("g_msg_necessidade") || MSG_NECESSIDADE_PADRAO });   // (1.36.0)
       return true;
     }
 
@@ -582,6 +605,24 @@ function criar(ctx) {
           throw new Recusa(400, "Para enviar, marque as autorizações do fim do formulário.");
 
         const a = normalizarAluno(b, { rigoroso: true });
+        /* (1.36.0) CRIANÇA: a NECESSIDADE de suporte decide, e não o
+           diagnóstico (ver gestao/saude.js). "Sim" → a mensagem de orientação
+           e a matrícula não segue pelo site. "Não" → a declaração do
+           responsável, aceita, com o nome e o CPF de quem responde (o mesmo
+           do item 4). A tela já faz tudo isso antes; aqui é a mesma regra do
+           lado que não pode ser contornado. */
+        let declaracao = null;
+        if (U.ehMenor(a.nascimento)) {
+          if (a.necessidade === "sim")
+            throw new Recusa(400, getS("g_msg_necessidade") || MSG_NECESSIDADE_PADRAO, { motivo: "necessidade" });
+          const nomeDecl = limpar(b.decl_nome, 120);
+          const cpfDecl = U.formatarCpf(limpar(b.decl_cpf, 20));
+          if (b.decl_ok !== true) throw new Recusa(400, "Leia e aceite a declaração do responsável legal (item 5).");
+          if (nomeDecl.length < 5) throw new Recusa(400, "Na declaração, escreva o nome completo do responsável legal.");
+          if (!U.cpfValido(cpfDecl)) throw new Recusa(400, "Na declaração, o CPF do responsável não confere.");
+          if (cpfDecl !== a.resp_cpf) throw new Recusa(400, "Na declaração, o CPF deve ser o do responsável informado no item 4.");
+          declaracao = { nome: nomeDecl, cpf: cpfDecl, textos: [...DECLARACAO_RESPONSAVEL, DECLARACAO_ACEITE] };
+        }
         /* Desde a 1.21.0 o site só oferece os horários CADASTRADOS: texto
            livre ("terça às 10h, se tiver") não vira turma, e a secretaria
            tinha de adivinhar. Sem turma aberta, não há matrícula online. */
@@ -603,6 +644,7 @@ function criar(ctx) {
           em: agora(), termos: true, dados: true,
           menor: U.ehMenor(a.nascimento), por: U.ehMenor(a.nascimento) ? "responsável legal" : "o próprio aluno",
           textos: U.termosDaMatricula(U.ehMenor(a.nascimento)),
+          ...(declaracao ? { declaracao } : {}),   // (1.36.0) a declaração do responsável, com as palavras aceitas
         });
         /* (1.30.0) A DATA DA MATRÍCULA É A DO ENVIO. Antes ficava em branco
            até alguém efetivar — e quem se matriculava no sábado aparecia
@@ -719,6 +761,7 @@ function criar(ctx) {
            ela, e a tabela vem DAQUI — uma cópia no navegador envelheceria. */
         regra_vencimento: U.REGRA_VENCIMENTO,
         estados_civis: ESTADOS_CIVIS, sexos: SEXOS, ufs: UFS,
+        listas_saude: LISTAS_SAUDE,   // (1.35.0) as mesmas do site
         usuario: { id: usuario.id, nome: usuario.nome, login: usuario.login, admin: !!usuario.admin },
       }), true;
 
@@ -1203,6 +1246,7 @@ function criar(ctx) {
       if (rota === "/config" && req.method === "GET")
         return json(res, 200, { dias_aula: diasAula(), condicoes: getS("g_condicoes") || "",
           email_admin: getS("g_email_admin") || "", email_contato: getS("contact_email") || "",
+          msg_necessidade: getS("g_msg_necessidade") || MSG_NECESSIDADE_PADRAO, msg_necessidade_padrao: MSG_NECESSIDADE_PADRAO,
           rodape: rodapeContrato() }), true;
       if (rota === "/config" && req.method === "PUT") {
         const b = await corpo();
@@ -1213,6 +1257,11 @@ function criar(ctx) {
           setS("g_dias_aula", JSON.stringify(dias));
         }
         if (b.condicoes !== undefined) setS("g_condicoes", htmlLimpo(String(b.condicoes || "")));
+        /* (1.36.0) texto simples: vai para a tela do site com textContent */
+        if (b.msg_necessidade !== undefined) {
+          const m = String(b.msg_necessidade || "").replace(/\r\n/g, "\n").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "").trim().slice(0, 1500);
+          setS("g_msg_necessidade", m);   // vazio = volta o texto padrão
+        }
         if (b.email_admin !== undefined) {
           const email = limpar(b.email_admin, 120);
           if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Recusa(400, "E-mail administrativo inválido.");

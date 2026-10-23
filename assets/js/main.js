@@ -367,6 +367,67 @@ function initMatricula() {
   const erro = $("#mat-erro");
   const blocoResp = $("#mat-responsavel");
   const blocoDocs = $("#mat-docs");
+  /* (1.35.0) Saúde e transtornos da criança — duas listas com busca, montadas
+     quando as opções chegam do servidor (junto com as turmas). Até lá, e se
+     a idade mudar, `menorAgora` guarda se elas são obrigatórias. */
+  const blocoSaude = $("#mat-saude");
+  const listasSaude = {};
+  let menorAgora = false;
+  /* (1.36.0) NECESSIDADES DO ALUNO — a etapa que libera foto e pagamento.
+
+     Só para criança. Quem decide é a pergunta sobre ACOMPANHAMENTO
+     individualizado (e não o diagnóstico das listas acima, que só informam):
+       · "Sim" → a orientação da academia (texto da Gestão ▸ Configurações)
+         aparece na hora, e o envio trava;
+       · "Não" → a declaração do responsável abre, já com o nome e o CPF do
+         item 4; aceita, o item 7 (foto e pagamento) é liberado.
+     O "Importante" fica à vista desde o começo, antes de qualquer resposta. */
+  let msgNecessidade = "";
+  const pausa = $("#m-pausa");
+  const selNec = $("#m-necessidade");
+  const decl = $("#m-declaracao");
+  const declNome = $("#m-decl-nome"), declCpf = $("#m-decl-cpf"), declOk = $("#m-decl-ok");
+  const pagamento = $("#mat-pagamento"), pagConteudo = $("#mat-pagamento-conteudo"), pagTrava = $("#mat-trava-pag");
+  function conferirCpfDecl() {
+    if (!declCpf || typeof julgarCpf !== "function") return;
+    julgarCpf(declCpf);
+    if (declCpf.validationMessage || decl.hidden) return;
+    /* quem declara é o responsável do item 4 — o mesmo CPF */
+    const resp = soDig($("#m-r-cpf").value), dele = soDig(declCpf.value);
+    if (dele.length === 11 && resp.length === 11 && dele !== resp) {
+      declCpf.setCustomValidity("O CPF da declaração deve ser o do responsável informado no item 4.");
+      declCpf.setAttribute("aria-invalid", "true");
+      let aviso = declCpf.parentElement.querySelector(".mat-campo-aviso");
+      if (!aviso) { aviso = document.createElement("small"); aviso.className = "mat-campo-aviso"; aviso.setAttribute("role", "alert"); declCpf.parentElement.appendChild(aviso); }
+      aviso.textContent = "Este CPF não é o do responsável informado no item 4."; aviso.hidden = false;
+    }
+  }
+  function conferirEtapa() {
+    const nec = menorAgora ? selNec.value : "";
+    const sim = nec === "sim", nao = nec === "nao";
+    selNec.required = menorAgora;
+    $("#m-pausa-texto").textContent = msgNecessidade;
+    $("#m-pausa-zap").href = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Olá! Gostaria de conversar sobre a matrícula na Forms Fitness.")}`;
+    pausa.hidden = !sim;
+    const mostrarDecl = menorAgora && nao;
+    if (mostrarDecl && decl.hidden) {
+      /* abre já preenchida com o responsável do item 4 — quem declara é ele */
+      if (!declNome.value.trim()) declNome.value = $("#m-r-nome").value.trim();
+      if (!declCpf.value.trim()) declCpf.value = $("#m-r-cpf").value;
+    }
+    decl.hidden = !mostrarDecl;
+    [declNome, declCpf, declOk].forEach((el) => { el.required = mostrarDecl; });
+    conferirCpfDecl();
+    const liberado = !menorAgora || (nao && declOk.checked);
+    pagTrava.hidden = liberado;
+    pagConteudo.hidden = !liberado;
+    pagamento.disabled = !liberado;
+    /* Só destrava o envio se não houver outro motivo (sem turma aberta). */
+    botao.classList.toggle("mat-enviar--travado", sim);
+    if (sim) botao.disabled = true;
+    else if (!selTurma.disabled && !enviando) botao.disabled = false;
+    return { sim, liberado };
+  }
   const nasc = $("#m-nasc");
   const botao = form.querySelector(".mat-enviar");
   const selTurma = $("#m-turma");
@@ -398,6 +459,12 @@ function initMatricula() {
 
     blocoResp.hidden = !menor;
     blocoDocs.hidden = !maior;
+    blocoSaude.hidden = !menor;
+    menorAgora = menor;
+    Object.values(listasSaude).forEach((l) => l.obrigatoria(menor));
+    /* depois de a montagem terminar: na carga da página, `enviando`, `soDig` e
+       `cpfOk` ainda não existem (são declarados mais abaixo) */
+    if (botao) queueMicrotask(conferirEtapa);
     /* (1.31.0) A ficha completa: o responsável inteiro para criança; RG,
        órgão emissor, estado civil e profissão para adulto. O CPF do aluno é
        obrigatório para todos e já vem marcado no HTML. */
@@ -428,7 +495,7 @@ function initMatricula() {
     });
 
     textoDados.innerHTML = menor
-      ? `Como responsável legal pelo aluno, autorizo a Forms Fitness a guardar os dados dele e os meus para a gestão da matrícula, conforme a ${linkPriv}.`
+      ? `Como responsável legal pelo aluno, autorizo a Forms Fitness a guardar os dados dele e os meus — inclusive as informações de saúde, usadas só para a segurança dele nas aulas — para a gestão da matrícula, conforme a ${linkPriv}.`
       : `Autorizo a Forms Fitness a guardar estes dados para a gestão da matrícula, conforme a ${linkPriv}.`;
   }
   nasc.addEventListener("change", ajustarPorIdade);
@@ -461,7 +528,19 @@ function initMatricula() {
   }
   fetch("/api/publico/turmas", { headers: { Accept: "application/json" } })
     .then((r) => (r.ok ? r.json() : Promise.reject()))
-    .then(({ turmas, dias }) => {
+    .then(({ turmas, dias, listas_saude: ls, msg_necessidade: mn }) => {
+      msgNecessidade = mn || "";
+      if (menorAgora) conferirEtapa();
+      /* (1.35.0) as listas de saúde vêm na mesma resposta das turmas */
+      if (ls && window.ListaBusca) {
+        for (const [nome, def, msg] of [["saude", ls.saude, "Informe se há alguma questão de saúde — ou escolha “Nenhuma”."],
+          ["transtornos", ls.transtornos, "Informe se há algum transtorno — ou escolha “Nenhum”."]]) {
+          if (!def || listasSaude[nome]) continue;
+          listasSaude[nome] = window.ListaBusca.montar($("#m-" + nome), { nome, idBusca: `m-${nome}-busca`,
+            opcoes: def.opcoes, nenhuma: def.nenhuma, outra: def.outra, prefixo: def.prefixo,
+            obrigatoria: menorAgora, mensagem: msg });
+        }
+      }
       if (!turmas || !turmas.length) return semHorario("Nenhum horário aberto para matrícula online no momento");
       selTurma.innerHTML = '<option value="">Selecione o horário…</option>' +
         turmas.map((t) => `<option value="${Number(t.id)}">${esc(t.rotulo)}</option>`).join("");
@@ -551,6 +630,11 @@ function initMatricula() {
   mascara($("#m-cep"), digCep, fmtCep);
   mascara($("#m-cpf"), digCpf, fmtCpf);
   mascara($("#m-r-cpf"), digCpf, fmtCpf);
+  mascara($("#m-decl-cpf"), digCpf, fmtCpf);   // (1.36.0) o CPF da declaração
+  /* (1.36.0) a etapa das necessidades reage a cada resposta */
+  selNec.addEventListener("change", conferirEtapa);
+  declOk.addEventListener("change", conferirEtapa);
+  $("#m-r-cpf").addEventListener("blur", conferirCpfDecl);
   ["#m-whats", "#m-fone2", "#m-r-fone", "#m-r-ftrab"].forEach((s) => mascara($(s), digFone, fmtFone));
 
   /* Dígito verificador do CPF: pega o erro de digitação aqui, com o dedo
@@ -594,16 +678,19 @@ function initMatricula() {
     }
     if (aviso) { aviso.textContent = msg; aviso.hidden = !msg; }
   }
-  ["#m-cpf", "#m-r-cpf"].forEach((s) => {
+  ["#m-cpf", "#m-r-cpf", "#m-decl-cpf"].forEach((s) => {
     const el = $(s);
     /* Enquanto digita, só LIMPA o aviso (acusar erro no 3º número é
        implicância); completou os 11, confere na hora. */
+    /* o da declaração (1.36.0) tem conferência própria: além do formato, tem
+       de ser o CPF do responsável — e julgarCpf sozinho apagaria esse aviso */
+    const conferir = s === "#m-decl-cpf" ? conferirCpfDecl : () => julgarCpf(el);
     el.addEventListener("input", () => {
-      if (soDig(el.value).length === 11) julgarCpf(el);
+      if (soDig(el.value).length === 11) conferir();
       else { el.setCustomValidity(""); el.setAttribute("aria-invalid", "false");
         const a = el.parentElement.querySelector(".mat-campo-aviso"); if (a) a.hidden = true; }
     });
-    el.addEventListener("blur", () => julgarCpf(el));
+    el.addEventListener("blur", conferir);
   });
 
   /* ------------------------------------------------------- CEP → endereço
@@ -775,7 +862,14 @@ function initMatricula() {
     e.preventDefault();
     if (enviando) return;
     erro.hidden = true;
+    /* (1.36.0) criança com "Sim": não segue (o botão já vem travado; isto
+       cobre o Enter num campo). Os demais avisos do item 5 entram na ORDEM
+       da página, junto com os outros — um CPF errado no item 2 é apontado
+       antes da pergunta sem resposta no item 5. */
+    const etapa = conferirEtapa();
+    if (etapa.sim) { pausa.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
     ["#m-cpf", "#m-r-cpf"].forEach((s) => julgarCpf($(s)));
+    conferirCpfDecl();
 
     /* `reportValidity` só aponta o primeiro campo. A mensagem própria diz
        QUANTOS faltam e leva até o primeiro — numa ficha longa, sair rolando
@@ -788,8 +882,11 @@ function initMatricula() {
          exemplo) não é campo que "falta preencher". Dizer isso a quem tem tudo
          preenchido faz a pessoa procurar o erro onde ele não está. */
       const recusado = faltando.find((el) => el.validity.customError && el.validationMessage !== "CPF inválido");
+      const msgItem5 = primeiro === selNec ? "Responda à pergunta sobre as necessidades do aluno (item 5)."
+        : primeiro === declOk ? "Leia e aceite a declaração do responsável (item 5) para liberar a foto e o pagamento." : "";
       mostrarErro(cpfRuim ? "O CPF não confere. Verifique os números."
         : recusado ? recusado.validationMessage
+        : msgItem5 ? msgItem5
         : faltando.length === 1 ? "Falta preencher um campo obrigatório."
         : `Faltam ${faltando.length} campos obrigatórios.`, cpfRuim || recusado || primeiro);
       return;
@@ -804,11 +901,12 @@ function initMatricula() {
     /* O que não vale para a idade não viaja: CPF de adulto escondido num
        cadastro de criança (ou o contrário) iria para o banco sem ninguém ver. */
     const soDoOutro = menor ? ["rg", "rg_emissor", "estado_civil", "profissao"]
-      : ["resp_nome", "resp_cpf", "resp_rg", "resp_rg_emissor", "resp_nascimento", "resp_fone",
+      : ["saude", "transtornos", "necessidade", "decl_nome", "decl_cpf", "decl_ok", "resp_nome", "resp_cpf", "resp_rg", "resp_rg_emissor", "resp_nascimento", "resp_fone",
          "resp_estado_civil", "resp_profissao", "resp_nacionalidade", "resp_end_trabalho", "resp_fone_trabalho"];
     soDoOutro.forEach((k) => delete d[k]);
     d.aceite_termos = Boolean(d.t1 && d.t2 && d.t3);
     d.aceite_dados = Boolean(d.aceite_dados);
+    if (menor) d.decl_ok = Boolean(d.decl_ok);   // (1.36.0) a caixa vem como "on"
     delete d.t1; delete d.t2; delete d.t3;
 
     enviando = true;
@@ -868,6 +966,58 @@ function initConsent() {
 
 function initYear() { const y = $("#year"); if (y) y.textContent = new Date().getFullYear(); }
 
-function boot() { initHeader(); initMobileNav(); initHeaderSearch(); initReveal(); initForm(); initFab(); initYear(); initSearchResults(); initMatricula(); initConsent(); }
+/* ----------------------------- Carrossel (1.34.0) -------------------------
+   A faixa já rola sozinha (scroll-snap). Aqui entram as setas, os pontos, o
+   contador "2 / 5" e as setas do teclado. O slide atual é calculado pela
+   POSIÇÃO da rolagem, e não guardado numa variável: assim dedo, seta, ponto
+   e teclado nunca discordam sobre onde se está. Trocar de slide pausa o
+   vídeo que estava tocando — senão o som seguiria com a imagem fora da tela. */
+function initCarrossel() {
+  $$("[data-carrossel]").forEach((caixa) => {
+    const trilho = $(".carrossel__trilho", caixa);
+    const itens = $$(".carrossel__item", caixa);
+    if (!trilho || itens.length < 2) return;
+    const ant = document.createElement("button"), prox = document.createElement("button");
+    ant.type = prox.type = "button";
+    ant.className = "carrossel__seta carrossel__seta--ant"; ant.setAttribute("aria-label", "Mídia anterior"); ant.textContent = "‹";
+    prox.className = "carrossel__seta carrossel__seta--prox"; prox.setAttribute("aria-label", "Próxima mídia"); prox.textContent = "›";
+    const contador = document.createElement("span");
+    contador.className = "carrossel__contador"; contador.setAttribute("aria-live", "polite");
+    const pontos = document.createElement("div");
+    pontos.className = "carrossel__pontos";
+    const botoes = itens.map((_, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.setAttribute("aria-label", `Ir para a mídia ${i + 1} de ${itens.length}`);
+      b.addEventListener("click", () => ir(i));
+      pontos.appendChild(b);
+      return b;
+    });
+    caixa.append(ant, prox, contador, pontos);
+
+    const atual = () => Math.round(trilho.scrollLeft / Math.max(1, trilho.clientWidth));
+    const ir = (i) => trilho.scrollTo({ left: Math.max(0, Math.min(itens.length - 1, i)) * trilho.clientWidth });
+    let ultimo = -1;
+    const pinta = () => {
+      const i = Math.max(0, Math.min(itens.length - 1, atual()));
+      if (i === ultimo) return;
+      ultimo = i;
+      contador.textContent = `${i + 1} / ${itens.length}`;
+      botoes.forEach((b, k) => b.setAttribute("aria-current", String(k === i)));
+      ant.disabled = i === 0; prox.disabled = i === itens.length - 1;
+      itens.forEach((it, k) => { if (k !== i) $$("video", it).forEach((v) => { if (!v.paused) v.pause(); }); });
+    };
+    ant.addEventListener("click", () => ir(atual() - 1));
+    prox.addEventListener("click", () => ir(atual() + 1));
+    trilho.addEventListener("scroll", () => requestAnimationFrame(pinta), { passive: true });
+    trilho.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight") { e.preventDefault(); ir(atual() + 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); ir(atual() - 1); }
+    });
+    window.addEventListener("resize", () => { ultimo = -1; pinta(); });
+    pinta();
+  });
+}
+
+function boot() { initHeader(); initMobileNav(); initHeaderSearch(); initReveal(); initForm(); initFab(); initYear(); initSearchResults(); initMatricula(); initConsent(); initCarrossel(); }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
 else boot();

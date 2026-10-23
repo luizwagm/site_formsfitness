@@ -702,6 +702,104 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
 .mat-opcional { margin-left: .35rem; font-weight: 500; font-size: .92em; color: var(--ink-soft); }
 .mat-opcional[hidden], .req[hidden] { display: none; }
 
+/* -------------------- lista com busca: saúde e transtornos (1.35.0) --------------------
+   Parece um campo comum: a caixa tem a mesma borda dos outros, e as escolhas
+   viram etiquetas DENTRO dela. "Nenhuma" ganha cor própria (verde) — é a
+   resposta mais comum e a que a professora precisa ler de relance. */
+.lb { position: relative; }
+.lb__caixa {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+  background: var(--bg); border: 2px solid var(--line); border-radius: 12px;
+  padding: .4rem .55rem; transition: border-color .25s ease, box-shadow .25s ease;
+}
+.lb__caixa:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 4px rgba(31, 168, 220, .15); }
+.lb--erro .lb__caixa { border-color: #a4162b; box-shadow: 0 0 0 3px rgba(164, 22, 43, .12); }
+.lb__chips { display: contents; list-style: none; margin: 0; padding: 0; }
+.lb__chip {
+  display: inline-flex; align-items: center; gap: .3rem; max-width: 100%;
+  background: var(--cyan-soft); color: var(--blue-ink); font-size: .85rem; font-weight: 700;
+  padding: .28rem .35rem .28rem .7rem; border-radius: 999px;
+}
+.lb__chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb__chip--nenhuma { background: #e6f6d8; color: #2f6b0c; }
+.lb__chip button {
+  border: 0; background: rgba(7, 43, 92, .1); color: inherit; cursor: pointer;
+  width: 1.4rem; height: 1.4rem; border-radius: 50%; font-size: 1rem; line-height: 1; flex: none;
+}
+.lb__chip button:hover, .lb__chip button:focus-visible { background: rgba(7, 43, 92, .22); outline: none; }
+.field .lb__busca, .lb__busca {
+  flex: 1 1 12ch; min-width: 12ch; border: 0; background: transparent; box-shadow: none;
+  padding: .4rem .35rem; font: inherit; font-size: .95rem; color: var(--ink);
+}
+.field .lb__busca:focus, .lb__busca:focus { outline: none; box-shadow: none; border: 0; }
+.lb__lista {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30;
+  max-height: 280px; overflow-y: auto; margin: 0; padding: .35rem; list-style: none;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+}
+.lb__op {
+  display: flex; align-items: center; gap: .6rem; padding: .6rem .7rem; border-radius: 8px;
+  cursor: pointer; font-size: .93rem; color: var(--ink);
+}
+.lb__op::before {
+  content: ""; flex: none; width: 1.05rem; height: 1.05rem; border-radius: 5px;
+  border: 2px solid var(--line); background: var(--surface);
+}
+.lb__op[aria-selected="true"] { font-weight: 700; color: var(--blue-ink); }
+.lb__op[aria-selected="true"]::before {
+  border-color: var(--blue); background: var(--blue)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / 80% no-repeat;
+}
+.lb__op:hover, .lb__op--ativa { background: var(--bg-soft); }
+.lb__op--nenhuma { border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; margin-bottom: .25rem; }
+.lb__vazio { padding: .7rem; font-size: .88rem; color: var(--ink-soft); }
+.lb__outra { margin-top: .55rem; }
+.lb__outra[hidden], .lb__lista[hidden] { display: none; }
+
+/* (1.35.0) O aviso de transtorno. Azul-claro e borda lateral, e NÃO o
+   vermelho de erro: o responsável não errou nada — a tela só explica por que
+   a matrícula segue por outro caminho. Vermelho soaria como acusação. */
+.mat-pausa {
+  margin-top: 1rem; padding: 1.1rem 1.2rem; border-radius: 14px;
+  background: var(--cyan-soft); border-left: 4px solid var(--blue); color: var(--ink);
+}
+.mat-pausa[hidden] { display: none; }
+.mat-pausa__texto { white-space: pre-line; font-size: .95rem; line-height: 1.6; margin: 0 0 .9rem; }
+.mat-pausa__contato { font-size: .88rem; font-weight: 700; color: var(--blue); }
+/* travado pela resposta "Sim" (e não "enviando…"): cursor de proibido, não de espera */
+.mat-enviar.mat-enviar--travado[disabled] { opacity: .5; cursor: not-allowed; box-shadow: none; }
+
+/* (1.36.0) NECESSIDADES DO ALUNO — subtítulo dentro do bloco 5, a pergunta,
+   o "Importante" em DESTAQUE (âmbar suave e itálico, como a academia pediu:
+   à vista mesmo antes de responder), a declaração do "Não" e a trava do
+   bloco 7. O âmbar separa o "leia isto" do azul do aviso de "Sim" — são
+   coisas diferentes e não podem parecer a mesma. */
+.mat-necessidades { margin-top: 1.4rem; padding-top: 1.2rem; border-top: 1px dashed var(--line); }
+.mat-subtitulo {
+  font-family: var(--font-display); font-weight: 800; font-size: .82rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--blue-ink); margin: 0 0 .8rem;
+}
+.mat-necessidades .field label { line-height: 1.5; }
+.mat-importante {
+  margin: .2rem 0 0; padding: .9rem 1.1rem; border-radius: 12px;
+  background: #FFF6DB; border-left: 4px solid #E0A100; color: #5a4300;
+  font-size: .92rem; line-height: 1.6;
+}
+.mat-importante em { font-style: italic; }
+.mat-declaracao {
+  margin-top: 1rem; padding: 1.1rem 1.2rem 1rem; border-radius: 14px;
+  background: var(--bg-soft); border: 1px solid var(--line);
+}
+.mat-declaracao[hidden] { display: none; }
+.mat-declaracao > p { font-size: .93rem; line-height: 1.6; margin: 0 0 .7rem; color: var(--ink); }
+.mat-declaracao .field-row { margin-top: .4rem; }
+.mat-declaracao .mat-check { margin: .4rem 0 0; }
+.mat-trava {
+  margin: 0; padding: 1rem 1.1rem; border-radius: 12px; border: 2px dashed var(--line);
+  background: var(--bg-soft); color: var(--ink-soft); font-size: .93rem; line-height: 1.55;
+}
+.mat-trava[hidden], #mat-pagamento-conteudo[hidden] { display: none; }
+
 .mat-docs { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: .6rem; }
 .mat-docs li { background: var(--bg-soft); border-radius: 10px; padding: .7rem .9rem; font-size: .93rem; }
 
@@ -1137,6 +1235,80 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
   aspect-ratio: auto 16 / 9;
 }
 @media (max-width: 640px) { .post__cover--video video { border-radius: 12px; } }
+
+/* ==========================================================================
+   CARROSSEL DA MATÉRIA (1.34.0) — Feed com várias fotos e vídeos
+
+   Uma faixa que rola para o lado e PARA em cada mídia (scroll-snap): funciona
+   no dedo e sem script. Cada mídia aparece INTEIRA, na proporção dela, sobre
+   fundo azul escuro — a mesma regra da capa única: foto em pé não é
+   cortada para caber numa moldura deitada. A moldura tem altura fixa para
+   a página não "pular" a cada troca.
+   ========================================================================== */
+.post__cover.carrossel { width: 100%; position: relative; background: #062a54; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-soft); }
+.carrossel__trilho {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth;
+  overscroll-behavior-x: contain; scrollbar-width: none;
+}
+.carrossel__trilho::-webkit-scrollbar { display: none; }
+.carrossel__trilho:focus-visible { outline: 3px solid var(--cyan); outline-offset: -3px; }
+.carrossel__item {
+  flex: 0 0 100%; scroll-snap-align: center; scroll-snap-stop: always;
+  height: min(70vh, 620px); position: relative;
+}
+/* Absoluto, e não "height: 100%": dentro de uma grade a porcentagem não tem
+   em que se apoiar, e a foto em pé crescia para fora da moldura (cortada). */
+.post__cover.carrossel .carrossel__item img,
+.carrossel__item video {
+  position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; max-width: none;
+  object-fit: contain; display: block; background: transparent; border-radius: 0; box-shadow: none;
+}
+/* Setas, pontos e contador: postos pelo script. */
+.carrossel__seta {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 2.8rem; height: 2.8rem; border-radius: 50%; border: 0; cursor: pointer;
+  background: rgba(255, 255, 255, .92); color: var(--blue-ink); font-size: 1.6rem; line-height: 1;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .25); display: grid; place-items: center;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.carrossel__seta:hover { transform: translateY(-50%) scale(1.06); }
+.carrossel__seta:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+.carrossel__seta[disabled] { opacity: 0; pointer-events: none; }
+.carrossel__seta--ant { left: .8rem; }
+.carrossel__seta--prox { right: .8rem; }
+.carrossel__contador {
+  position: absolute; top: .8rem; right: .8rem; z-index: 2; pointer-events: none;
+  background: rgba(255, 255, 255, .16); color: #fff; font-size: .78rem; font-weight: 700;
+  letter-spacing: .04em; padding: .25rem .65rem; border-radius: 999px; backdrop-filter: blur(4px);
+}
+.carrossel__pontos {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: .45rem;
+  padding: .75rem 1rem .85rem; background: #062a54;
+}
+.carrossel__pontos button {
+  width: .6rem; height: .6rem; padding: 0; border-radius: 999px; border: 0; cursor: pointer;
+  background: rgba(255, 255, 255, .35); transition: width .25s ease, background .25s ease;
+}
+.carrossel__pontos button[aria-current="true"] { width: 1.6rem; background: #fff; }
+.carrossel__pontos button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+/* Selo no cartão da lista: quantas mídias há dentro. */
+.post-card__media { position: relative; }
+.post-card__qtd {
+  position: absolute; top: .8rem; right: .8rem; z-index: 1; pointer-events: none;
+  display: inline-flex; align-items: center; gap: .5rem;
+  background: rgba(11, 78, 162, .9); color: #fff; font-size: .76rem; font-weight: 700;
+  padding: .25rem .65rem .25rem .7rem; border-radius: 999px;
+}
+.post-card__qtd::before {
+  content: ""; width: .7rem; height: .7rem; margin-top: 3px; border: 2px solid currentColor; border-radius: 3px;
+  box-shadow: 3px -3px 0 -1px rgba(11, 78, 162, .9), 3px -3px 0 1px currentColor;
+}
+@media (max-width: 640px) {
+  .carrossel__item { height: min(62vh, 520px); }
+  .carrossel__seta { width: 2.4rem; height: 2.4rem; font-size: 1.35rem; }
+  .carrossel__seta--ant { left: .5rem; }
+  .carrossel__seta--prox { right: .5rem; }
+}
 
 /* Pix no celular (1.29.0): rótulo em cima, valor embaixo — o nome da conta
    não cabe ao lado do rótulo numa tela de 375px. No FIM do arquivo de
