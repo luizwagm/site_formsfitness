@@ -5,6 +5,17 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.38.0 — 2026-10-23 · O termo do responsável na ficha do painel
+
+- Abrindo a ficha de um aluno **menor de idade** no painel (Alunos ▸ Editar / Revisar), aparece
+  a seção **"Termo do responsável legal"**, só leitura: quem aceitou, o CPF, a data e a hora
+  (no horário de Caruaru), a resposta sobre acompanhamento individualizado e o texto da
+  declaração **exatamente como foi aceito** no site.
+- Matrícula feita no balcão (ou anterior ao termo no site) mostra o aviso **"Sem termo
+  assinado pelo site"** e orienta a imprimir a **Ficha**, que já sai com a declaração e as
+  linhas para o responsável assinar.
+- A seção some para adulto — e aparece/some sozinha se a data de nascimento for corrigida.
+
 ## 1.37.0 — 2026-10-23 · Sem o campo de transtornos; "Sim" para o formulário; declaração com o responsável
 
 - **Saiu o campo "Algum transtorno?"** (site e painel): a pergunta sobre acompanhamento

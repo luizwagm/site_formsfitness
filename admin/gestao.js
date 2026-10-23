@@ -337,6 +337,44 @@
   }
 
   /* ------------------------------------------------ o formulário do aluno */
+  /* ==========================================================================
+     O TERMO ASSINADO PELO RESPONSÁVEL, NA FICHA DO PAINEL (1.38.0)
+
+     Pedido da academia: abrir a ficha de uma criança e ver ali o termo que o
+     responsável aceitou — sem precisar imprimir. Sai do consentimento gravado
+     no envio (1.36.0): as palavras de QUANDO foi aceito, quem aceitou, o CPF e
+     a hora, no fuso da academia.
+
+     Matrícula de balcão (ou anterior à 1.36.0) não tem termo online: a seção
+     diz isso e manda imprimir a Ficha, que sai com a declaração e as linhas
+     para o responsável assinar no papel. Só leitura — termo aceito não se
+     edita. */
+  const FUSO_ACADEMIA = "America/Recife";
+  function termoResponsavel(a) {
+    let c = null;
+    try { c = JSON.parse(a.consentimento || "null"); } catch { c = null; }
+    const d = c && c.declaracao;
+    const menor = (idadeDe(a.nascimento) ?? 99) < 18;
+    const quando = (iso) => { const t = new Date(iso); return isNaN(t) ? "" : t.toLocaleString("pt-BR", { timeZone: FUSO_ACADEMIA,
+      day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", " às"); };
+    const corpo = d && Array.isArray(d.textos) && d.textos.length
+      ? `<div class="g-termo g-termo--ok">
+          <p class="g-termo__status">✔ Aceito pelo site por <b>${e(d.nome)}</b> — CPF ${e(d.cpf)}${c.em ? `, em ${e(quando(c.em))}` : ""}.</p>
+          ${a.necessidade ? `<p class="g-termo__resp">Acompanhamento individualizado: <b>${a.necessidade === "sim" ? "Sim" : "Não"}</b></p>` : ""}
+          ${d.textos.slice(0, -1).map((t) => `<p>${e(t)}</p>`).join("")}
+          <p class="g-termo__aceite"><span aria-hidden="true">☑</span> ${e(d.textos[d.textos.length - 1])}</p>
+        </div>`
+      : `<div class="g-termo g-termo--pendente">
+          <p class="g-termo__status">Sem termo assinado pelo site.</p>
+          <p>Esta matrícula foi feita no balcão (ou antes de o termo existir no site). Imprima a <b>Ficha</b>: ela sai com a
+            declaração do responsável e as linhas para nome, CPF e assinatura.</p>
+        </div>`;
+    return `<div id="fa-termo"${menor ? "" : " hidden"}>
+      <p class="gf-sec">Termo do responsável legal</p>
+      ${corpo}
+    </div>`;
+  }
+
   async function formAluno(id) {
     if (!G.resumo) await resumo();
     /* Aberta para revisar, deixa de ser "nova" (o destaque e o aviso somem). */
@@ -498,6 +536,8 @@
           </select></div>
       </div>
 
+      ${termoResponsavel(a)}
+
       <p class="gf-sec">Observação</p>
       <textarea name="observacao" maxlength="1000" rows="3">${e(a.observacao || "")}</textarea>
 
@@ -622,6 +662,7 @@
       const menor = i !== null && i < 18;
       $("#fa-nota-menor", F).hidden = !menor;
       $("#fa-nota-saude", F).hidden = !menor;
+      $("#fa-termo", F).hidden = !menor;   // (1.38.0) o termo do responsável é de criança
       /* saúde e transtornos: obrigatórios no cadastro NOVO de menor (a edição
          de ficha antiga continua livre, como o resto) */
       for (const n of ["saude"]) {

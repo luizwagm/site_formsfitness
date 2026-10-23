@@ -352,6 +352,16 @@ table.g-aud{min-width:820px}
 .selo--nova{background:var(--lime-d);color:#fff}
 .g-chegou{display:block;color:var(--muted);font-size:.78rem;font-weight:600}
 .g-avisos-perm{font-size:.82rem}
+/* (1.38.0) o termo assinado pelo responsável, na ficha do aluno (só leitura) */
+.g-termo{border-radius:10px;padding:.8rem 1rem;font-size:.86rem;line-height:1.55;border:1px solid var(--line2)}
+.g-termo p{margin:0 0 .45rem}
+.g-termo p:last-child{margin-bottom:0}
+.g-termo--ok{background:#f2fbea;border-color:#bfe3a0}
+.g-termo--pendente{background:#fff8e5;border-color:#efd68c}
+.g-termo__status{font-weight:700}
+.g-termo__resp{color:var(--muted)}
+.g-termo__aceite{font-weight:700}
+
 /* (1.35.0) lista com busca — saúde e transtornos (assets/js/lista-busca.js) */
 .lb{position:relative}
 .lb__caixa{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;background:#fff;border:1.5px solid var(--line2);border-radius:9px;padding:.3rem .45rem}

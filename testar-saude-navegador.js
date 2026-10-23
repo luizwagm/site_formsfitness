@@ -53,7 +53,7 @@ function certo(nome, cond, detalhe = "") {
 }
 
 (async () => {
-  console.log("\n=== Saúde e necessidades da criança (1.35.0 → 1.37.0) ===\n");
+  console.log("\n=== Saúde, necessidades e termo da criança (1.35.0 → 1.38.0) ===\n");
   const servidor = spawn(process.execPath, ["server.js"], {
     cwd: __dirname,
     env: { ...process.env, PORT: String(PORTA), FF_DATA: path.join(TMP, "data"), FF_BACKUPS: path.join(TMP, "backups"),
@@ -300,12 +300,37 @@ function certo(nome, cond, detalhe = "") {
     certo("painel: a ficha mostra as respostas gravadas como etiquetas (com a \"Outra\" no campo dela)",
       JSON.stringify(fichaPainel.saude) === JSON.stringify(["Bronquite", "Outra: Usa bombinha"]) && fichaPainel.semTranstornos && fichaPainel.nec === "nao"
       && fichaPainel.outra === "Usa bombinha", JSON.stringify(fichaPainel));
+    /* (1.38.0) cadastro de balcão (sem termo online): a ficha avisa e manda imprimir */
+    const termoBalcao = await na(`(() => { const t = document.querySelector("#fa-termo"); return t ? { visivel: !t.hidden && t.getBoundingClientRect().height > 0,
+      pendente: !!t.querySelector(".g-termo--pendente"), texto: t.textContent.replace(/\\s+/g, " ").trim() } : null; })()`);
+    certo("painel: criança de balcão — a ficha mostra que NÃO há termo assinado pelo site e orienta a imprimir",
+      termoBalcao && termoBalcao.visivel && termoBalcao.pendente && /Sem termo assinado pelo site/.test(termoBalcao.texto) && /Imprima a Ficha/.test(termoBalcao.texto), JSON.stringify(termoBalcao));
+    await na(`(() => { const n = document.querySelector("#fa-nascimento"); n.value = "1990-01-01"; n.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    certo("…e a seção some se a data virar de adulto", await na(`document.querySelector("#fa-termo").hidden`));
+    await na(`(() => { const n = document.querySelector("#fa-nascimento"); n.value = "2016-01-01"; n.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
     await na(`(() => { const s = document.querySelector("#fa-necessidade"); s.value = "sim"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
     await na(`document.querySelector('#form-aluno button[type="submit"]').click()`);
     await espera(1200);
     const depois = (await api(`/api/gestao/alunos/${doPainel.j.id}`)).j.aluno;
     certo("painel: trocar a resposta para \"Sim\" e Salvar grava (no painel não trava)", depois.necessidade === "sim" && depois.saude === "Bronquite; Outra: Usa bombinha",
       JSON.stringify({ s: depois.saude, n: depois.necessidade }));
+
+    /* (1.38.0) a matrícula de criança que veio do SITE: a ficha do painel mostra
+       o termo que o responsável aceitou, com nome, CPF, hora e o texto */
+    await na(`(() => { document.querySelectorAll("dialog[open]").forEach((d) => d.close()); return true; })()`);
+    await na(`document.querySelector('.navbtn[data-p="g-alunos"]').click()`);
+    await ate(`!!document.querySelector('[data-acao="editar"][data-id="${pre.id}"]')`, 15000);
+    await na(`(() => { const f = document.querySelector("#form-aluno"); if (f) f.dataset.velho = "1"; return true; })()`);   // a ficha anterior ainda está na tela
+    await na(`document.querySelector('[data-acao="editar"][data-id="${pre.id}"]').click()`);
+    await ate(`!!document.querySelector("#form-aluno:not([data-velho]) #fa-termo .g-termo")`, 10000);
+    const termoSite = await na(`(() => { const t = document.querySelector("#fa-termo"); return { visivel: !t.hidden && t.getBoundingClientRect().height > 0,
+      ok: !!t.querySelector(".g-termo--ok"), texto: t.textContent.replace(/\\s+/g, " ").trim(), editavel: !!t.querySelector("input, textarea, select") }; })()`);
+    certo("painel: a ficha da criança do site mostra o TERMO ASSINADO pelo responsável", termoSite.visivel && termoSite.ok
+      && /Aceito pelo site por Zz Qa Responsável Jr — CPF 111\.444\.777-35, em \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}/.test(termoSite.texto), termoSite.texto.slice(0, 160));
+    certo("…com a resposta e o texto aceito, palavra por palavra", /Acompanhamento individualizado: Não/.test(termoSite.texto)
+      && /Declaro que as informações fornecidas nesta ficha são verdadeiras e completas/.test(termoSite.texto)
+      && /Declaro que li e estou ciente das informações acima\./.test(termoSite.texto), termoSite.texto.slice(0, 200));
+    certo("…e só para leitura (termo aceito não se edita)", !termoSite.editavel);
 
     ws.close();
   } catch (e) {
