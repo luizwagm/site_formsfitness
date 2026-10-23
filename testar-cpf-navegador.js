@@ -295,8 +295,8 @@ function certo(nome, cond, detalhe = "") {
     certo("criança: o CPF do aluno aparece como opcional (sem asterisco)", !rotulo.req && rotulo.opc && !rotulo.exigido, JSON.stringify(rotulo));
     r = await enviar(`v("#m-nome", "Zz Qa Crianca Sem Cpf"); v("#m-nasc", "2016-03-03"); v("#m-cpf", "");
       v("#m-r-nome", "Zz Qa Responsavel"); v("#m-r-rg", "1234567"); v("#m-r-cpf", "111.444.777-35"); v("#m-r-fone", "(81) 99999-0006");
-      /* (1.35.0) criança: saúde e transtornos são obrigatórios — marca pela lista */
-      for (const [id, op] of [["m-saude", "Nenhuma"], ["m-transtornos", "Nenhum"]]) {
+      /* (1.35.0) criança: a saúde é obrigatória — marca pela lista */
+      for (const [id, op] of [["m-saude", "Nenhuma"]]) {
         $("#" + id + "-busca").click();   // abre a lista (focus() não dispara evento em aba sem foco)
         const li = [...document.querySelectorAll("#" + id + " .lb__op")].find((l) => l.dataset.op === op);
         li.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));

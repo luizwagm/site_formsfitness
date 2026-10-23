@@ -1,10 +1,10 @@
 /* ==========================================================================
-   testar-saude-navegador.js — saúde e transtornos da criança (1.35.0)
+   testar-saude-navegador.js — saúde e necessidades da criança (1.35.0 → 1.37.0)
 
    OS PEDIDOS
      · "quando for menor de idade, colocar select com se há alguma questão de
-       saúde (lista de opções, com busca) e outro para transtornos — ambos
-       obrigatórios";
+       saúde (lista de opções, com busca)" — obrigatório. (O de transtornos
+       saiu na 1.37.0: "o sim e não já resolve essa parte".)
      · (1.36.0) a pergunta da academia sobre ACOMPANHAMENTO individualizado
        (Sim/Não), com o "Importante" em destaque e itálico à vista desde o
        começo; "Sim" → a mensagem de orientação e a matrícula não segue;
@@ -19,7 +19,9 @@
      3. "Sim" mostra a orientação na hora e trava o envio; "Não" abre a
         declaração já com o responsável do item 4; foto e pagamento só
         destravam com ela aceita; CPF de outra pessoa na declaração é
-        recusado; marcar um transtorno NÃO trava nada; adulto fica de fora;
+        recusado; (1.37.0) "Sim" trava e apaga os itens 6 a 8; nome e CPF
+        da declaração ACOMPANHAM o item 4 até a pessoa mexer neles, e ficam
+        em branco se o item 4 estiver; adulto fica de fora;
      4. a matrícula de criança com "Não" e a declaração aceita entra, com a
         resposta e a declaração (nome e CPF) gravadas;
      5. no celular, a lista aberta não cria barra lateral;
@@ -51,7 +53,7 @@ function certo(nome, cond, detalhe = "") {
 }
 
 (async () => {
-  console.log("\n=== Saúde, transtornos e necessidades da criança (1.35.0 / 1.36.0) ===\n");
+  console.log("\n=== Saúde e necessidades da criança (1.35.0 → 1.37.0) ===\n");
   const servidor = spawn(process.execPath, ["server.js"], {
     cwd: __dirname,
     env: { ...process.env, PORT: String(PORTA), FF_DATA: path.join(TMP, "data"), FF_BACKUPS: path.join(TMP, "backups"),
@@ -122,16 +124,17 @@ function certo(nome, cond, detalhe = "") {
       window.tirarCookies = () => { document.body.classList.remove("has-cookie-bar");
         document.querySelectorAll("body > [class*=cookie], body > [id*=cookie], body > [class*=consent]").forEach((e) => e.remove()); };`;
     await cdp("Page.navigate", { url: BASE + "/matricula/" });
-    await ate(`!!document.querySelector("#m-transtornos .lb__busca") && !document.querySelector("#m-turma").disabled`);
+    await ate(`!!document.querySelector("#m-saude .lb__busca") && !document.querySelector("#m-turma").disabled`);
     await na(AUX + "tirarCookies(); true");
 
     /* ------------------------------------------------------------ 1. o bloco */
     await na(`dataNasc("1990-01-01")`);
     certo("adulto: o bloco de saúde fica escondido", await na(`$q("#mat-saude").hidden`));
     await na(`dataNasc("2017-06-10")`);
-    const b1 = await na(`({ visivel: !$q("#mat-saude").hidden, s: $q("#m-saude-busca").validity.customError, t: $q("#m-transtornos-busca").validity.customError,
-      msg: $q("#m-saude-busca").validationMessage })`);
-    certo("criança: o bloco aparece e os dois campos são obrigatórios", b1.visivel && b1.s && b1.t && /Nenhuma/.test(b1.msg), JSON.stringify(b1));
+    const b1 = await na(`({ visivel: !$q("#mat-saude").hidden, s: $q("#m-saude-busca").validity.customError,
+      msg: $q("#m-saude-busca").validationMessage, semTranstornos: !$q("#m-transtornos") && !/Algum transtorno/.test(document.body.textContent) })`);
+    certo("criança: o bloco aparece e a saúde é obrigatória", b1.visivel && b1.s && /Nenhuma/.test(b1.msg), JSON.stringify(b1));
+    certo("o campo \"Algum transtorno?\" não existe mais (1.37.0)", b1.semTranstornos);
     certo("…sem ficar vermelho antes de a pessoa passar por ele", !(await na(`$q("#m-saude").classList.contains("lb--erro")`)));
 
     /* ------------------------------------------------------------ 2. a lista */
@@ -153,15 +156,17 @@ function certo(nome, cond, detalhe = "") {
     await na(`$q("#m-saude .lb__outra").focus()`);
     await digita("Alergia a abelha");
     certo("…e o texto entra no valor como \"Outra: …\"", (await na(`valor("m-saude")`)) === "Asma; Outra: Alergia a abelha", await na(`valor("m-saude")`));
-    /* teclado no campo de transtornos: digita, ↓, Enter */
-    await na(`abrirLista("m-transtornos"); $q("#m-transtornos-busca").focus()`);
-    await digita("nenh");
+    /* teclado: digita, ↓, Enter */
+    await na(`abrirLista("m-saude"); $q("#m-saude-busca").focus()`);
+    await digita("rinite");
     await tecla("ArrowDown", "ArrowDown", 40);
     await tecla("Enter", "Enter", 13);
-    certo("teclado: digitar, ↓ e Enter marcam \"Nenhum\"", (await na(`valor("m-transtornos")`)) === "Nenhum", await na(`valor("m-transtornos")`));
-    await na(`$q("#m-transtornos-busca").focus()`);
+    certo("teclado: digitar, ↓ e Enter marcam \"Rinite alérgica\"", (await na(`valor("m-saude")`)) === "Asma; Rinite alérgica; Outra: Alergia a abelha", await na(`valor("m-saude")`));
+    await na(`$q("#m-saude-busca").focus()`);
     await tecla("Backspace", "Backspace", 8);
-    certo("Backspace com a busca vazia tira a última etiqueta", (await na(`valor("m-transtornos")`)) === "");
+    certo("Backspace com a busca vazia tira a última etiqueta", (await na(`valor("m-saude")`)) === "Asma; Rinite alérgica", await na(`valor("m-saude")`));
+    await na(`marcar("m-saude", "Rinite alérgica"); marcar("m-saude", "Outra (especificar)")`);
+    certo("…e remarcar \"Outra\" traz de volta o texto que estava", (await na(`valor("m-saude")`)) === "Asma; Outra: Alergia a abelha", await na(`valor("m-saude")`));
 
     /* ------------------------- 3. necessidades do aluno: a pergunta que decide (1.36.0) */
     const enviar = `$q(".mat-enviar")`;
@@ -170,7 +175,8 @@ function certo(nome, cond, detalhe = "") {
       window.responder = (x) => { const s = $q("#m-necessidade"); s.value = x; s.dispatchEvent(new Event("change", { bubbles: true })); }; return true; })()`);
     const estado = `({ pausa: !$q("#m-pausa").hidden, texto: $q("#m-pausa-texto").textContent, decl: !$q("#m-declaracao").hidden,
       trava: !$q("#mat-trava-pag").hidden, conteudo: !$q("#mat-pagamento-conteudo").hidden, desab: $q("#mat-pagamento").disabled,
-      foto: $q("#m-foto").matches(":disabled"), enviarTravado: ${enviar}.disabled, classe: ${enviar}.classList.contains("mat-enviar--travado"),
+      foto: $q("#m-foto").matches(":disabled"), contato: $q("#mat-contato").disabled, termos: $q(".mat-bloco--termos").disabled,
+      parado: $q("#mat-contato").classList.contains("mat-bloco--parado") && $q("#mat-pagamento").classList.contains("mat-bloco--parado"), enviarTravado: ${enviar}.disabled, classe: ${enviar}.classList.contains("mat-enviar--travado"),
       exigida: $q("#m-necessidade").required, declNome: $q("#m-decl-nome").value, declCpf: $q("#m-decl-cpf").value })`;
     const imp = await na(`(() => { const p = $q(".mat-importante"); const em = p.querySelector("em");
       return { visivel: !p.closest("[hidden]") && p.getBoundingClientRect().height > 0, italico: getComputedStyle(em).fontStyle, fundo: getComputedStyle(p).backgroundColor,
@@ -184,6 +190,7 @@ function certo(nome, cond, detalhe = "") {
     certo("\"Sim\": a mensagem de orientação aparece na hora", e.pausa && /^Olá! Agradecemos pelas informações fornecidas/.test(e.texto)
       && /Acqua Angels/.test(e.texto) && /Equipe Forms Fitness Academia Aquática$/.test(e.texto), e.texto.slice(0, 120));
     certo("…o envio trava (cursor de proibido, não de espera) e foto/pagamento seguem travados", e.enviarTravado && e.classe && e.trava && !e.decl, JSON.stringify(e));
+    certo("…e o formulário NÃO SEGUE: os itens 6 (contato), 7 e 8 (autorizações) ficam travados e apagados", e.contato && e.termos && e.desab && e.parado, JSON.stringify(e));
     const zap = await na(`$q("#m-pausa-zap").href`);
     certo("…e o WhatsApp não leva informação de saúde no endereço", /^https:\/\/wa\.me\/\d+\?text=/.test(zap) && !/necessidad|defici|transtorno|sim/i.test(decodeURIComponent(zap.split("text=")[1] || "")), zap);
     await na(`responder("nao")`);
@@ -191,6 +198,21 @@ function certo(nome, cond, detalhe = "") {
     certo("\"Não\": a orientação some e a DECLARAÇÃO abre, já com o responsável do item 4", !e.pausa && e.decl
       && e.declNome === "Zz Qa Responsável" && e.declCpf === "111.444.777-35", JSON.stringify(e));
     certo("…o envio destrava, mas foto/pagamento só depois de aceitar a declaração", !e.enviarTravado && !e.classe && e.trava && e.desab, JSON.stringify(e));
+    certo("…e os itens 6 e 8 voltam a valer", !e.contato && !e.termos && !e.parado, JSON.stringify(e));
+    /* (1.37.0) a declaração ACOMPANHA o responsável do item 4 */
+    const resp = (sel, x) => na(`(() => { const el = $q("${sel}"); el.value = ${JSON.stringify(x)}; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await resp("#m-r-nome", "Zz Qa Outro Nome");
+    certo("corrigir o nome no item 4 depois do \"Não\" atualiza a declaração", (await na(`$q("#m-decl-nome").value`)) === "Zz Qa Outro Nome");
+    await resp("#m-r-nome", "Zz Qa Responsável");
+    await resp("#m-r-cpf", "");
+    certo("item 4 sem CPF: o CPF da declaração fica em branco, para preencher ali", (await na(`$q("#m-decl-cpf").value`)) === "" && await na(`$q("#m-decl-cpf").required`));
+    await resp("#m-r-cpf", "111.444.777-35");
+    certo("…e preencher o item 4 leva o CPF para a declaração", (await na(`$q("#m-decl-cpf").value`)) === "111.444.777-35");
+    await na(`(() => { const n = $q("#m-decl-nome"); n.focus(); n.setSelectionRange(n.value.length, n.value.length); return true; })()`);
+    await digita(" Jr");
+    await resp("#m-r-nome", "Zz Qa Nome Trocado");
+    certo("mexeu na declaração à mão: o que foi digitado vale (o item 4 não sobrescreve)", (await na(`$q("#m-decl-nome").value`)) === "Zz Qa Responsável Jr", await na(`$q("#m-decl-nome").value`));
+    await resp("#m-r-nome", "Zz Qa Responsável");
     const declExigida = await na(`({ obrig: $q("#m-decl-ok").required, falta: $q("#m-decl-ok").validity.valueMissing, nome: $q("#m-decl-nome").required, cpf: $q("#m-decl-cpf").required })`);
     certo("…e a declaração (aceite, nome e CPF) passa a ser obrigatória para enviar", declExigida.obrig && declExigida.falta && declExigida.nome && declExigida.cpf, JSON.stringify(declExigida));
     await na(`$q("#m-decl-ok").click()`);
@@ -201,10 +223,6 @@ function certo(nome, cond, detalhe = "") {
     certo("na declaração, o CPF de OUTRA pessoa é recusado (tem de ser o do item 4)", /item 4/.test(cpfOutro.msg) && /item 4/.test(cpfOutro.aviso), JSON.stringify(cpfOutro));
     await na(`(() => { const c = $q("#m-decl-cpf"); c.value = "111.444.777-35"; c.dispatchEvent(new Event("input", { bubbles: true })); c.dispatchEvent(new Event("blur")); return true; })()`);
     certo("…com o CPF certo, o aviso some", (await na(`$q("#m-decl-cpf").validationMessage`)) === "");
-    await na(`marcar("m-transtornos", "TEA (Transtorno do Espectro Autista)")`);
-    e = await na(estado);
-    certo("marcar um transtorno NÃO trava nada (quem decide é a necessidade de suporte)", !e.pausa && !e.enviarTravado && !e.trava, JSON.stringify(e));
-    await na(`marcar("m-transtornos", "Nenhum")`);
     await na(`responder("sim")`);
     await na(`dataNasc("1990-01-01")`);
     await espera(100);
@@ -250,7 +268,7 @@ function certo(nome, cond, detalhe = "") {
     const ficha = pre && (await api(`/api/gestao/alunos/${pre.id}`)).j.aluno;
     const cons = ficha ? JSON.parse(ficha.consentimento || "{}") : {};
     certo("…e grava exatamente o que foi marcado, a resposta \"nao\" e a declaração (nome e CPF)", ficha && ficha.saude === "Asma; Outra: Alergia a abelha"
-      && ficha.transtornos === "Nenhum" && ficha.necessidade === "nao" && cons.declaracao && cons.declaracao.nome === "Zz Qa Responsável"
+      && !ficha.transtornos && ficha.necessidade === "nao" && cons.declaracao && cons.declaracao.nome === "Zz Qa Responsável Jr"
       && cons.declaracao.cpf === "111.444.777-35", JSON.stringify(ficha && { s: ficha.saude, t: ficha.transtornos, n: ficha.necessidade, d: cons.declaracao && cons.declaracao.nome }));
 
     /* ------------------------------------------------------------- 5. celular */
@@ -268,7 +286,7 @@ function certo(nome, cond, detalhe = "") {
       fone1: "(81) 99999-0000", cep: "55038-270", logradouro: "Avenida Caruaru", numero: "579", bairro: "Boa Vista", cidade: "Caruaru", uf: "PE",
       resp_nome: "Zz Qa Resp", resp_cpf: "529.982.247-25", resp_rg: "9172964", resp_rg_emissor: "SDS/PE", resp_fone: "(81) 99999-0001",
       resp_estado_civil: "Casado(a)", resp_profissao: "Comerciante", resp_nacionalidade: "Brasileira",
-      nome: "Zz Qa Painel Bronquite", nascimento: "2016-01-01", saude: "Bronquite; Outra: Usa bombinha", transtornos: "Nenhum", necessidade: "nao" });
+      nome: "Zz Qa Painel Bronquite", nascimento: "2016-01-01", saude: "Bronquite; Outra: Usa bombinha", necessidade: "nao" });
     certo("painel: aluno criado com as respostas", doPainel.status === 200, JSON.stringify(doPainel.j).slice(0, 160));
     await cdp("Page.navigate", { url: BASE + "/admin/" });
     await ate(`!!document.querySelector('.navbtn[data-p="g-alunos"]')`, 15000);
@@ -277,18 +295,17 @@ function certo(nome, cond, detalhe = "") {
     await na(`document.querySelector('[data-acao="editar"][data-id="${doPainel.j.id}"]').click()`);
     await ate(`!!document.querySelector("#fa-saude .lb__chip")`, 10000);
     const fichaPainel = await na(`({ saude: [...document.querySelectorAll("#fa-saude .lb__chip span")].map((s) => s.textContent.trim()),
-      trans: [...document.querySelectorAll("#fa-transtornos .lb__chip span")].map((s) => s.textContent.trim()),
+      semTranstornos: !document.querySelector("#fa-transtornos"), nec: document.querySelector("#fa-necessidade").value,
       outra: document.querySelector("#fa-saude .lb__outra").value })`);
     certo("painel: a ficha mostra as respostas gravadas como etiquetas (com a \"Outra\" no campo dela)",
-      JSON.stringify(fichaPainel.saude) === JSON.stringify(["Bronquite", "Outra: Usa bombinha"]) && JSON.stringify(fichaPainel.trans) === JSON.stringify(["Nenhum"])
+      JSON.stringify(fichaPainel.saude) === JSON.stringify(["Bronquite", "Outra: Usa bombinha"]) && fichaPainel.semTranstornos && fichaPainel.nec === "nao"
       && fichaPainel.outra === "Usa bombinha", JSON.stringify(fichaPainel));
-    await na(`document.querySelector("#fa-transtornos .lb__busca").click()`);
-    await na(`[...document.querySelectorAll("#fa-transtornos .lb__op")].find((l) => l.dataset.op === "Dislexia").dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }))`);
+    await na(`(() => { const s = document.querySelector("#fa-necessidade"); s.value = "sim"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
     await na(`document.querySelector('#form-aluno button[type="submit"]').click()`);
     await espera(1200);
     const depois = (await api(`/api/gestao/alunos/${doPainel.j.id}`)).j.aluno;
-    certo("painel: trocar a resposta e Salvar grava (e a secretaria pode marcar transtorno)", depois.transtornos === "Dislexia" && depois.saude === "Bronquite; Outra: Usa bombinha",
-      JSON.stringify({ s: depois.saude, t: depois.transtornos }));
+    certo("painel: trocar a resposta para \"Sim\" e Salvar grava (no painel não trava)", depois.necessidade === "sim" && depois.saude === "Bronquite; Outra: Usa bombinha",
+      JSON.stringify({ s: depois.saude, n: depois.necessidade }));
 
     ws.close();
   } catch (e) {

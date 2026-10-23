@@ -367,9 +367,10 @@ function initMatricula() {
   const erro = $("#mat-erro");
   const blocoResp = $("#mat-responsavel");
   const blocoDocs = $("#mat-docs");
-  /* (1.35.0) Saúde e transtornos da criança — duas listas com busca, montadas
-     quando as opções chegam do servidor (junto com as turmas). Até lá, e se
-     a idade mudar, `menorAgora` guarda se elas são obrigatórias. */
+  /* (1.35.0) Saúde da criança — lista com busca, montada quando as opções
+     chegam do servidor (junto com as turmas). Até lá, e se a idade mudar,
+     `menorAgora` guarda se ela é obrigatória. (1.37.0) A de transtornos saiu:
+     a pergunta do acompanhamento individualizado é a que decide. */
   const blocoSaude = $("#mat-saude");
   const listasSaude = {};
   let menorAgora = false;
@@ -402,6 +403,15 @@ function initMatricula() {
       aviso.textContent = "Este CPF não é o do responsável informado no item 4."; aviso.hidden = false;
     }
   }
+  /* (1.37.0) Nome e CPF da declaração ACOMPANHAM o responsável do item 4 —
+     quem declara é ele —, até a pessoa mexer na declaração à mão (aí o que
+     ela escreveu manda). Responsável em branco: a declaração fica em branco,
+     para ser preenchida ali mesmo. */
+  const contato = $("#mat-contato"), termos = form.querySelector(".mat-bloco--termos");
+  function copiarResponsavel() {
+    if (!declNome.dataset.tocado) declNome.value = $("#m-r-nome").value.trim();
+    if (!declCpf.dataset.tocado) declCpf.value = $("#m-r-cpf").value;
+  }
   function conferirEtapa() {
     const nec = menorAgora ? selNec.value : "";
     const sim = nec === "sim", nao = nec === "nao";
@@ -410,11 +420,7 @@ function initMatricula() {
     $("#m-pausa-zap").href = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Olá! Gostaria de conversar sobre a matrícula na Forms Fitness.")}`;
     pausa.hidden = !sim;
     const mostrarDecl = menorAgora && nao;
-    if (mostrarDecl && decl.hidden) {
-      /* abre já preenchida com o responsável do item 4 — quem declara é ele */
-      if (!declNome.value.trim()) declNome.value = $("#m-r-nome").value.trim();
-      if (!declCpf.value.trim()) declCpf.value = $("#m-r-cpf").value;
-    }
+    copiarResponsavel();
     decl.hidden = !mostrarDecl;
     [declNome, declCpf, declOk].forEach((el) => { el.required = mostrarDecl; });
     conferirCpfDecl();
@@ -422,6 +428,10 @@ function initMatricula() {
     pagTrava.hidden = liberado;
     pagConteudo.hidden = !liberado;
     pagamento.disabled = !liberado;
+    /* (1.37.0) "Sim": o formulário NÃO SEGUE — os itens 6 a 8 ficam travados
+       e apagados, não só o botão de enviar. */
+    for (const bloco of [contato, termos]) { bloco.disabled = sim; bloco.classList.toggle("mat-bloco--parado", sim); }
+    pagamento.classList.toggle("mat-bloco--parado", sim);
     /* Só destrava o envio se não houver outro motivo (sem turma aberta). */
     botao.classList.toggle("mat-enviar--travado", sim);
     if (sim) botao.disabled = true;
@@ -533,8 +543,7 @@ function initMatricula() {
       if (menorAgora) conferirEtapa();
       /* (1.35.0) as listas de saúde vêm na mesma resposta das turmas */
       if (ls && window.ListaBusca) {
-        for (const [nome, def, msg] of [["saude", ls.saude, "Informe se há alguma questão de saúde — ou escolha “Nenhuma”."],
-          ["transtornos", ls.transtornos, "Informe se há algum transtorno — ou escolha “Nenhum”."]]) {
+        for (const [nome, def, msg] of [["saude", ls.saude, "Informe se há alguma questão de saúde — ou escolha “Nenhuma”."]]) {
           if (!def || listasSaude[nome]) continue;
           listasSaude[nome] = window.ListaBusca.montar($("#m-" + nome), { nome, idBusca: `m-${nome}-busca`,
             opcoes: def.opcoes, nenhuma: def.nenhuma, outra: def.outra, prefixo: def.prefixo,
@@ -634,6 +643,13 @@ function initMatricula() {
   /* (1.36.0) a etapa das necessidades reage a cada resposta */
   selNec.addEventListener("change", conferirEtapa);
   declOk.addEventListener("change", conferirEtapa);
+  /* (1.37.0) mexeu na declaração à mão: ela deixa de copiar o item 4 */
+  declNome.addEventListener("input", (e) => { if (e.isTrusted) declNome.dataset.tocado = "1"; });
+  declCpf.addEventListener("input", (e) => { if (e.isTrusted) declCpf.dataset.tocado = "1"; });
+  for (const s of ["#m-r-nome", "#m-r-cpf"]) {
+    $(s).addEventListener("input", () => { copiarResponsavel(); conferirCpfDecl(); });
+    $(s).addEventListener("change", () => { copiarResponsavel(); conferirCpfDecl(); });
+  }
   $("#m-r-cpf").addEventListener("blur", conferirCpfDecl);
   ["#m-whats", "#m-fone2", "#m-r-fone", "#m-r-ftrab"].forEach((s) => mascara($(s), digFone, fmtFone));
 
@@ -901,7 +917,7 @@ function initMatricula() {
     /* O que não vale para a idade não viaja: CPF de adulto escondido num
        cadastro de criança (ou o contrário) iria para o banco sem ninguém ver. */
     const soDoOutro = menor ? ["rg", "rg_emissor", "estado_civil", "profissao"]
-      : ["saude", "transtornos", "necessidade", "decl_nome", "decl_cpf", "decl_ok", "resp_nome", "resp_cpf", "resp_rg", "resp_rg_emissor", "resp_nascimento", "resp_fone",
+      : ["saude", "necessidade", "decl_nome", "decl_cpf", "decl_ok", "resp_nome", "resp_cpf", "resp_rg", "resp_rg_emissor", "resp_nascimento", "resp_fone",
          "resp_estado_civil", "resp_profissao", "resp_nacionalidade", "resp_end_trabalho", "resp_fone_trabalho"];
     soDoOutro.forEach((k) => delete d[k]);
     d.aceite_termos = Boolean(d.t1 && d.t2 && d.t3);

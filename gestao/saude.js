@@ -1,17 +1,18 @@
 "use strict";
 /* ==========================================================================
-   SAÚDE E TRANSTORNOS DO ALUNO MENOR (1.35.0)
+   SAÚDE DO ALUNO MENOR (1.35.0; transtornos saíram na 1.37.0)
 
-   Pedido da academia: na matrícula de MENOR de idade, dois campos
-   obrigatórios — "alguma questão de saúde?" e "algum transtorno?" —, cada um
-   uma lista com busca. As listas moram AQUI e só aqui: o site e o painel as
+   Pedido da academia: na matrícula de MENOR de idade, o campo obrigatório
+   "alguma questão de saúde?", uma lista com busca. (Havia também "algum
+   transtorno?"; saiu na 1.37.0 — a pergunta do acompanhamento individualizado,
+   mais abaixo, é a que decide.) As listas moram AQUI e só aqui: o site e o painel as
    recebem do servidor (/api/publico/turmas e /api/gestao/resumo), e é contra
    elas que o servidor confere o que chega. Uma cópia no navegador
    envelheceria, e o servidor passaria a recusar a opção que a tela oferece.
 
    As opções são as que importam numa aula de natação: o que muda a conduta
    do professor na piscina (asma, convulsão, tubo no ouvido, alergia ao cloro,
-   medo de água, TEA…). Várias podem ser marcadas — criança com asma e rinite
+   deficiência auditiva…). Várias podem ser marcadas — criança com asma e rinite
    é o caso comum. "Nenhuma" é resposta (e exclui as demais): o campo é
    obrigatório justamente para que o "não tem" seja DITO, e não presumido de
    um campo em branco. "Outra" abre um texto livre.
@@ -65,37 +66,15 @@ const SAUDE = [
   SAUDE_OUTRA,
 ];
 
-const TRANSTORNO_NENHUM = "Nenhum";
-const TRANSTORNO_OUTRO = "Outro (especificar)";
-const TRANSTORNOS = [
-  TRANSTORNO_NENHUM,
-  "Atraso de fala / transtorno da linguagem",
-  "Deficiência intelectual",
-  "Depressão",
-  "Discalculia",
-  "Disgrafia",
-  "Dislexia",
-  "Em investigação (sem diagnóstico fechado)",
-  "Medo de água (aquafobia)",
-  "Mutismo seletivo",
-  "Síndrome de Tourette / tiques",
-  "TDAH (Transtorno do Déficit de Atenção e Hiperatividade)",
-  "TEA (Transtorno do Espectro Autista)",
-  "TOC (Transtorno Obsessivo-Compulsivo)",
-  "TOD (Transtorno Opositor Desafiador)",
-  "Transtorno alimentar",
-  "Transtorno bipolar",
-  "Transtorno de ansiedade",
-  "Transtorno do desenvolvimento da coordenação (dispraxia)",
-  "Transtorno do processamento sensorial",
-  TRANSTORNO_OUTRO,
-];
+/* (1.37.0) A lista de TRANSTORNOS saiu, a pedido da academia: a pergunta do
+   acompanhamento individualizado (abaixo) já responde o que importa — e é
+   ela, não um diagnóstico, que decide se a matrícula segue. A coluna
+   g_alunos.transtornos fica, com o que foi gravado antes; nada novo entra. */
 
 /* O que vai para o site e o painel: a lista, qual é o "nenhum" e qual abre
    o texto livre. */
 const LISTAS_SAUDE = {
   saude: { opcoes: SAUDE, nenhuma: SAUDE_NENHUMA, outra: SAUDE_OUTRA, prefixo: "Outra: " },
-  transtornos: { opcoes: TRANSTORNOS, nenhuma: TRANSTORNO_NENHUM, outra: TRANSTORNO_OUTRO, prefixo: "Outro: " },
 };
 
 /* Confere e arruma um dos dois campos. Aceita o texto "a; b; Outra: x" ou
@@ -114,13 +93,13 @@ function normalizarListaSaude(campo, entrada) {
     else if (item === def.outra || item.startsWith(def.prefixo.trim())) {
       const livre = (item === def.outra ? "" : item.slice(def.prefixo.trim().length)).replace(/;/g, ",").replace(/\s+/g, " ").trim().slice(0, 120);
       if (livre.length >= 2) ok = def.prefixo + livre;
-      else return { erro: campo === "saude" ? "Descreva qual é a outra questão de saúde." : "Descreva qual é o outro transtorno." };
+      else return { erro: "Descreva qual é a outra questão de saúde." };
     }
-    if (!ok) return { erro: campo === "saude" ? "Uma das questões de saúde não é da lista." : "Um dos transtornos não é da lista." };
+    if (!ok) return { erro: "Uma das questões de saúde não é da lista." };
     if (!vistos.has(ok)) { vistos.add(ok); saida.push(ok); }
   }
   if (saida.includes(def.nenhuma) && saida.length > 1)
-    return { erro: campo === "saude" ? `Em saúde, "${def.nenhuma}" não combina com outras opções.` : `Em transtornos, "${def.nenhuma}" não combina com outras opções.` };
+    return { erro: `Em saúde, "${def.nenhuma}" não combina com outras opções.` };
   if (saida.length > 40) return { erro: "Opções demais marcadas." };
   return { valor: saida.join("; ") };
 }
@@ -178,5 +157,5 @@ const DECLARACAO_RESPONSAVEL = [
 const DECLARACAO_ACEITE = "Declaro que li e estou ciente das informações acima.";
 const NECESSIDADES = ["nao", "sim"];
 
-module.exports = { SAUDE, TRANSTORNOS, LISTAS_SAUDE, normalizarListaSaude,
+module.exports = { SAUDE, LISTAS_SAUDE, normalizarListaSaude,
   NECESSIDADE_PERGUNTA, NECESSIDADE_IMPORTANTE, MSG_NECESSIDADE_PADRAO, DECLARACAO_RESPONSAVEL, DECLARACAO_ACEITE, NECESSIDADES };

@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Nunito+Sans:wght@300;400;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/styles.css?v=1.36.0">
+  <link rel="stylesheet" href="/assets/css/styles.css?v=1.37.0">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
     {"@type":"ListItem","position":1,"name":"Início","item":"https://formsfitness.com/"},
@@ -313,21 +313,18 @@
           </fieldset>
 
           <!-- ========================= SAÚDE (1.35.0) ========================= -->
-          <!-- Só para menor de idade, como o responsável. Duas listas com busca
-               (assets/js/lista-busca.js); as opções vêm do servidor, junto com
-               as turmas. "Nenhuma"/"Nenhum" é resposta — o campo é obrigatório
-               para que o "não tem" seja dito, e não presumido. -->
+          <!-- Só para menor de idade, como o responsável. A lista com busca
+               (assets/js/lista-busca.js) vem do servidor, junto com as turmas.
+               "Nenhuma" é resposta — o campo é obrigatório para que o "não
+               tem" seja dito, e não presumido. (1.37.0) O campo de transtornos
+               saiu: a pergunta do acompanhamento, logo abaixo, é a que decide. -->
           <fieldset class="mat-bloco" id="mat-saude" hidden>
             <legend><span class="mat-bloco__n">5</span> Saúde do aluno</legend>
-            <p class="mat-bloco__nota">Para a segurança da criança na piscina. Pode marcar mais de uma opção; se não houver, escolha <b>Nenhuma</b> / <b>Nenhum</b>. Estas informações ficam só com a academia.</p>
+            <p class="mat-bloco__nota">Para a segurança da criança na piscina. Pode marcar mais de uma opção; se não houver, escolha <b>Nenhuma</b>. Estas informações ficam só com a academia.</p>
 
             <div class="field">
               <label for="m-saude-busca">Alguma questão de saúde? <span class="req">*</span></label>
               <div id="m-saude"></div>
-            </div>
-            <div class="field">
-              <label for="m-transtornos-busca">Algum transtorno? <span class="req">*</span></label>
-              <div id="m-transtornos"></div>
             </div>
             <!-- ============ NECESSIDADES DO ALUNO (1.36.0) ============
                  Texto da academia, palavra por palavra (gestao/saude.js tem a
@@ -379,7 +376,7 @@
           </fieldset>
 
           <!-- ============================ CONTATO =========================== -->
-          <fieldset class="mat-bloco">
+          <fieldset class="mat-bloco" id="mat-contato">
             <legend><span class="mat-bloco__n">6</span> Contato</legend>
 
             <div class="field-row">
@@ -530,7 +527,7 @@
     </div>
   </footer>
 
-  <script src="/assets/js/lista-busca.js?v=1.36.0"></script>
-  <script type="module" src="/assets/js/main.js?v=1.36.0"></script>
+  <script src="/assets/js/lista-busca.js?v=1.37.0"></script>
+  <script type="module" src="/assets/js/main.js?v=1.37.0"></script>
 </body>
 </html>

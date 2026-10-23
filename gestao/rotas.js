@@ -376,8 +376,9 @@ function criar(ctx) {
       if (n && !NECESSIDADES.includes(n)) erros.push("Resposta inválida sobre as necessidades do aluno.");
       else a.necessidade = n;
     }
-    /* (1.35.0) saúde e transtornos: só opções da lista (ver gestao/saude.js) */
-    for (const campo of ["saude", "transtornos"]) if (campo in b) {
+    /* (1.35.0) saúde: só opções da lista (ver gestao/saude.js). (1.37.0) O
+       campo de transtornos saiu — o que vier com esse nome é ignorado. */
+    for (const campo of ["saude"]) if (campo in b) {
       const r = normalizarListaSaude(campo, b[campo]);
       if (r.erro) erros.push(r.erro); else a[campo] = r.valor;
     }
@@ -429,13 +430,12 @@ function criar(ctx) {
           ["resp_fone", "telefone do responsável"], ["resp_estado_civil", "estado civil do responsável"],
           ["resp_profissao", "profissão do responsável"], ["resp_nacionalidade", "nacionalidade do responsável"]])
           if (!a[c]) faltam.push(rot);
-        /* (1.35.0) Da criança, a saúde e os transtornos — "Nenhuma"/"Nenhum"
-           é resposta; em branco, não. */
+        /* (1.35.0) Da criança, a saúde — "Nenhuma" é resposta; em branco,
+           não. (1.37.0) Transtornos não são mais perguntados. */
         /* "Faltou" só quando NÃO veio — o que veio errado já tem o motivo
            próprio em `erros`, e dizer "faltou preencher" a quem preencheu
            esconderia o problema real. */
         if (!a.saude && !String(b.saude ?? "").trim()) faltam.push("questões de saúde (ou \"Nenhuma\")");
-        if (!a.transtornos && !String(b.transtornos ?? "").trim()) faltam.push("transtornos (ou \"Nenhum\")");
         /* (1.36.0) e a resposta sobre acompanhamento individualizado */
         if (!a.necessidade && !String(b.necessidade ?? "").trim()) faltam.push("a resposta sobre as necessidades do aluno (Sim ou Não)");
         if (a.resp_cpf && !U.cpfValido(a.resp_cpf)) erros.push("O CPF do responsável não confere. Verifique os números.");

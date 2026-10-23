@@ -799,6 +799,9 @@ body.has-cookie-bar .wa-fab { bottom: calc(1.4rem + var(--cookie-bar-h, 120px));
   background: var(--bg-soft); color: var(--ink-soft); font-size: .93rem; line-height: 1.55;
 }
 .mat-trava[hidden], #mat-pagamento-conteudo[hidden] { display: none; }
+/* (1.37.0) resposta "Sim": os itens 6 a 8 apagados e travados — o formulário não segue */
+.mat-bloco--parado { opacity: .42; filter: grayscale(.4); transition: opacity .25s ease; }
+.mat-bloco--parado * { cursor: not-allowed; }
 
 .mat-docs { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: .6rem; }
 .mat-docs li { background: var(--bg-soft); border-radius: 10px; padding: .7rem .9rem; font-size: .93rem; }

@@ -461,8 +461,10 @@ function fichaHTML({ aluno, matriculas = [], condicoes, agora, temFoto }) {
     ${c("Profissão", aluno.profissao, "s3")}
     ${c("Nacionalidade", aluno.nacionalidade, "s3")}
     ${c("Observação", aluno.observacao, "s12", " alto")}
-    ${/* (1.35.0) saúde e transtornos: sempre na ficha de criança; na de adulto, só se houver */
-      menor || aluno.saude || aluno.transtornos ? c("Questões de saúde", aluno.saude, "s6") + c("Transtornos", aluno.transtornos, "s6") : ""}
+    ${/* (1.35.0) saúde: sempre na ficha de criança; na de adulto, só se houver.
+         (1.37.0) Transtornos só aparecem em ficha que já os tinha gravado. */
+      (menor || aluno.saude ? c("Questões de saúde", aluno.saude, aluno.transtornos ? "s6" : "s12") : "")
+      + (aluno.transtornos ? c("Transtornos", aluno.transtornos, "s6") : "")}
     ${/* (1.36.0) a pergunta do acompanhamento individualizado */
       menor || aluno.necessidade ? c("Precisa de acompanhamento individualizado, supervisão adicional ou suporte especializado?",
         aluno.necessidade === "sim" ? "Sim" : aluno.necessidade === "nao" ? "Não" : "", "s12") : ""}

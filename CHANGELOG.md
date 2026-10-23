@@ -5,6 +5,21 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.37.0 — 2026-10-23 · Sem o campo de transtornos; "Sim" para o formulário; declaração com o responsável
+
+- **Saiu o campo "Algum transtorno?"** (site e painel): a pergunta sobre acompanhamento
+  individualizado já cobre o que importa. A lista de saúde continua. Fichas que já tinham
+  transtornos gravados continuam mostrando o que foi gravado.
+- **"Sim" ⇒ o formulário não segue nem envia:** além do botão travado, os itens **6, 7 e 8**
+  (contato, foto/pagamento e autorizações) ficam **apagados e travados**. O servidor também
+  recusa.
+- **"Não" ⇒ todos os campos + a declaração obrigatórios** (como antes, agora com provas para
+  cada caso).
+- **Nome e CPF da declaração acompanham o responsável do item 4** o tempo todo — preencher ou
+  corrigir o item 4 depois de escolher "Não" atualiza a declaração. Se o responsável estiver
+  em branco, os campos ficam em branco para preencher ali. Mexeu na declaração à mão, vale o
+  que foi digitado.
+
 ## 1.36.1 — 2026-10-23 · CI: a suíte principal contava a declaração como autorização
 
 - A entrega parou no passo **"Suíte completa"**: a prova "as quatro autorizações estão lá"

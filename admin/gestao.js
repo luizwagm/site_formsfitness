@@ -487,10 +487,9 @@
       </div>
 
       <p class="gf-sec">Saúde</p>
-      <p class="gf-nota" id="fa-nota-saude" hidden>Aluno <b>menor de idade</b>: informe as questões de saúde e os transtornos — ou “Nenhuma” / “Nenhum” — e se precisa de acompanhamento individualizado.</p>
+      <p class="gf-nota" id="fa-nota-saude" hidden>Aluno <b>menor de idade</b>: informe as questões de saúde — ou “Nenhuma” — e se precisa de acompanhamento individualizado.</p>
       <div class="gf">
-        <div class="c6"><label for="fa-saude-busca">Questões de saúde</label><div id="fa-saude"></div></div>
-        <div class="c6"><label for="fa-transtornos-busca">Transtornos</label><div id="fa-transtornos"></div></div>
+        <div class="c12"><label for="fa-saude-busca">Questões de saúde</label><div id="fa-saude"></div></div>
         <div class="c12"><label for="fa-necessidade">Precisa de acompanhamento individualizado, supervisão adicional ou suporte especializado nas aulas?</label>
           <select id="fa-necessidade" name="necessidade">
             <option value=""${a.necessidade ? "" : " selected"}>—</option>
@@ -527,7 +526,7 @@
     mascarar(F);
     /* (1.35.0) as duas listas com busca; as opções vêm do servidor (resumo) */
     const LS = {};
-    if (window.ListaBusca && R.listas_saude) for (const nome of ["saude", "transtornos"]) {
+    if (window.ListaBusca && R.listas_saude) for (const nome of ["saude"]) {   // (1.37.0) transtornos saiu
       const def = R.listas_saude[nome];
       LS[nome] = window.ListaBusca.montar($("#fa-" + nome, F), { nome, idBusca: `fa-${nome}-busca`,
         opcoes: def.opcoes, nenhuma: def.nenhuma, outra: def.outra, prefixo: def.prefixo, valor: a[nome] || "",
@@ -625,7 +624,7 @@
       $("#fa-nota-saude", F).hidden = !menor;
       /* saúde e transtornos: obrigatórios no cadastro NOVO de menor (a edição
          de ficha antiga continua livre, como o resto) */
-      for (const n of ["saude", "transtornos"]) {
+      for (const n of ["saude"]) {
         $(`label[for="fa-${n}-busca"]`, F).classList.toggle("obrig", !id && menor);
         if (LS[n]) LS[n].obrigatoria(!id && menor);
       }

@@ -78,8 +78,9 @@ const FICHA_ADULTO = { ...FICHA_BASE, nascimento: "1980-01-01", cpf: "390.533.44
   rg: "1234567", rg_emissor: "SDS/PE", estado_civil: "Solteiro(a)", profissao: "Professora" };
 const FICHA_RESP = { resp_nome: "Zz Qa Responsável", resp_cpf: "529.982.247-25", resp_rg: "9172964", resp_rg_emissor: "SDS/PE",
   resp_fone: "(81) 99999-0001", resp_estado_civil: "Casado(a)", resp_profissao: "Comerciante", resp_nacionalidade: "Brasileira",
-  /* (1.35.0) da criança: saúde e transtornos são obrigatórios — "Nenhuma" é resposta */
-  saude: "Nenhuma", transtornos: "Nenhum",
+  /* (1.35.0) da criança: a saúde é obrigatória — "Nenhuma" é resposta.
+     (1.37.0) transtornos não são mais perguntados */
+  saude: "Nenhuma",
   /* (1.36.0) e a resposta sobre acompanhamento individualizado */
   necessidade: "nao" };
 const PUB_MENOR = (extra = {}) => ({
@@ -1292,52 +1293,54 @@ const servidorSB = require("node:http").createServer((req, res) => {
     /* ======================================================================
        SAÚDE E TRANSTORNOS DA CRIANÇA (1.35.0)
        ====================================================================== */
-    console.log("\n— saúde e transtornos da criança (1.35.0)");
+    console.log("\n— saúde da criança (1.35.0) e o fim do campo de transtornos (1.37.0)");
     {
       let n = 0;
       const ipNovo = () => `10.35.0.${++n}`;
       const listas = (await pedir("GET", "/api/publico/turmas")).j.listas_saude || {};
       certo("o site recebe as duas listas junto com as turmas", (listas.saude?.opcoes || []).includes("Asma")
-        && (listas.transtornos?.opcoes || []).includes("TEA (Transtorno do Espectro Autista)")
-        && listas.saude.nenhuma === "Nenhuma" && listas.transtornos.nenhuma === "Nenhum", JSON.stringify(listas).slice(0, 160));
+        && listas.saude.nenhuma === "Nenhuma", JSON.stringify(listas).slice(0, 160));
+      certo("…e a lista de transtornos não é mais entregue (o campo saiu na 1.37.0)", !("transtornos" in listas), Object.keys(listas).join(", "));
       const resumo = (await pedir("GET", "/api/gestao/resumo", { cookie: A })).j;
       certo("o painel recebe as MESMAS listas", JSON.stringify(resumo.listas_saude) === JSON.stringify(listas));
       const envia = (extra) => pedir("POST", "/api/publico/matricula", { ip: ipNovo(), corpo: PUB_MENOR({ turma_id: t1.j.id, ...extra }) });
       const casos = [
         [{ saude: "" }, /questões de saúde/, "criança SEM questões de saúde é recusada"],
-        [{ transtornos: "" }, /transtornos/, "criança SEM transtornos é recusada"],
         [{ saude: "Câncer de unha" }, /não é da lista/, "opção que não é da lista é recusada"],
         [{ saude: "Nenhuma; Asma" }, /não combina/, "\"Nenhuma\" junto com outra opção é recusada"],
-        [{ transtornos: "Outro: " }, /Descreva/, "\"Outro\" sem descrição é recusado, pedindo a descrição"],
+        [{ saude: "Outra: " }, /Descreva/, "\"Outra\" sem descrição é recusada, pedindo a descrição"],
       ];
       for (const [extra, re, nome] of casos) {
         const r = await envia(extra);
         certo("site: " + nome, r.status === 400 && re.test(r.j.error || ""), `${r.status} ${r.j.error}`);
       }
-      const boa = await envia({ nome: "Zz Qa Criança Com Asma", saude: "Asma; Outra: Alergia a picada de abelha", transtornos: "Nenhum" });
+      const boa = await envia({ nome: "Zz Qa Criança Com Asma", saude: "Asma; Outra: Alergia a picada de abelha", transtornos: "TEA (Transtorno do Espectro Autista)" });
       certo("site: criança com várias questões de saúde e uma \"Outra\" descrita entra", boa.status === 200, `${boa.status} ${boa.j.error || ""}`);
       const pre = (await pedir("GET", "/api/gestao/alunos?status=pendente", { cookie: A })).j.alunos.find((x) => x.nome === "Zz Qa Criança Com Asma");
       const ficha = pre && (await pedir("GET", `/api/gestao/alunos/${pre.id}`, { cookie: A })).j.aluno;
       certo("…e a ficha guarda exatamente o que foi marcado", ficha && ficha.saude === "Asma; Outra: Alergia a picada de abelha"
-        && ficha.transtornos === "Nenhum", JSON.stringify(ficha && { s: ficha.saude, t: ficha.transtornos }));
+        && !ficha.transtornos, JSON.stringify(ficha && { s: ficha.saude, t: ficha.transtornos }));
+      certo("…e o que vier como \"transtornos\" é ignorado (o campo saiu)", ficha && !ficha.transtornos);
+      const semTrans = await envia({ nome: "Zz Qa Sem Campo Transtornos" });
+      certo("site: criança SEM transtornos entra (o campo não é mais pedido)", semTrans.status === 200, `${semTrans.status} ${semTrans.j.error || ""}`);
       certo("…com o consentimento dizendo que inclui as informações de saúde", ficha && /informações de saúde/.test(ficha.consentimento || ""));
       const impressa = pre && (await pedir("GET", `/admin/imprimir/ficha/${pre.id}`, { cookie: A })).texto;
       certo("a FICHA IMPRESSA mostra as duas respostas", impressa && impressa.includes("Questões de saúde") && impressa.includes("Alergia a picada de abelha")
-        && impressa.includes("Transtornos") && impressa.includes("Nenhum"));
+        && !impressa.includes(">Transtornos<"));
 
       /* (1.36.0) A NECESSIDADE DE SUPORTE DECIDE — e não o diagnóstico.
          Criança com TEA que NÃO precisa de acompanhamento individualizado se
          matricula; quem responde "Sim" recebe a orientação da academia. */
       const antesT = (await pedir("GET", "/api/gestao/alunos?status=pendente", { cookie: A })).j.alunos.length;
-      const comTea = await envia({ nome: "Zz Qa Criança Com Tea", transtornos: "TEA (Transtorno do Espectro Autista)", necessidade: "nao" });
-      certo("site: criança com TEA que NÃO precisa de acompanhamento é matriculada (o diagnóstico não trava)", comTea.status === 200, `${comTea.status} ${comTea.j.error || ""}`);
+      const comTea = await envia({ nome: "Zz Qa Criança Com Tea", necessidade: "nao" });
+      certo("site: criança com \"Não\" e a declaração é matriculada", comTea.status === 200, `${comTea.status} ${comTea.j.error || ""}`);
       const antesSim = (await pedir("GET", "/api/gestao/alunos?status=pendente", { cookie: A })).j.alunos.length;
       const sim = await envia({ nome: "Zz Qa Criança Sim", necessidade: "sim" });
       certo("site: resposta \"Sim\" → a matrícula NÃO segue pelo site", sim.status === 400, `${sim.status}`);
       certo("…e a resposta é a mensagem da academia (a padrão, palavra por palavra)", /^Olá! Agradecemos pelas informações fornecidas/.test(sim.j.error || "")
         && /• Clínica São Gabriel\n• Clínica Fisiotrauma\n• Aquafisio\n• Acqua Angels/.test(sim.j.error || "")
         && /Equipe Forms Fitness Academia Aquática$/.test(sim.j.error || ""), (sim.j.error || "").slice(0, 120));
-      const semDiag = await envia({ nome: "Zz Qa Criança Sem Diagnóstico Sim", transtornos: "Nenhum", saude: "Nenhuma", necessidade: "sim" });
+      const semDiag = await envia({ nome: "Zz Qa Criança Sem Diagnóstico Sim", saude: "Nenhuma", necessidade: "sim" });
       certo("site: SEM diagnóstico nenhum, mas precisando de suporte (\"Sim\"), também não segue", semDiag.status === 400 && /Olá! Agradecemos/.test(semDiag.j.error || ""), semDiag.j.error);
       certo("…e nenhuma tentativa com \"Sim\" virou pré-matrícula", (await pedir("GET", "/api/gestao/alunos?status=pendente", { cookie: A })).j.alunos.length === antesSim);
       const semResp = await envia({ necessidade: "" });
@@ -1389,12 +1392,12 @@ const servidorSB = require("node:http").createServer((req, res) => {
         ...FICHA_ADULTO, nome: "Zz Qa Adulto Sem Saude", turma_id: t1.j.id, aceite_termos: true, aceite_dados: true, foto: JPEG(), comprovante: PDF() } });
       certo("site: ADULTO não precisa responder (o bloco é só de criança)", adulto.status === 200, `${adulto.status} ${adulto.j.error || ""}`);
       const painelSem = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_BASE, ...FICHA_RESP, nome: "Zz Qa Painel Criança",
-        nascimento: "2018-02-02", saude: "", transtornos: "" } });
+        nascimento: "2018-02-02", saude: "" } });
       certo("painel: criança NOVA sem saúde é recusada", painelSem.status === 400 && /questões de saúde/.test(painelSem.j.error || ""), painelSem.j.error);
       const painelCom = await pedir("POST", "/api/gestao/alunos", { cookie: A, corpo: { ...FICHA_BASE, ...FICHA_RESP, nome: "Zz Qa Painel Criança",
-        nascimento: "2018-02-02", saude: "Bronquite", transtornos: "Nenhum" } });
+        nascimento: "2018-02-02", saude: "Bronquite" } });
       certo("painel: criança nova com as respostas entra", painelCom.status === 200, `${painelCom.status} ${painelCom.j.error || ""}`);
-      const edita = await pedir("PUT", `/api/gestao/alunos/${painelCom.j.id}`, { cookie: A, corpo: { saude: "", transtornos: "" } });
+      const edita = await pedir("PUT", `/api/gestao/alunos/${painelCom.j.id}`, { cookie: A, corpo: { saude: "" } });
       certo("painel: EDITAR a ficha continua livre", edita.status === 200, `${edita.status} ${edita.j.error || ""}`);
       const editaRuim = await pedir("PUT", `/api/gestao/alunos/${painelCom.j.id}`, { cookie: A, corpo: { saude: "Coisa inventada" } });
       certo("…mas nem na edição entra opção fora da lista", editaRuim.status === 400, `${editaRuim.status} ${editaRuim.j.error || ""}`);
