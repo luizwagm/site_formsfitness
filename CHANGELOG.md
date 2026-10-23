@@ -5,6 +5,13 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.36.1 — 2026-10-23 · CI: a suíte principal contava a declaração como autorização
+
+- A entrega parou no passo **"Suíte completa"**: a prova "as quatro autorizações estão lá"
+  contava todas as caixas de marcar da página de matrícula, e a **declaração do
+  responsável** (1.36.0) usa o mesmo estilo — achava 5. O formulário estava certo;
+  a prova agora conta só as do bloco 8 e confere a declaração à parte.
+
 ## 1.36.0 — 2026-10-22 · Necessidades do aluno: a pergunta que decide, e a declaração do responsável
 
 Texto e regras da academia (22/10/2026), na matrícula de **menor de idade**:

@@ -511,7 +511,12 @@ function pngEmPe() {
       /id="mat-responsavel"/.test(mat.corpo) && /id="mat-docs"/.test(mat.corpo));
     /* Três de compromisso + a do tratamento de dados (LGPD, art. 14), que é
        separada de propósito desde a 1.20.0. */
-    certo("as quatro autorizações estão lá", (mat.corpo.match(/class="mat-check"/g) || []).length === 4);
+    /* Contadas DENTRO do bloco 8: desde a 1.36.0 a declaração do responsável
+       (item 5) também é uma caixa com o mesmo estilo, e contar a página
+       inteira dava 5. */
+    const termos = (/<fieldset class="mat-bloco mat-bloco--termos">([\s\S]*?)<\/fieldset>/.exec(mat.corpo) || [])[1] || "";
+    certo("as quatro autorizações estão lá", (termos.match(/class="mat-check"/g) || []).length === 4);
+    certo("…e a declaração do responsável (item 5) é uma caixa à parte", /id="m-decl-ok"/.test(mat.corpo) && !/id="m-decl-ok"/.test(termos));
     certo("uma delas é o consentimento dos dados", /name="aceite_dados"/.test(mat.corpo));
     certo("avisa o horário limite de 17h", /até 17h/.test(mat.corpo));
     certo("pede a foto do aluno e o comprovante", /Foto do aluno/.test(mat.corpo) && /Comprovante de pagamento/.test(mat.corpo));
