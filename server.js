@@ -44,7 +44,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.38.0";
+const APP_VERSION = "1.38.1";
 /* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
    deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
    num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento
@@ -813,13 +813,18 @@ const carrossel = (midias, titulo) => `<figure class="post__cover carrossel" dat
         </figure>`;
 /* A capa do cartão: a foto, ou o quadro tirado do vídeo, ou — vídeo ainda sem
    quadro — a genérica. */
-const capaDoCartao = (p) => ehVideo(p.image) ? (capaDoVideo(p.image) || CAPA_VIDEO) : urlOtimizada(p.image);
+/* (1.38.1) Sem foto de capa, a capa é a 1ª mídia do carrossel — e, se for
+   vídeo, o quadro tirado dele. Antes, publicação feita só com vídeos ou fotos
+   no carrossel ia ao Feed com a miniatura QUEBRADA (src vazio). */
+const primeiraMidia = (p) => todasAsMidias(p)[0] || null;
+const capaDoCartao = (p) => { const m = primeiraMidia(p); if (!m) return "";
+  return m.tipo === "video" ? (capaDoVideo(m.url) || CAPA_VIDEO) : urlOtimizada(m.url); };
 /* (1.34.0) matéria com várias mídias ganha um selo com a contagem: o carrossel
    fica na página da matéria, e o selo avisa antes do clique. */
 const seloMidias = (p) => { const n = todasAsMidias(p).length;
   return n > 1 ? `<span class="post-card__qtd" aria-label="${n} fotos e vídeos">${n}</span>` : ""; };
 const postCard = (p, nivel = 3) => `<article class="post-card" data-reveal>
-            <a class="post-card__media${ehVideo(p.image) ? " post-card__media--video" : ""}" href="/blog/${esc(p.slug)}/" tabindex="-1" aria-hidden="true">${seloMidias(p)}<img src="${esc(capaDoCartao(p))}" alt="" loading="lazy"${medidasDoImg(capaDoCartao(p)) || ' width="900" height="563"'}></a>
+            ${capaDoCartao(p) ? `<a class="post-card__media${(primeiraMidia(p) || {}).tipo === "video" ? " post-card__media--video" : ""}" href="/blog/${esc(p.slug)}/" tabindex="-1" aria-hidden="true">${seloMidias(p)}<img src="${esc(capaDoCartao(p))}" alt="" loading="lazy"${medidasDoImg(capaDoCartao(p)) || ' width="900" height="563"'}></a>` : ""}
             <div class="post-card__body">
               <time class="post-card__date" datetime="${esc(p.date)}">${dateBR(p.date)}</time>
               <h${nivel} class="post-card__title"><a href="/blog/${esc(p.slug)}/">${esc(p.title)}</a></h${nivel}>
@@ -1067,10 +1072,12 @@ function publish() {
       /* `preload="metadata"`: baixa só o cabeçalho, para saber duração e
          proporção. Com "auto", abrir a matéria puxaria o vídeo inteiro de quem
          só queria ler o texto. */
+      /* (1.38.1) a mídia única pode estar no carrossel, e não na capa */
       COVER: todasAsMidias(p).length > 1 ? carrossel(todasAsMidias(p), p.title)
-        : ehVideo(p.image)
-        ? `<figure class="post__cover post__cover--video"><video src="${esc(p.image)}" controls preload="metadata" playsinline poster="${esc(capaDoCartao(p))}"></video></figure>`
-        : `<figure class="post__cover"><img src="${esc(urlOtimizada(p.image))}" alt="${esc(p.title)}" fetchpriority="high"${medidasDoImg(p.image) || ' width="1200" height="675"'}></figure>`,
+        : ((m) => !m ? ""
+        : m.tipo === "video"
+        ? `<figure class="post__cover post__cover--video"><video src="${esc(m.url)}" controls preload="metadata" playsinline poster="${esc(capaDoCartao(p))}"></video></figure>`
+        : `<figure class="post__cover"><img src="${esc(urlOtimizada(m.url))}" alt="${esc(p.title)}" fetchpriority="high"${medidasDoImg(m.url) || ' width="1200" height="675"'}></figure>`)(primeiraMidia(p)),
       /* Sem medida real (capa remota), a reserva é 16/9 — é a proporção das
          capas do Unsplash usadas até aqui. Reserva aproximada segura mais o
          layout que reserva nenhuma. */

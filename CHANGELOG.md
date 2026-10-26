@@ -5,6 +5,17 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.38.1 — 2026-10-26 · Feed: miniatura sem foto de capa; nada some da tela ao criar outra
+
+- **Publicação sem foto de capa** (só vídeos ou só fotos no carrossel) ia ao Feed com a
+  miniatura **quebrada**. Agora a capa é a **1ª mídia do carrossel** — e, se for vídeo, o
+  quadro tirado dele, com o selo "▶ vídeo". Matéria com **uma** mídia só no carrossel mostra
+  essa mídia na página (antes, imagem vazia). Vale para o compartilhamento (og:image) também.
+- No painel, **criar outra matéria ou salvar outra** relia o banco e redesenhava a lista, e o
+  que estava **digitado e ainda não salvo** nas outras matérias sumia da tela. Agora a tela é
+  lida antes e reposta depois.
+- Prova: `testar-carrossel.js` (33), que falha com o código anterior.
+
 ## 1.38.0 — 2026-10-23 · O termo do responsável na ficha do painel
 
 - Abrindo a ficha de um aluno **menor de idade** no painel (Alunos ▸ Editar / Revisar), aparece

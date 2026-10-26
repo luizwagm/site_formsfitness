@@ -1271,15 +1271,29 @@ function renderTable(t) {
       </div>
     </div>${COM_DOBRA.has(t) ? "</details>" : ""}`).join("");
 }
+/* (1.38.1) O QUE ESTÁ DIGITADO NA TELA SOBREVIVE AO REDESENHO. Criar uma
+   publicação (e, aqui, salvar outra) relê o banco e redesenha a lista
+   inteira — e o que estava digitado e ainda não salvo nas OUTRAS sumia da
+   tela, como se tivesse sido apagado. Lê-se a tela antes e repõe-se depois. */
+function lerTela(t) {
+  const m = {};
+  for (const el of document.querySelectorAll(`#${t}-list [data-t="${t}"][data-id][data-f]`)) (m[el.dataset.id] ||= {})[el.dataset.f] = el.value;
+  return m;
+}
+function reporTela(t, m, exceto) {
+  for (const r of DATA[t] || []) if (m[r.id] && String(r.id) !== String(exceto)) Object.assign(r, m[r.id]);
+}
 async function saveRow(t, id) {
   const body = {};
   document.querySelectorAll(`[data-t="${t}"][data-id="${id}"]`).forEach((el) => body[el.dataset.f] = el.value);
   await api(`/api/${t}/${id}`, "PUT", body);
+  const tela = lerTela(t);
   /* Relê e redesenha SEMPRE, não só em "posts". Sem isto, as outras listas
      (fotos da Estrutura, modalidades, depoimentos) continuavam mostrando o
      valor antigo depois de salvar — o dado ia para o banco, mas a tela
      insistia no anterior, e a impressão era de que a troca não pegou. */
   DATA = await api("/api/content");
+  reporTela(t, tela, id);   // as outras linhas guardam o que está digitado
   renderTable(t);
   toast("Salvo! Lembre de publicar.");
 }
@@ -1292,8 +1306,10 @@ async function addRow(t) {
     testimonials: { text: "", name: "", role: "", initials: "" },
     posts: { title: "Nova matéria", excerpt: "", content: "", image: "", date: new Date().toISOString().slice(0, 10) } }[t];
   const antes = new Set((DATA[t] || []).map((r) => String(r.id)));
+  const tela = lerTela(t);
   await api("/api/" + t, "POST", blank);
   DATA = await api("/api/content");
+  reporTela(t, tela);
   if (COM_DOBRA.has(t)) {
     const nova = DATA[t].find((r) => !antes.has(String(r.id)));
     if (nova) DOBRAS_ABERTAS[t].add(String(nova.id));
