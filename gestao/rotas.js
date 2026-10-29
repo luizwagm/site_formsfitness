@@ -85,6 +85,14 @@ function criar(ctx) {
      ========================================================================== */
   const OUVINTES = new Set();          // { req, res, uid, batida }
   const OUVINTES_MAX = 60, OUVINTES_POR_USUARIO = 6;
+  /* (1.39.0) A batida virou um EVENTO ("batida"), e não mais um comentário
+     (": batida"). Comentário o navegador engole sem avisar a página — e era
+     justamente a página que precisava saber que a linha está viva. Depois de
+     o computador dormir ou a rede trocar, a conexão pode ficar MORTA SEM
+     FECHAR: nada chega, nenhum erro aparece, e o painel deixa de receber
+     matrícula em silêncio. Com a batida visível, a página percebe o silêncio
+     e reconecta sozinha (ver admin/gestao.js). FF_SSE_BATIDA_MS só para a prova. */
+  const BATIDA_MS = Math.max(1000, Number(process.env.FF_SSE_BATIDA_MS) || 25_000);
   function encerrarOuvinte(o) {
     if (!OUVINTES.delete(o)) return;
     clearInterval(o.batida);
@@ -746,7 +754,7 @@ function criar(ctx) {
            descobre o que chegou enquanto esteve fora. */
         res.write(`retry: 5000\nevent: pronto\ndata: ${JSON.stringify({
           pendentes: um("SELECT COUNT(*) AS n FROM g_alunos WHERE status='pendente'").n })}\n\n`);
-        o.batida = setInterval(() => escrever(o, ": batida\n\n"), 25_000);
+        o.batida = setInterval(() => escrever(o, "event: batida\ndata: {}\n\n"), BATIDA_MS);
         req.on("close", () => encerrarOuvinte(o));
         return true;
       }

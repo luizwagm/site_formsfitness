@@ -67,24 +67,58 @@
   let fonte = null, naoVistas = 0;
   const tituloBase = document.title;
 
-  function ouvirAvisos() {
+  /* (1.39.0) O VIGIA DO SILÊNCIO. O servidor manda uma "batida" a cada 25 s.
+     Sem nada por 70 s (quase três batidas perdidas), a conexão está morta sem
+     ter fechado — o que acontece depois de o computador dormir ou de a rede
+     trocar: o navegador não acusa erro, e o painel deixaria de receber
+     matrícula para o resto do dia. Aí a página fecha, abre de novo e atualiza
+     a lista, para recuperar o que tiver chegado no intervalo.
+     FF_SSE_SILENCIO_MS só existe para a prova encurtar a espera. */
+  const SILENCIO_MS = Number(window.FF_SSE_SILENCIO_MS) || 70_000;
+  let ultimoSinal = 0;
+  const AVISOS_NO_MAXIMO = 30;           // a caixa de avisos não cresce sem fim num dia de campanha
+
+  function ouvirAvisos(recuperar = false) {
     if (fonte || !("EventSource" in window)) return;
-    fonte = new EventSource("/api/gestao/eventos");
+    const esta = fonte = new EventSource("/api/gestao/eventos");
+    ultimoSinal = Date.now();
     let primeira = true;
+    const sinal = () => { if (fonte === esta) ultimoSinal = Date.now(); };
     /* "pronto" chega a cada conexão. Na primeira não há o que fazer; numa
        RECONEXÃO (rede caiu, servidor reiniciou na entrega) pode ter chegado
        matrícula no intervalo — sem aviso. Atualizar é o que a recupera. */
-    fonte.addEventListener("pronto", () => { if (!primeira) atualizarAposAviso(); primeira = false; });
-    fonte.addEventListener("matricula", (ev) => {
+    esta.addEventListener("pronto", () => { sinal(); if (!primeira || recuperar) atualizarAposAviso(); primeira = false; });
+    esta.addEventListener("batida", sinal);
+    esta.addEventListener("matricula", (ev) => {
+      sinal();
       let d; try { d = JSON.parse(ev.data); } catch { return; }
       novaMatricula(d);
     });
-    /* Fechada de vez = o servidor recusou (sessão vencida). Não insiste em
-       laço: tenta de novo em um minuto, e se a pessoa entrou de novo, volta. */
-    fonte.addEventListener("error", () => {
-      if (fonte && fonte.readyState === EventSource.CLOSED) { fonte = null; setTimeout(ouvirAvisos, 60_000); }
+    /* Fechada de vez = o servidor recusou. Pergunta POR QUÊ antes de insistir:
+       se foi a sessão, o /api/me devolve 401 e o painel abre o "entre de novo"
+       (ver api() em admin/index.html) — quem religa é a volta da sessão. Se foi
+       outra coisa (servidor reiniciando na entrega), tenta de novo em 5 s; sem
+       rede, em um minuto. Nunca em laço apertado. */
+    esta.addEventListener("error", () => {
+      if (fonte !== esta || esta.readyState !== EventSource.CLOSED) return;
+      fonte = null;
+      api("/api/me").then(() => setTimeout(() => ouvirAvisos(true), 5_000),
+        () => setTimeout(() => { if (!$("#dlg-sessao")?.open) ouvirAvisos(true); }, 60_000));
     });
   }
+  function reconectar() {
+    if (fonte) { fonte.close(); fonte = null; }
+    ouvirAvisos(true);
+  }
+  setInterval(() => {
+    if (fonte && Date.now() - ultimoSinal > SILENCIO_MS) reconectar();
+  }, Math.min(15_000, SILENCIO_MS / 2));
+  /* Voltar à aba, ou a rede voltar: confere na hora, sem esperar o vigia. */
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && fonte && Date.now() - ultimoSinal > SILENCIO_MS) reconectar();
+  });
+  window.addEventListener("online", () => { if (window.EU) reconectar(); });
+  document.addEventListener("sessao-de-volta", () => reconectar());
 
   async function atualizarAposAviso() {
     await resumo().catch(() => {});
@@ -143,6 +177,7 @@
       <button type="button" class="g-aviso__x" data-aviso-fechar aria-label="Fechar o aviso">×</button>
       <div class="g-aviso__acoes"><button type="button" class="btn btn-mint btn-sm" data-aviso-revisar="${Number(d.id)}">Revisar agora</button></div>`;
     caixa.prepend(card);
+    $$(".g-aviso:not(.g-aviso--mais)", caixa).slice(AVISOS_NO_MAXIMO).forEach((c) => c.remove());
     arrumarAvisos();
   }
   function arrumarAvisos() {

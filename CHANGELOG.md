@@ -5,6 +5,59 @@ Regra: **2ª casa = funcionalidade, 3ª = correção.** A primeira não muda.
 
 ---
 
+## 1.39.0 — 2026-10-29 · O painel aberto o dia inteiro: a sessão não cai mais em silêncio
+
+Pedido: a academia deixa a tela de **Alunos** aberta o dia todo para ver as matrículas em tempo
+real, e "depois de muito tempo aberta a tela trava e não deixa mexer em nada".
+
+**A tela não travava: a sessão acabava e a tela continuava desenhada**, recusando cada clique sem
+dizer nada. Reproduzido no Chrome: reiniciar o servidor com a tela aberta, clicar em
+"+ Novo aluno" → três 401, nenhuma ficha, **nenhum aviso**. Eram três caminhos:
+
+- **Toda entrega deslogava todo mundo.** As sessões moravam num `Map` na memória, e push na
+  `main` reinicia o serviço. Agora moram no banco (tabela `sessoes`, criada pelo serviço ao
+  subir, junto da gestão). O banco guarda o **hash** do cookie, nunca o cookie.
+- **O cookie vencia 12 h depois do LOGIN, mesmo com uso o dia inteiro.** O servidor renovava a
+  sessão, mas o navegador jogava o cookie fora. Agora o cookie é renovado a cada uso. O aviso
+  em tempo real continua sem renovar nada. **Sair** apaga a sessão e o cookie.
+- **Nada avisava quando as 12 h sem uso passavam.** Esse prazo é de propósito, para um painel
+  esquecido não ficar dentro do sistema para sempre. Agora o painel **percebe sozinho, sem
+  clique**: a conexão do tempo real é recusada, ele confere a sessão e abre **"Sua sessão
+  terminou"**.
+  - **Por cima de tudo, inclusive de uma ficha aberta.** É um `<dialog>` modal, porque a ficha
+    também é modal e deixaria uma tela de login comum por baixo, sem clique.
+  - **Avisos:** o título da aba ganha "(sessão encerrada)", e o computador mostra uma
+    notificação se a pessoa deixou.
+  - **Esc não fecha.**
+  - **Depois de entrar de novo:** a ficha continua com o que foi digitado, o tempo real volta e
+    a lista se atualiza.
+- **Presença renova.** Mexer o mouse, rolar ou digitar com a aba à vista manda um sinal a cada
+  10 min, no máximo. Painel sem ninguém na frente continua vencendo nas 12 h.
+
+E o que não travava, mas **calava**:
+
+- **A conexão do tempo real pode morrer sem fechar**, depois de o computador dormir ou de a rede
+  trocar. Nada chega e nenhum erro aparece. A batida do servidor (25 s) virou **evento**: antes
+  era comentário, que a página não enxerga. Agora um **vigia** reconecta depois de 70 s de
+  silêncio e atualiza a lista para recuperar o que chegou no intervalo. Também confere ao
+  voltar à aba e quando a rede volta.
+- **Leitura com prazo:** pedido de leitura pendurado desiste em 30 s, com aviso. Envio de foto
+  e de vídeo fica sem prazo.
+- **Nenhum clique morre calado:** erro sem tratamento vira aviso na tela.
+- **Teto de avisos:** a caixa de "Nova matrícula" guarda no máximo 30, para não crescer sem fim
+  num dia de campanha.
+
+Provas:
+
+- **`testar-painel-aberto.js` (29, nova):** sobe o próprio servidor e o reinicia no meio; apaga
+  a sessão com uma ficha aberta e entra de novo digitando; e testa o vigia com e sem batida.
+- **4 sabotagens, 4 pegas:**
+  - sessões apagadas a cada subida;
+  - cookie sem renovar;
+  - batida como comentário;
+  - o painel da 1.38.1, que derruba 12 itens.
+- **As outras suítes:** `testar-gestao.js` (343) e `testar-limitador.js` (31).
+
 ## 1.38.1 — 2026-10-26 · Feed: miniatura sem foto de capa; nada some da tela ao criar outra
 
 - **Publicação sem foto de capa** (só vídeos ou só fotos no carrossel) ia ao Feed com a

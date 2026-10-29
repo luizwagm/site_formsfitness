@@ -506,6 +506,22 @@
 <dialog class="g-dlg" id="dlg-contratos"></dialog>
 <dialog class="g-dlg" id="dlg-boletos"></dialog>
 <dialog class="g-dlg g-dlg--pequeno" id="dlg-pequeno"></dialog>
+<!-- (1.39.0) A SESSÃO TERMINOU, e a tela continua. É um <dialog> aberto com
+     showModal, e não o #login de tela cheia, porque uma ficha de aluno aberta
+     também é modal: ela fica na camada de cima do navegador, e qualquer coisa
+     fora dela é inerte — o #login apareceria POR BAIXO da ficha, sem poder ser
+     clicado. O modal mais novo é sempre o de cima. -->
+<dialog class="g-dlg g-dlg--pequeno" id="dlg-sessao" aria-labelledby="sessao-tit">
+  <div class="g-dlg-cab"><h2 id="sessao-tit">Sua sessão terminou</h2></div>
+  <div class="g-dlg-corpo">
+    <p class="hint mb">Para continuar recebendo as matrículas em tempo real, entre de novo.
+      <b>O que está na tela continua aqui</b> — inclusive uma ficha aberta e não salva.</p>
+    <input type="text" id="sessao-usr" placeholder="Usuário" autocomplete="username" style="margin-bottom:.5rem">
+    <input type="password" id="sessao-pw" placeholder="Senha" autocomplete="current-password">
+    <p class="hint mt" id="sessao-erro" hidden></p>
+  </div>
+  <div class="g-dlg-rodape"><button type="button" class="btn btn-mint" id="sessao-entrar">Entrar de novo</button></div>
+</dialog>
 
 <div class="toast" id="toast"></div>
 
@@ -513,9 +529,26 @@
 const $ = (s) => document.querySelector(s);
 let DATA = null;
 
+/* LEITURA COM PRAZO (1.39.0). Um pedido que fica pendurado (Wi-Fi que caiu,
+   computador que dormiu no meio) deixava a tela esperando para sempre: o botão
+   clicado não fazia nada, e nada dizia por quê. 30 s e desiste, com aviso.
+   Só nas LEITURAS: o envio de foto e de vídeo pode passar disso numa internet
+   lenta, e cortá-lo no meio seria pior. */
+const PRAZO_LEITURA_MS = 30_000;
 async function api(url, method = "GET", body) {
-  const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  let r;
+  try {
+    r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined,
+      signal: method === "GET" && AbortSignal.timeout ? AbortSignal.timeout(PRAZO_LEITURA_MS) : undefined });
+  } catch (e) {
+    throw new Error(e && e.name === "TimeoutError" ? "O servidor demorou demais para responder. Confira a internet e tente de novo."
+      : "Sem conexão com o servidor. Confira a internet e tente de novo.");
+  }
   const j = await r.json().catch(() => ({}));
+  /* 401 com a sessão vencida, numa página que JÁ ESTAVA dentro do sistema:
+     abre o "entre de novo" por cima de tudo, sem recarregar nem perder a tela.
+     O login errado também é 401, mas não traz `sessao` e não passa aqui. */
+  if (r.status === 401 && j.sessao === "encerrada" && window.EU) sessaoEncerrada();
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
 }
@@ -524,6 +557,68 @@ function toast(msg, err = false, ms = 3000) {
   const t = $("#toast"); t.textContent = msg; t.classList.toggle("err", err); t.classList.add("on");
   clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), ms);
 }
+/* Nenhum clique morre calado (1.39.0). Várias ações chamam uma função
+   assíncrona sem `.catch` — quando o servidor recusava, o erro sumia no
+   console e para quem estava na frente da tela "o botão não funciona". */
+window.addEventListener("unhandledrejection", (ev) => {
+  const m = ev.reason && ev.reason.message;
+  if (m) toast(m, true, 5000);
+});
+
+/* ==========================================================================
+   A SESSÃO QUE TERMINA COM A TELA ABERTA (1.39.0)
+
+   A academia deixa a tela de Alunos aberta o dia inteiro, esperando matrícula.
+   Quando a sessão terminava (12 h sem uso — de propósito: o aviso em tempo
+   real não a renova, senão um painel esquecido ficaria dentro do sistema para
+   sempre), a tela continuava desenhada, recusando cada clique. Agora o painel
+   PERCEBE: abre o "Sua sessão terminou" por cima, avisa no título da aba (e no
+   computador, se a pessoa deixou), e depois de entrar de novo segue do mesmo
+   lugar — o aviso em tempo real volta e a lista se atualiza.
+   ========================================================================== */
+const TITULO_PAINEL = document.title;
+function sessaoEncerrada() {
+  const d = $("#dlg-sessao");
+  if (!d || d.open) return;
+  $("#sessao-usr").value = (window.EU && EU.login) || "";
+  $("#sessao-pw").value = ""; $("#sessao-erro").hidden = true;
+  d.showModal(); $("#sessao-pw").focus();
+  document.title = "(sessão encerrada) " + TITULO_PAINEL;
+  if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+    try { new Notification("O painel saiu do sistema", { body: "Entre de novo para continuar recebendo as matrículas.", tag: "sessao" }); } catch {}
+  }
+}
+async function entrarDeNovo() {
+  const erro = $("#sessao-erro");
+  try {
+    await api("/api/login", "POST", { usuario: $("#sessao-usr").value, password: $("#sessao-pw").value });
+    $("#dlg-sessao").close();
+    document.title = TITULO_PAINEL;
+    /* Quem escuta é a gestão: religa o aviso e atualiza a lista. A tela NÃO é
+       redesenhada — uma ficha aberta com o que já foi digitado continua lá. */
+    document.dispatchEvent(new CustomEvent("sessao-de-volta"));
+    toast("Pronto, você entrou de novo.");
+  } catch (e) { erro.textContent = e.message; erro.hidden = false; }
+}
+$("#sessao-entrar")?.addEventListener("click", entrarDeNovo);
+$("#sessao-pw")?.addEventListener("keydown", (e) => e.key === "Enter" && entrarDeNovo());
+/* Esc não fecha: fechar sem entrar deixaria a tela de volta no estado que
+   parece travado. */
+$("#dlg-sessao")?.addEventListener("cancel", (e) => e.preventDefault());
+
+/* PRESENÇA RENOVA (1.39.0). Quem está na frente da tela — mexendo o mouse,
+   rolando, digitando — está usando o painel, mesmo sem clicar em nada que fale
+   com o servidor. Um sinal a cada 10 min no máximo, e só com a aba à vista:
+   um painel esquecido, sem ninguém, continua vencendo nas 12 h. */
+let ultimaPresenca = Date.now();
+function presenca() {
+  if (!window.EU || document.hidden || $("#dlg-sessao")?.open) return;
+  if (Date.now() - ultimaPresenca < 10 * 60_000) return;
+  ultimaPresenca = Date.now();
+  api("/api/me").catch(() => {});
+}
+for (const ev of ["pointermove", "pointerdown", "keydown", "wheel", "touchstart"])
+  document.addEventListener(ev, presenca, { passive: true, capture: true });
 const escA = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
 /* ==========================================================================
@@ -1708,6 +1803,6 @@ async function changePw() {
 boot();
 </script>
 <script src="/assets/js/lista-busca.js?v=1.35.0"></script>
-<script src="/admin/gestao.js?v=1.38.0"></script>
+<script src="/admin/gestao.js?v=1.39.0"></script>
 </body>
 </html>

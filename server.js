@@ -44,7 +44,7 @@ const ROOT = __dirname;
 /* Versão do SITE/painel. Segunda casa = novidade, terceira = correção; a
    primeira não muda. Aparece no rodapé do painel, então o que se lê na tela é
    sempre o que está REALMENTE rodando no servidor. */
-const APP_VERSION = "1.38.1";
+const APP_VERSION = "1.39.0";
 /* Porta e pasta de dados vêm do ambiente, com os padrões de sempre. É o que
    deixa as provas da gestão subirem uma cópia do servidor numa porta própria e
    num banco TEMPORÁRIO — a suíte antiga roda contra o banco de desenvolvimento
@@ -406,32 +406,66 @@ if (!getS("cnpj")) setS("cnpj", "00.000.000/0001-00");
 const SESSAO_HORAS = 12;
 /* Desde a 1.20 a sessão guarda QUEM entrou, e não só que alguém entrou: o
    histórico de contratos registra quem gerou cada um, e isso só é verdade se
-   cada pessoa tiver a sua conta. token → { uid, visto }. */
-const sessions = new Map();
+   cada pessoa tiver a sua conta.
+
+   (1.39.0) AS SESSÕES MORAM NO BANCO, e não mais num Map na memória. A
+   academia deixa a tela de Alunos aberta o dia inteiro, esperando matrícula;
+   com o Map, TODA entrega (push na main reinicia o serviço) apagava todas as
+   sessões, e o painel aberto ficava desenhado, mas recusando cada clique — o
+   "travou e não deixa mexer em nada". Agora reiniciar não desloga ninguém.
+
+   Guarda o HASH do cookie, nunca o cookie: quem lesse uma cópia do banco (um
+   backup, por exemplo) não ganharia sessão nenhuma com isso.
+
+   A tabela nasce em `prepararSessoes()`, chamada junto da instalação da
+   gestão — depois dos comandos de linha, que não escrevem no banco (1.24.1). */
+const hashSid = (t) => crypto.createHash("sha256").update(String(t)).digest("hex");
+let sessoesProntas = false;
+function prepararSessoes() {
+  db.exec(`CREATE TABLE IF NOT EXISTS sessoes (
+    hash TEXT PRIMARY KEY, uid INTEGER NOT NULL, visto INTEGER NOT NULL)`);
+  sessoesProntas = true;
+}
+/* `visto` é gravado no máximo uma vez por minuto: o painel faz vários pedidos
+   por clique, e um UPDATE em cada um seria escrita no disco à toa. Um minuto
+   de folga num prazo de doze horas não muda nada. */
+const GRAVAR_VISTO_MS = 60_000;
+const sessaoDe = (t) => db.prepare("SELECT uid, visto FROM sessoes WHERE hash=?").get(hashSid(t));
+const criarSessao = (t, uid) =>
+  db.prepare("INSERT OR REPLACE INTO sessoes (hash, uid, visto) VALUES (?,?,?)").run(hashSid(t), uid, Date.now());
+const apagarSessao = (t) => db.prepare("DELETE FROM sessoes WHERE hash=?").run(hashSid(t));
+const tokenDe = (req) => (/(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie || "") || [])[1] || null;
 /* Devolve o USUÁRIO da sessão (ou null). Quem só precisa de sim/não continua
    usando como antes — objeto é verdadeiro, null é falso. */
 const authed = (req, { renovar = true } = {}) => {
-  const m = /(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie || "");
-  if (!m) return null;
-  const s = sessions.get(m[1]);
+  const t = tokenDe(req);
+  if (!t || !sessoesProntas) return null;
+  const s = sessaoDe(t);
   if (!s) return null;
-  if (Date.now() - s.visto > SESSAO_HORAS * 3600_000) { sessions.delete(m[1]); return null; }
+  if (Date.now() - s.visto > SESSAO_HORAS * 3600_000) { apagarSessao(t); return null; }
   /* O usuário é relido do banco a cada pedido: desativar alguém na tela de
      Usuários tira o acesso na hora, e não quando a sessão dele vencer. */
   const u = db.prepare("SELECT id, nome, login, admin, ativo FROM usuarios WHERE id=?").get(s.uid);
-  if (!u || !u.ativo) { sessions.delete(m[1]); return null; }
+  if (!u || !u.ativo) { apagarSessao(t); return null; }
   /* (1.31.0) `renovar:false` é a conferência do AVISO EM TEMPO REAL: ele
      confere a sessão a cada aviso e a cada batida, mas não pode renová-la —
      senão um painel esquecido aberto manteria a sessão viva para sempre. */
-  if (renovar) s.visto = Date.now();
+  if (renovar && Date.now() - s.visto > GRAVAR_VISTO_MS)
+    db.prepare("UPDATE sessoes SET visto=? WHERE hash=?").run(Date.now(), hashSid(t));
   return u;
 };
 const derrubarSessoes = (uid, exceto) => {
-  for (const [k, s] of sessions) if (s.uid === uid && k !== exceto) sessions.delete(k);
+  db.prepare("DELETE FROM sessoes WHERE uid=? AND hash<>?").run(uid, exceto ? hashSid(exceto) : "");
 };
+/* O cookie acompanha a sessão (1.39.0). Até a 1.38 ele saía UMA vez, no login,
+   com Max-Age de 12 h: o servidor renovava a sessão a cada uso, mas o
+   NAVEGADOR jogava o cookie fora 12 h depois de entrar — quem entrava às 7h
+   e usava o dia todo era deslogado às 19h, no meio do trabalho. */
+const cookieSessao = (t, req) =>
+  `sid=${t}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSAO_HORAS * 3600}`
+  + (req.headers["x-forwarded-proto"] === "https" ? "; Secure" : "");
 setInterval(() => {
-  const limite = Date.now() - SESSAO_HORAS * 3600_000;
-  for (const [k, s] of sessions) if (s.visto < limite) sessions.delete(k);
+  if (sessoesProntas) db.prepare("DELETE FROM sessoes WHERE visto < ?").run(Date.now() - SESSAO_HORAS * 3600_000);
 }, 30 * 60_000).unref();
 
 /* ==========================================================================
@@ -1326,6 +1360,7 @@ const ARQUIVOS_PUBLICOS = new Set(["/index.html", "/robots.txt", "/sitemap.xml",
    eram refeitas. Quem instala é o SERVIÇO, ao subir.
    ========================================================================== */
 require("./gestao/esquema").instalar({ db, getS, setS, hashSenha });
+prepararSessoes();
 
 const gestao = require("./gestao/rotas").criar({
   db, getS, setS, hashSenha, confereSenha, htmlLimpo, readBody, json, ipDoCliente,
@@ -1407,16 +1442,18 @@ http.createServer(async (req, res) => {
         if (!conta.senha.startsWith("scrypt$"))
           db.prepare("UPDATE usuarios SET senha=? WHERE id=?").run(hashSenha(password), conta.id);
         const t = crypto.randomBytes(24).toString("hex");
-        sessions.set(t, { uid: conta.id, visto: Date.now() });
-        const https = req.headers["x-forwarded-proto"] === "https";
+        criarSessao(t, conta.id);
         /* Max-Age: sessão sem prazo é sessão eterna — um cookie roubado valeria
            para sempre. Secure sob HTTPS impede que ele trafegue em claro. */
-        res.setHeader("Set-Cookie",
-          `sid=${t}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSAO_HORAS * 3600}${https ? "; Secure" : ""}`);
+        res.setHeader("Set-Cookie", cookieSessao(t, req));
         return json(res, 200, { ok: true });
       }
       const usuario = authed(req);
-      if (!usuario) return json(res, 401, { error: "Não autenticado" });
+      if (!usuario) return json(res, 401, { error: "Não autenticado", sessao: "encerrada" });
+      /* O prazo do cookie anda junto com o da sessão (ver cookieSessao). O aviso
+         em tempo real fica de fora: ele não renova a sessão, então não pode
+         esticar o cookie. */
+      if (p !== "/api/gestao/eventos") res.setHeader("Set-Cookie", cookieSessao(tokenDe(req), req));
       /* Toda requisição que MUDA algo entra na auditoria, com o status que
          teve — o gancho fica aqui, antes de qualquer rota, para que rota nova
          não precise lembrar de se registrar. */
@@ -1443,7 +1480,8 @@ http.createServer(async (req, res) => {
           titulo: getS("manutencao_titulo") || "", texto: getS("manutencao_texto") || "" });
       }
       if (p === "/api/logout" && req.method === "POST") {
-        const m = /sid=([a-f0-9]+)/.exec(req.headers.cookie || ""); if (m) sessions.delete(m[1]);
+        const tk = tokenDe(req); if (tk) apagarSessao(tk);
+        res.setHeader("Set-Cookie", "sid=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0");
         return json(res, 200, { ok: true });
       }
       if (p === "/api/password" && req.method === "POST") {
@@ -1467,8 +1505,7 @@ http.createServer(async (req, res) => {
         db.prepare("UPDATE usuarios SET senha=? WHERE id=?").run(hashSenha(next), usuario.id);
         /* Trocar a senha derruba as OUTRAS sessões desta pessoa: se alguém
            tinha um cookie roubado, é agora que ele para de valer. */
-        const meu = (/sid=([a-f0-9]+)/.exec(req.headers.cookie || "") || [])[1];
-        derrubarSessoes(usuario.id, meu);
+        derrubarSessoes(usuario.id, tokenDe(req));
         return json(res, 200, { ok: true });
       }
       if (p === "/api/content") {
